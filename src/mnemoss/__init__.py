@@ -16,12 +16,14 @@ from mnemoss.core.types import (
     Relation,
 )
 from mnemoss.encoder import Embedder, FakeEmbedder, LocalEmbedder, OpenAIEmbedder
-from mnemoss.recall import RecallResult
+from mnemoss.index import RebalanceStats
+from mnemoss.recall import CascadeStats, RecallResult
 
 __version__ = "0.1.0"
 
 __all__ = [
     "AgentHandle",
+    "CascadeStats",
     "Embedder",
     "EncoderParams",
     "Event",
@@ -35,6 +37,7 @@ __all__ = [
     "MnemossConfig",
     "OpenAIEmbedder",
     "RawMessage",
+    "RebalanceStats",
     "RecallResult",
     "Relation",
     "StorageParams",

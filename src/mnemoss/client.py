@@ -26,6 +26,8 @@ from mnemoss.core.config import (
 from mnemoss.core.types import RawMessage
 from mnemoss.encoder import Embedder, make_embedder
 from mnemoss.encoder.event_encoder import encode_message, should_encode
+from mnemoss.index import RebalanceStats
+from mnemoss.index import rebalance as _rebalance
 from mnemoss.recall import RecallEngine, RecallResult
 from mnemoss.relations import write_cooccurrence_edges
 from mnemoss.store.paths import workspace_db_path
@@ -160,6 +162,27 @@ class Mnemoss:
             await self._store.close()
             self._store = None
             self._engine = None
+
+    async def rebalance(self) -> RebalanceStats:
+        """Recompute ``idx_priority`` and tier for every memory.
+
+        Stage 2 surfaces this as a direct call; Stage 4 will call the same
+        function from the Dreaming P7 phase. Runs entirely on metadata —
+        content, embeddings, and relations are untouched.
+        """
+
+        await self._ensure_open()
+        assert self._store is not None
+        return await _rebalance(self._store, self._config.formula)
+
+    async def tier_counts(self) -> dict[str, int]:
+        """Convenience view for observability — mirrors ``store.tier_counts``
+        but returns string keys so callers don't need to import IndexTier."""
+
+        await self._ensure_open()
+        assert self._store is not None
+        counts = await self._store.tier_counts()
+        return {tier.value: count for tier, count in counts.items()}
 
     # ─── stubs for deferred stages ────────────────────────────────────
 

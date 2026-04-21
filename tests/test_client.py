@@ -151,3 +151,25 @@ async def test_explain_recall_returns_breakdown(tmp_path: Path) -> None:
         assert 0.0 <= br.w_f <= 1.0
     finally:
         await mem.close()
+
+
+async def test_tier_counts_and_rebalance(tmp_path: Path) -> None:
+    mem = _mnemoss(tmp_path)
+    try:
+        for i in range(3):
+            await mem.observe(role="user", content=f"content {i}")
+
+        counts = await mem.tier_counts()
+        assert counts["hot"] == 3
+        assert counts["warm"] == 0
+        assert counts["cold"] == 0
+        assert counts["deep"] == 0
+
+        stats = await mem.rebalance()
+        assert stats.scanned == 3
+        # Fresh memories stay HOT after rebalance.
+        assert stats.migrated == 0
+        assert stats.tier_after[next(iter(stats.tier_after))] >= 0  # valid dict
+        assert sum(stats.tier_after.values()) == 3
+    finally:
+        await mem.close()

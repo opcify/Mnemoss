@@ -339,6 +339,26 @@ class SQLiteBackend:
     async def is_pinned(self, memory_id: str, agent_id: str | None) -> bool:
         return await asyncio.to_thread(self._is_pinned_sync, memory_id, agent_id)
 
+    async def pinned_any(self, memory_ids: Iterable[str]) -> set[str]:
+        """Return the subset of ``memory_ids`` pinned by *any* agent.
+
+        Used by P7 Rebalance: ``idx_priority`` is a memory-wide property,
+        so a per-agent pin counts for the memory's tier decision.
+        """
+
+        return await asyncio.to_thread(self._pinned_any_sync, list(memory_ids))
+
+    def _pinned_any_sync(self, memory_ids: list[str]) -> set[str]:
+        if not memory_ids:
+            return set()
+        conn = self._require_conn()
+        placeholders = ",".join("?" for _ in memory_ids)
+        rows = conn.execute(
+            f"SELECT DISTINCT memory_id FROM pin WHERE memory_id IN ({placeholders})",
+            tuple(memory_ids),
+        ).fetchall()
+        return {r[0] for r in rows}
+
     def _is_pinned_sync(self, memory_id: str, agent_id: str | None) -> bool:
         conn = self._require_conn()
         if agent_id is None:
