@@ -124,3 +124,7 @@ models/
 
 # Benchmark outputs
 benchmarks/results/
+
+# Node / TypeScript (SDK + TS adapters)
+node_modules/
+*.tsbuildinfo
