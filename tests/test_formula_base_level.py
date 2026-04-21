@@ -35,7 +35,7 @@ def test_grace_decays_to_half_at_ln2_tau() -> None:
     later = created + timedelta(seconds=half_life)
     b = compute_base_level([created], later, created, PARAMS)
     # history term at ~2495s: ln(2495^-0.5) ≈ -3.91
-    history_expected = math.log((half_life ** (-PARAMS.d)))
+    history_expected = math.log(half_life ** (-PARAMS.d))
     grace_expected = PARAMS.eta_0 * 0.5
     assert math.isclose(b, history_expected + grace_expected, rel_tol=1e-6)
 

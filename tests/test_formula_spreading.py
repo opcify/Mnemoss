@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from mnemoss.core.config import FormulaParams
 from mnemoss.formula.spreading import compute_spreading
 

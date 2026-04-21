@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from mnemoss.core.config import FormulaParams
-from mnemoss.core.types import IndexTier, Memory, MemoryType, RawMessage
+from mnemoss.core.types import Memory, RawMessage
 from mnemoss.encoder import FakeEmbedder
 from mnemoss.encoder.event_encoder import encode_message
 from mnemoss.recall import RecallEngine
