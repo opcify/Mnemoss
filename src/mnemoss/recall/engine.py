@@ -23,6 +23,7 @@ from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
 from mnemoss.encoder import Embedder
 from mnemoss.formula.activation import ActivationBreakdown, compute_activation
+from mnemoss.formula.query_bias import has_deep_cue
 from mnemoss.store.sqlite_backend import SQLiteBackend
 from mnemoss.working import WorkingMemory
 
@@ -119,7 +120,9 @@ class RecallEngine:
         bm25_by_id: dict[str, float] = {}
         scored: dict[str, RecallResult] = {}
 
-        tier_plan = _tier_plan(self._params, include_deep=include_deep)
+        # Auto-include DEEP when the query has a temporal-distance marker.
+        effective_include_deep = include_deep or has_deep_cue(query)
+        tier_plan = _tier_plan(self._params, include_deep=effective_include_deep)
         tiers_scanned: list[IndexTier] = []
         stopped_at: IndexTier | None = None
 
@@ -174,6 +177,15 @@ class RecallEngine:
             result.memory.access_history.append(now)
             result.memory.rehearsal_count += 1
             result.memory.last_accessed_at = now
+            # Reminiscence (§1.9 footnote): a DEEP memory that is reactivated
+            # jumps to WARM and bumps reminisced_count. The next rebalance
+            # will recompute idx_priority exactly, but we set it to
+            # mid-WARM here so the state stays consistent in the interim.
+            if result.memory.index_tier is IndexTier.DEEP:
+                await self._store.reminisce_to_warm(result.memory.id)
+                result.memory.reminisced_count += 1
+                result.memory.index_tier = IndexTier.WARM
+                result.memory.idx_priority = 0.5
         self._working.extend(agent_id, (r.memory.id for r in top))
 
         stats = CascadeStats(

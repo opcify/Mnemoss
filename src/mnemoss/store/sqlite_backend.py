@@ -296,6 +296,28 @@ class SQLiteBackend:
                 (idx_priority, tier.value, memory_id),
             )
 
+    async def reminisce_to_warm(self, memory_id: str) -> None:
+        """Reactivate a DEEP memory: bump reminisced_count + set tier=WARM.
+
+        Called when a DEEP memory is surfaced in cascade recall (see
+        ``§1.9 Reconsolidation Feedback`` — "If reactivated from DEEP,
+        ``reminisced_count += 1``, jump to WARM"). The next rebalance
+        recomputes ``idx_priority`` precisely; we set it to mid-WARM
+        here so state stays consistent in the interim.
+        """
+
+        async with self._write_lock:
+            await asyncio.to_thread(self._reminisce_sync, memory_id)
+
+    def _reminisce_sync(self, memory_id: str) -> None:
+        conn = self._require_conn()
+        with conn:
+            conn.execute(
+                "UPDATE memory SET reminisced_count = reminisced_count + 1, "
+                "index_tier = ?, idx_priority = ? WHERE id = ?",
+                (IndexTier.WARM.value, 0.5, memory_id),
+            )
+
     async def tier_counts(self) -> dict[IndexTier, int]:
         """Return ``{tier: count}`` across every tier, including empty ones."""
 

@@ -133,6 +133,54 @@ async def test_deep_included_with_opt_in(tmp_path: Path) -> None:
     await store.close()
 
 
+async def test_deep_auto_included_on_temporal_cue(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    deep = await _observe_at_tier(
+        store, embedder, "original plan about Alice", IndexTier.DEEP
+    )
+
+    # No include_deep=True, but the query contains "long ago" → auto-include.
+    results, stats = await engine.recall_with_stats(
+        "what did we plan about Alice long ago", agent_id=None, k=3
+    )
+    assert deep.id in {r.memory.id for r in results}
+    assert IndexTier.DEEP in stats.tiers_scanned
+    await store.close()
+
+
+async def test_reminiscence_promotes_deep_hit_to_warm(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    deep = await _observe_at_tier(
+        store, embedder, "forgotten Alice note", IndexTier.DEEP
+    )
+
+    results, _ = await engine.recall_with_stats(
+        "Alice", agent_id=None, k=3, include_deep=True
+    )
+    assert deep.id in {r.memory.id for r in results}
+
+    # After recall, the memory should have jumped to WARM and bumped
+    # reminisced_count. Verify against fresh store state (not the in-memory
+    # result object).
+    got = await store.get_memory(deep.id)
+    assert got is not None
+    assert got.index_tier is IndexTier.WARM
+    assert got.reminisced_count == 1
+    await store.close()
+
+
+async def test_non_deep_hits_do_not_reminisce(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    m = await _observe_at_tier(store, embedder, "active note", IndexTier.HOT)
+
+    await engine.recall_with_stats("active note", agent_id=None, k=3)
+    got = await store.get_memory(m.id)
+    assert got is not None
+    assert got.reminisced_count == 0
+    assert got.index_tier is IndexTier.HOT
+    await store.close()
+
+
 async def test_stats_are_well_formed(tmp_path: Path) -> None:
     store, engine, embedder = await _setup(tmp_path)
     await _observe_at_tier(store, embedder, "Alice HOT", IndexTier.HOT)
