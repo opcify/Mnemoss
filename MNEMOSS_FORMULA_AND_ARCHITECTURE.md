@@ -31,18 +31,46 @@ $$
 
 ### 1.2 Component 1: Base-Level Activation
 
-Historical usage strength. Power-law sum over all past accesses.
+Historical usage strength (power-law sum over past accesses) plus an 
+**encoding-grace bonus** that lifts fresh memories and decays on its own 
+time scale.
 
 $$
-B_i = \ln\left(\sum_{k=1}^{n}(t - t_k)^{-d}\right), \quad d \approx 0.5
+B_i = \underbrace{\ln\left(\sum_{k=1}^{n}(t - t_k)^{-d}\right)}_{\text{history}} + \underbrace{\eta(t)}_{\text{encoding grace}}, \quad d \approx 0.5
+$$
+
+$$
+\eta(t) = \eta_0 \cdot \exp\left(-\frac{t - t_{\text{creation}}}{\tau_\eta}\right)
 $$
 
 Where:
 - $t_k$: timestamp of each past access (including creation)
 - $n$: total access count
 - $d$: decay exponent (default 0.5 per Anderson & Schooler 1991)
+- $\eta_0$: initial encoding-grace bonus (default $1.0$)
+- $\tau_\eta$: grace e-folding time (default $3600$ s, i.e. 1 hour)
 
-One equation simultaneously encodes three phenomena:
+**Why the grace term.** Without it, a just-encoded memory has 
+$\ln(\sum \ldots) = \ln(1) = 0$ (with the 1-second floor on $t - t_k$), 
+giving $\text{idx\_priority} = \sigma(0) \approx 0.5$ — WARM, not HOT. 
+That mismatches human memory, where freshly encoded items are maximally 
+accessible before the encoding-specific trace fades. $\eta(t)$ lifts a 
+brand-new memory to $B_i \approx 1.0$ (so $\text{idx\_priority} \approx 
+\sigma(1.0) \approx 0.73$, HOT), then decays smoothly:
+
+| Age | $\eta(t)$ | $B_i$ (unused memory) | idx_priority |
+|---|---|---|---|
+| 0 s (just encoded) | $1.00$ | $\approx 1.00$ | $\approx 0.73$ (HOT) |
+| 1 hour ($\tau_\eta$) | $0.37$ | $\approx 0.37$ | $\approx 0.59$ (WARM) |
+| 3 hours | $0.05$ | $\approx 0.05$ | $\approx 0.51$ (WARM) |
+| 5 hours ($5\tau_\eta$) | $\approx 0$ | $\approx 0$ | $\approx 0.50$ (WARM) |
+
+Memories that get accessed during the grace window carry the boost 
+forward through their growing history term; memories that are never used 
+slide gently to WARM rather than starting there by fiat. No hard 
+discontinuities, no ad-hoc "new = 1.0" rule.
+
+The history sum simultaneously encodes three phenomena:
 
 | Phenomenon | How it emerges |
 |---|---|
@@ -55,8 +83,11 @@ One equation simultaneously encodes three phenomena:
 - On every retrieval: `access_history.append(now())` — but only for the 
   top-k memories actually returned to the caller (see §1.9)
 - Floor $t - t_k$ at $1$ second to avoid the singularity at $t_k = t$. 
-  A memory queried in the same second it was created gets $B_i = \ln(1) 
-  = 0$, not $\ln(\infty)$.
+  A memory queried in the same second it was created gets history 
+  $\ln(1) = 0$; the grace term $\eta(t_{\text{creation}}) = \eta_0 = 1.0$ 
+  provides the freshness lift.
+- $\eta(t)$ can be evaluated in $O(1)$ from `created_at`; no storage 
+  overhead.
 - Drives both index tier placement and disposal decisions
 
 ---
@@ -80,10 +111,17 @@ to any single relation. A memory for "my dog Max" (fan=5) primes related
 memories strongly; a memory for "thing" (fan=5000) barely primes anything.
 
 **Engineering notes:**
-- Relation graph is maintained by Dreaming phase P5
-- `fan` values are recomputed by Dreaming phase P7
-- Stage 1 implementation: spreading = 0 (placeholder)
-- Stage 2+: full spreading activation via graph traversal
+- Relation graph is maintained by Dreaming phase P5 (rich relations, 
+  Stage 4+); Stage 1 ships basic co-occurrence-only relations written 
+  at encode time
+- `fan` values are refreshed by Dreaming phase P7 (Stage 2+); Stage 1 
+  recomputes `fan` on the fly at retrieval time
+- The active set $\mathcal{C}$ is held in a per-agent Working Memory 
+  FIFO buffer (default capacity 10), populated by `observe()` and by 
+  returned `recall()` results
+- Stage 1 ships full spreading activation — not a placeholder. The 
+  formula's four components interact and partial implementations give 
+  misleading behavior
 
 ---
 
@@ -326,6 +364,8 @@ Only metadata updates. Content and extracted fields never change.
 | $\delta$ (disposal margin) | 1.0 | Conservative |
 | $\epsilon_{\max}$ (noise cap for disposal) | 0.75 | 99.5th pct of Logistic(0, 0.25) |
 | $t_{\text{floor}}$ (age floor in $B_i$) | 1.0 s | Avoids singularity at $t_k = t$ |
+| $\eta_0$ (encoding-grace bonus) | 1.0 | Lifts fresh memories into HOT ($\sigma(1.0) \approx 0.73$) |
+| $\tau_\eta$ (grace e-folding time) | 3600 s | ~1 hour; negligible by $5\tau_\eta$ |
 | CONFIDENCE\_HOT / WARM / COLD | $\tau{+}2$ / $\tau{+}1$ / $\tau$ | Cascade early-stop |
 
 These are starting points. Real deployments should calibrate $d$, $\tau$, 
@@ -418,7 +458,9 @@ and $\text{MP}$ against benchmarks.
 │   │   · embed            │  20-50ms local; ~150ms cloud (see §G) │
 │   │   · create Memory    │  type=episode, abstraction=0.0       │
 │   │   · idx_priority     │  σ(B_i + α·sal + β·emo + γ·pin)      │
-│   │                      │  fresh memory ≈ 0.5; no "1.0 by fiat" │
+│   │                      │  B_i includes η(t) grace bonus →      │
+│   │                      │  fresh ≈ 0.73 (HOT), decays to ~0.5   │
+│   │                      │  over ~3 hrs if unused; see §1.2      │
 │   └──────────────────────┘                                        │
 │            │                                                      │
 │            ▼ async (non-blocking)                                 │

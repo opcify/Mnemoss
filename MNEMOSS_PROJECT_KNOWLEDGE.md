@@ -133,13 +133,14 @@ reconsolidation feedback, and all parameter defaults — lives in
 single source of truth. Do not duplicate equations here — they drift.
 
 In one paragraph: a single scalar activation `A_i` combines base-level 
-history (`B_i`, power-law decay over the memory's access history), 
-spreading activation (context from Working Memory via the relation 
-graph), dynamic hybrid matching (BM25 literal score + semantic cosine, 
-adaptively weighted per-memory by `idx_priority` and per-query by a 
-bias term), and a small Logistic noise. Every system behavior — 
-retrieval ranking, index tier placement, disposal, reminiscence — is 
-derived from this one number.
+history (`B_i` — power-law decay over the memory's access history, plus 
+a short-lived encoding-grace bonus that lifts fresh memories into HOT 
+and fades over ~1 hour), spreading activation (context from Working 
+Memory via the relation graph), dynamic hybrid matching (BM25 literal 
+score + semantic cosine, adaptively weighted per-memory by `idx_priority` 
+and per-query by a bias term), and a small Logistic noise. Every system 
+behavior — retrieval ranking, index tier placement, disposal, 
+reminiscence — is derived from this one number.
 
 ---
 
@@ -449,30 +450,61 @@ that point — no value in hand-writing a tree that diverges from the code.*
 
 ### Stage 1 — MVP Foundation (3 weeks)
 
-**Goal:** End-to-end observe → recall works. API is clean. Published to PyPI.
+**Goal:** End-to-end observe → recall works with the **full activation 
+formula** engaged. API is clean. Published to PyPI.
+
+**Scoping principle — the formula is not progressive.** The four terms of 
+the activation equation ($B_i$, spreading, matching, noise) interact: 
+a memory's rank at retrieval is a sum across all of them, and partial 
+implementations (spreading=0 placeholder, etc.) produce misleading 
+behavior that doesn't validate the cognitive design. Stage 1 therefore 
+ships the formula as **one integrated unit**. The *architecture* around 
+the formula (dreaming, multi-tier indices, lazy extraction) remains 
+progressive.
 
 **Scope:**
-- Core types (Memory, RawMessage, Event) — all carry `agent_id: str | None`
+- Core types (Memory, RawMessage, Event, Relation) — all carry 
+  `agent_id: str | None`
 - SQLite backend + Raw Log + Memory Store
-- Local embedding (sentence-transformers)
+- Local embedding (sentence-transformers, multilingual)
 - Simplified encoder (each message = one event, no complex segmentation)
-- Formula: B_i + Dynamic Hybrid Matching + Noise (no spreading yet)
+- **Full activation formula**:
+  - $B_i$ with encoding-grace $\eta(t)$
+  - Spreading activation $\sum W_j \cdot S_{ji}$ with fan effect
+  - Dynamic hybrid matching with normalized softmax-style weights
+  - Logistic noise
+- **Supporting state for the formula:**
+  - Working Memory: per-agent FIFO active set $\mathcal{C}$ (default 
+    capacity 10), populated by `observe()` and by returned `recall()` 
+    results. Drives spreading.
+  - Relation graph: basic co-occurrence edges (`co_occurs_in_session`) 
+    written at encode time. `fan_j` recomputed on the fly. Richer 
+    relation types (supersedes, part_of, etc.) come from Dreaming P5 
+    in Stage 4+.
 - Single-tier index (HOT only, sqlite-vec + FTS5; HNSW deferred to Stage 2)
+- `idx_priority` recomputed on the fly from latest $B_i$ (persistence 
+  + tier migration = Stage 2)
 - Core API: `observe`, `recall`, `pin`, plus `mem.for_agent(id)` handle 
   for per-agent scoping. Workspace-level calls write ambient memories 
   (`agent_id=None`).
+- Multilingual from day one: trigram FTS5 tokenizer, multilingual 
+  embedder, no English-specific heuristics in query bias or scoring
 - Basic tests, minimal README, PyPI package
 
 **Out of scope:**
 - Dreaming (entire cold path)
-- Multi-tier indices
-- Spreading activation
+- Multi-tier indices (HOT/WARM/COLD/DEEP)
+- `idx_priority` persistence + P7 tier migration
+- Rich relation types (supersedes, part_of, etc.)
 - Lazy extraction
 - Proper event segmentation
 - Tombstones
 - memory.md generation
 
-**Success criterion:** This code runs:
+**Success criterion:** This code runs and returns the first message as 
+the top hit. The test exercises the multilingual stress path (non-ASCII 
+FTS5, multilingual embedder); English and other languages pass a 
+fortiori. CI includes at least one additional non-Latin-script language.
 
 ```python
 import asyncio
@@ -489,13 +521,18 @@ async def main():
 asyncio.run(main())
 ```
 
-### Stage 2 — Full Formula (2 weeks)
+### Stage 2 — Multi-Tier Architecture (2 weeks)
 
-- Multi-tier indices (HOT/WARM/COLD/DEEP)
-- idx_priority auto-computation + migration
-- Spreading activation (requires relation graph from basic co-occurrence)
-- Cascade retrieval with early stopping
-- Query bias analysis
+The formula already works from Stage 1; Stage 2 builds the index 
+architecture around it.
+
+- Multi-tier indices (HOT/WARM/COLD/DEEP) — per-tier index structures
+- `idx_priority` persistence + P7 (Rebalance) migration between tiers
+- Cascade retrieval with early stopping and confidence thresholds
+- Richer query bias analysis (multilingual: non-English proper-noun 
+  detection, CJK punctuation patterns)
+- Async embedding path (so cloud embedders don't block the Hot Path 
+  budget)
 
 ### Stage 3 — Encoding Completeness (2 weeks)
 
