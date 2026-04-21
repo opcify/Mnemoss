@@ -17,6 +17,7 @@ import contextlib
 from mnemoss.client import Mnemoss
 from mnemoss.core.config import StorageParams
 from mnemoss.encoder import Embedder
+from mnemoss.scheduler import DreamScheduler
 from mnemoss.server.config import ServerConfig
 
 
@@ -30,6 +31,7 @@ class WorkspacePool:
     def __init__(self, config: ServerConfig) -> None:
         self._config = config
         self._instances: dict[str, Mnemoss] = {}
+        self._schedulers: dict[str, DreamScheduler] = {}
         self._lock = asyncio.Lock()
 
     async def get(self, workspace_id: str) -> Mnemoss:
@@ -50,16 +52,27 @@ class WorkspacePool:
                 return existing
             instance = self._build(workspace_id)
             self._instances[workspace_id] = instance
+            if self._config.scheduler is not None:
+                sched = DreamScheduler(instance, self._config.scheduler)
+                await sched.start()
+                self._schedulers[workspace_id] = sched
             return instance
 
     async def close_all(self) -> None:
         async with self._lock:
             instances = list(self._instances.values())
+            schedulers = list(self._schedulers.values())
             self._instances.clear()
-        # Close outside the lock — close() itself takes the instance's
-        # own lock; holding the pool lock here would serialize shutdown.
-        # A single wedged workspace should not block the others from
-        # closing; surface via logs in a real deployment.
+            self._schedulers.clear()
+        # Stop schedulers first so they don't race with shutting-down
+        # workspaces. Close outside the lock — close() takes the
+        # instance's own lock; holding the pool lock here would
+        # serialize shutdown. A single wedged workspace should not
+        # block the others from closing; surface via logs in a real
+        # deployment.
+        for sched in schedulers:
+            with contextlib.suppress(Exception):
+                await sched.stop()
         for mem in instances:
             with contextlib.suppress(Exception):
                 await mem.close()

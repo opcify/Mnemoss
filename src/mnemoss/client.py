@@ -81,6 +81,9 @@ class Mnemoss:
         self._open_lock = asyncio.Lock()
         self._segment_lock = asyncio.Lock()
         self._rng = rng if rng is not None else random.Random()
+        # Timestamp of the most recent observe(). Read by the
+        # DreamScheduler's idle trigger; stays ``None`` until first use.
+        self._last_observe_at: datetime | None = None
 
     # ─── public API ───────────────────────────────────────────────────
 
@@ -129,6 +132,7 @@ class Mnemoss:
             metadata=metadata or {},
         )
         await self._store.write_raw_message(msg)
+        self._last_observe_at = now
 
         if not should_encode(msg, self._config.encoder):
             return None
@@ -179,6 +183,14 @@ class Mnemoss:
         """Return a thin per-agent handle that binds ``agent_id`` on every call."""
 
         return AgentHandle(self, agent_id)
+
+    @property
+    def last_observe_at(self) -> datetime | None:
+        """Timestamp of the most recent ``observe()`` call, or ``None``
+        if this instance has never observed. Used by the DreamScheduler's
+        idle trigger."""
+
+        return self._last_observe_at
 
     async def flush_session(
         self,

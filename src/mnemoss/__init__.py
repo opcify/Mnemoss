@@ -29,6 +29,7 @@ from mnemoss.llm import (
     OpenAIClient,
 )
 from mnemoss.recall import CascadeStats, RecallResult
+from mnemoss.scheduler import DreamScheduler, SchedulerConfig
 
 __version__ = "0.1.0"
 
@@ -39,6 +40,7 @@ __all__ = [
     "DisposalStats",
     "DreamReport",
     "DreamRunner",
+    "DreamScheduler",
     "Embedder",
     "EncoderParams",
     "Event",
@@ -61,6 +63,7 @@ __all__ = [
     "RebalanceStats",
     "RecallResult",
     "Relation",
+    "SchedulerConfig",
     "SegmentationParams",
     "StorageParams",
     "Tombstone",

@@ -14,6 +14,7 @@ from pathlib import Path
 
 from mnemoss.encoder import Embedder
 from mnemoss.llm.client import LLMClient
+from mnemoss.scheduler import SchedulerConfig
 
 
 @dataclass
@@ -54,6 +55,12 @@ class ServerConfig:
     # should not be able to probe other customers' workspace names.
     allowed_workspaces: set[str] | None = field(default=None)
 
+    # Background dream scheduler. ``None`` means no scheduler — dreams
+    # only run when the caller invokes ``dream()`` explicitly. Setting
+    # a ``SchedulerConfig`` starts one DreamScheduler per opened
+    # workspace in the pool.
+    scheduler: SchedulerConfig | None = field(default=None)
+
     @classmethod
     def from_env(cls) -> ServerConfig:
         """Construct from environment variables.
@@ -64,6 +71,9 @@ class ServerConfig:
         - ``MNEMOSS_EMBEDDING_MODEL`` — default ``"local"``
         - ``MNEMOSS_STORAGE_ROOT`` — default ``~/.mnemoss``
         - ``MNEMOSS_ALLOWED_WORKSPACES`` — comma-separated list
+        - ``MNEMOSS_SCHEDULER`` — ``"1"`` / ``"true"`` to enable
+          per-workspace background dream scheduling (defaults from
+          :class:`SchedulerConfig` otherwise)
         """
 
         api_key = os.environ.get("MNEMOSS_API_KEY") or None
@@ -76,9 +86,17 @@ class ServerConfig:
             if allowed_raw
             else None
         )
+        scheduler_enabled = os.environ.get("MNEMOSS_SCHEDULER", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        scheduler = SchedulerConfig() if scheduler_enabled else None
         return cls(
             api_key=api_key,
             embedding_model=embedding_model,
             storage_root=storage_root,
             allowed_workspaces=allowed,
+            scheduler=scheduler,
         )
