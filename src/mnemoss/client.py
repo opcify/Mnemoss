@@ -21,11 +21,13 @@ from mnemoss.core.config import (
     EncoderParams,
     FormulaParams,
     MnemossConfig,
+    SegmentationParams,
     StorageParams,
 )
 from mnemoss.core.types import RawMessage
 from mnemoss.encoder import Embedder, make_embedder
-from mnemoss.encoder.event_encoder import encode_message, should_encode
+from mnemoss.encoder.event_encoder import encode_event, should_encode
+from mnemoss.encoder.event_segmentation import ClosedEvent, EventSegmenter
 from mnemoss.index import RebalanceStats
 from mnemoss.index import rebalance as _rebalance
 from mnemoss.recall import RecallEngine, RecallResult
@@ -53,6 +55,7 @@ class Mnemoss:
         formula: FormulaParams | None = None,
         encoder: EncoderParams | None = None,
         storage: StorageParams | None = None,
+        segmentation: SegmentationParams | None = None,
         rng: random.Random | None = None,
     ) -> None:
         self._config = MnemossConfig(
@@ -60,12 +63,15 @@ class Mnemoss:
             formula=formula or FormulaParams(),
             encoder=encoder or EncoderParams(),
             storage=storage or StorageParams(),
+            segmentation=segmentation or SegmentationParams(),
         )
         self._embedder = make_embedder(embedding_model)
         self._store: SQLiteBackend | None = None
         self._working = WorkingMemory(capacity=self._config.encoder.working_memory_capacity)
         self._engine: RecallEngine | None = None
+        self._segmenter = EventSegmenter()
         self._open_lock = asyncio.Lock()
+        self._segment_lock = asyncio.Lock()
         self._rng = rng if rng is not None else random.Random()
 
     # ─── public API ───────────────────────────────────────────────────
@@ -83,9 +89,16 @@ class Mnemoss:
     ) -> str | None:
         """Observe a message.
 
-        Always writes to the Raw Log (Principle 3). Only creates a Memory
+        Always writes to the Raw Log (Principle 3). Only stages a Memory
         row if ``role`` is in ``encoder.encoded_roles``. Returns the new
-        memory ID, or ``None`` if the role was filtered out.
+        memory's id (pre-assigned by the segmenter), or ``None`` if the
+        role was filtered out.
+
+        ``turn_id`` controls event batching: messages sharing an explicit
+        ``turn_id`` accumulate into one Memory that flushes when a
+        closing rule fires (turn shift, time gap, size cap). Callers
+        that omit ``turn_id`` get Stage-1/2 semantics — one observe =
+        one Memory, persisted before observe() returns.
         """
 
         await self._ensure_open()
@@ -93,6 +106,7 @@ class Mnemoss:
 
         now = datetime.now(UTC)
         effective_session = session_id or "default"
+        auto_close = turn_id is None
         effective_turn = turn_id or str(ulid.new())
         msg = RawMessage(
             id=str(ulid.new()),
@@ -111,14 +125,15 @@ class Mnemoss:
         if not should_encode(msg, self._config.encoder):
             return None
 
-        memory = encode_message(msg, now=now, formula=self._config.formula)
-        embedding = (await asyncio.to_thread(self._embedder.embed, [content]))[0]
-        await self._store.write_memory(memory, embedding)
-        await write_cooccurrence_edges(
-            self._store, memory.id, effective_session, self._config.encoder
-        )
-        self._working.append(agent_id, memory.id)
-        return memory.id
+        async with self._segment_lock:
+            step = self._segmenter.on_observe(
+                msg, now, self._config.segmentation, auto_close=auto_close
+            )
+
+        for event in step.closed_events:
+            await self._persist_event(event)
+
+        return step.pending_memory_id
 
     async def recall(
         self,
@@ -157,8 +172,33 @@ class Mnemoss:
 
         return AgentHandle(self, agent_id)
 
+    async def flush_session(
+        self,
+        *,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+    ) -> int:
+        """Force-close in-flight event buffers and persist them.
+
+        Returns the number of events that were flushed. Scope defaults to
+        everything; narrowing is available via ``agent_id`` and/or
+        ``session_id``.
+        """
+
+        await self._ensure_open()
+        async with self._segment_lock:
+            closed = self._segmenter.flush(agent_id=agent_id, session_id=session_id)
+        for event in closed:
+            await self._persist_event(event)
+        return len(closed)
+
     async def close(self) -> None:
         if self._store is not None:
+            # Drain any pending event buffers before the store goes away.
+            async with self._segment_lock:
+                closed = self._segmenter.flush_all()
+            for event in closed:
+                await self._persist_event(event)
             await self._store.close()
             self._store = None
             self._engine = None
@@ -196,6 +236,25 @@ class Mnemoss:
         raise NotImplementedError("memory.md generation lands in Stage 4")
 
     # ─── internal ─────────────────────────────────────────────────────
+
+    async def _persist_event(self, event: ClosedEvent) -> None:
+        """Write one closed event as a Memory + embedding + edges."""
+
+        assert self._store is not None
+        memory = encode_event(
+            event.messages,
+            memory_id=event.memory_id,
+            now=event.closed_at,
+            formula=self._config.formula,
+        )
+        embedding = (
+            await asyncio.to_thread(self._embedder.embed, [memory.content])
+        )[0]
+        await self._store.write_memory(memory, embedding)
+        await write_cooccurrence_edges(
+            self._store, memory.id, memory.session_id or "default", self._config.encoder
+        )
+        self._working.append(memory.agent_id, memory.id)
 
     async def _ensure_open(self) -> None:
         if self._store is not None:

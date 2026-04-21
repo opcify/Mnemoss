@@ -5,6 +5,7 @@ from mnemoss.core.config import (
     EncoderParams,
     FormulaParams,
     MnemossConfig,
+    SegmentationParams,
     StorageParams,
 )
 from mnemoss.core.types import (
@@ -40,5 +41,6 @@ __all__ = [
     "RebalanceStats",
     "RecallResult",
     "Relation",
+    "SegmentationParams",
     "StorageParams",
 ]

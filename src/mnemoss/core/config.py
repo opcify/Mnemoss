@@ -55,6 +55,26 @@ class EncoderParams:
 
 
 @dataclass
+class SegmentationParams:
+    """Rule-based event segmentation thresholds (Stage 3).
+
+    Messages that share an explicit ``turn_id`` accumulate into one event
+    until a closing rule fires: (a) a new message in the same
+    (agent, session) arrives with a different ``turn_id``; (b) the buffer
+    has been idle longer than ``time_gap_seconds``; (c) the buffer has
+    hit ``max_event_messages`` or ``max_event_characters``.
+
+    When a caller omits ``turn_id``, observe() auto-generates a unique
+    id *and* closes the resulting 1-message event immediately so the
+    Stage-1/2 "one message = one memory" contract is preserved.
+    """
+
+    time_gap_seconds: float = 60.0
+    max_event_messages: int = 20
+    max_event_characters: int = 8000
+
+
+@dataclass
 class StorageParams:
     """Storage-layer configuration."""
 
@@ -72,3 +92,4 @@ class MnemossConfig:
     formula: FormulaParams = field(default_factory=FormulaParams)
     encoder: EncoderParams = field(default_factory=EncoderParams)
     storage: StorageParams = field(default_factory=StorageParams)
+    segmentation: SegmentationParams = field(default_factory=SegmentationParams)
