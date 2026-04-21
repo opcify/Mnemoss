@@ -24,6 +24,7 @@ classifiers = [
 
 dependencies = [
     "numpy>=1.24",
+    "apsw>=3.46",
     "sqlite-vec>=0.1",
     "sentence-transformers>=2.2",
     "ulid-py>=1.1",
@@ -62,3 +63,6 @@ packages = ["mnemoss"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: tests that hit real models or external services (downloads ~470MB on first run)",
+]
