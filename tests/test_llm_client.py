@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from mnemoss import AnthropicClient, LLMClient, MockLLMClient, OpenAIClient
+from mnemoss import (
+    AnthropicClient,
+    GeminiClient,
+    LLMClient,
+    MockLLMClient,
+    OpenAIClient,
+)
 from mnemoss.llm.client import _extract_first_json_object
 
 
@@ -25,6 +31,16 @@ def test_openai_is_lazy_until_called() -> None:
 def test_anthropic_is_lazy_until_called() -> None:
     client = AnthropicClient(model="claude-haiku-4-5-20251001", api_key="sk-test")
     assert client.model == "claude-haiku-4-5-20251001"
+
+
+def test_gemini_is_lazy_until_called() -> None:
+    client = GeminiClient(model="gemini-2.5-flash", api_key="sk-test")
+    assert client.model == "gemini-2.5-flash"
+
+
+def test_gemini_default_model_is_flash() -> None:
+    client = GeminiClient(api_key="sk-test")
+    assert client.model == "gemini-2.5-flash"
 
 
 async def test_mock_canned_responses_consumed_in_order() -> None:

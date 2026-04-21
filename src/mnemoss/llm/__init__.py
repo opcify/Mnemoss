@@ -9,6 +9,7 @@ lets callers swap providers without changing the dreaming code.
 
 from mnemoss.llm.client import (
     AnthropicClient,
+    GeminiClient,
     LLMClient,
     OpenAIClient,
 )
@@ -16,6 +17,7 @@ from mnemoss.llm.mock import MockLLMClient
 
 __all__ = [
     "AnthropicClient",
+    "GeminiClient",
     "LLMClient",
     "MockLLMClient",
     "OpenAIClient",

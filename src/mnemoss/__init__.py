@@ -19,7 +19,13 @@ from mnemoss.core.types import (
 from mnemoss.dream import DreamReport, DreamRunner, PhaseName, PhaseOutcome, TriggerType
 from mnemoss.encoder import Embedder, FakeEmbedder, LocalEmbedder, OpenAIEmbedder
 from mnemoss.index import RebalanceStats
-from mnemoss.llm import AnthropicClient, LLMClient, MockLLMClient, OpenAIClient
+from mnemoss.llm import (
+    AnthropicClient,
+    GeminiClient,
+    LLMClient,
+    MockLLMClient,
+    OpenAIClient,
+)
 from mnemoss.recall import CascadeStats, RecallResult
 
 __version__ = "0.1.0"
@@ -35,6 +41,7 @@ __all__ = [
     "Event",
     "FakeEmbedder",
     "FormulaParams",
+    "GeminiClient",
     "IndexTier",
     "LLMClient",
     "LocalEmbedder",

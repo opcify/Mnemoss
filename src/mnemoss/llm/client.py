@@ -112,6 +112,108 @@ class OpenAIClient:
         return json.loads(raw)
 
 
+class GeminiClient:
+    """Uses Google's Gemini API via the ``google-genai`` SDK.
+
+    JSON mode is driven by ``response_mime_type="application/json"``,
+    but we still defensively parse the text in case the model slips a
+    preamble in. Requires the ``gemini`` optional extra (installs
+    ``google-genai``).
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str = "gemini-2.5-flash",
+        api_key: str | None = None,
+    ) -> None:
+        self._model = model
+        self._api_key = api_key
+        self._client: Any = None
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def _get_client(self) -> Any:
+        if self._client is None:
+            try:
+                from google import genai
+            except ImportError as e:
+                raise RuntimeError(
+                    "GeminiClient needs the 'google-genai' package — "
+                    "install with `pip install mnemoss[gemini]`"
+                ) from e
+            kwargs: dict[str, Any] = {}
+            if self._api_key:
+                kwargs["api_key"] = self._api_key
+            self._client = genai.Client(**kwargs)
+        return self._client
+
+    def _config(
+        self,
+        *,
+        max_tokens: int,
+        temperature: float,
+        json_mode: bool,
+    ) -> Any:
+        from google.genai import types as genai_types
+
+        kwargs: dict[str, Any] = {
+            "max_output_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if json_mode:
+            kwargs["response_mime_type"] = "application/json"
+        return genai_types.GenerateContentConfig(**kwargs)
+
+    async def complete_text(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+    ) -> str:
+        client = self._get_client()
+        response = await client.aio.models.generate_content(
+            model=self._model,
+            contents=prompt,
+            config=self._config(
+                max_tokens=max_tokens,
+                temperature=temperature,
+                json_mode=False,
+            ),
+        )
+        return (response.text or "").strip()
+
+    async def complete_json(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+    ) -> dict[str, Any]:
+        client = self._get_client()
+        response = await client.aio.models.generate_content(
+            model=self._model,
+            contents=prompt,
+            config=self._config(
+                max_tokens=max_tokens,
+                temperature=temperature,
+                json_mode=True,
+            ),
+        )
+        text = (response.text or "").strip()
+        if not text:
+            return {}
+        # response_mime_type usually yields clean JSON, but fall back to the
+        # defensive extractor in case the model emits a preamble or fences.
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return _extract_first_json_object(text)
+
+
 class AnthropicClient:
     """Uses Anthropic's Messages API. Anthropic doesn't ship a native
     JSON mode, so ``complete_json`` appends an instruction and parses
