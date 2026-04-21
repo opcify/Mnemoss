@@ -87,20 +87,20 @@ async def test_dream_without_llm_records_explicit_skip(tmp_path: Path) -> None:
         await mem.close()
 
 
-async def test_dream_with_llm_configured_still_records_phase_skip_for_now(
-    tmp_path: Path,
-) -> None:
-    # Checkpoint N will flip EXTRACT to "ok" when the LLM is wired in.
+async def test_dream_skips_extract_for_tiny_replay_sets(tmp_path: Path) -> None:
+    """Extract needs at least 2 memories in a cluster — a single-memory
+    workspace exercises the happy path without burning an LLM call."""
+
     mock = MockLLMClient()
     mem = _mnemoss(tmp_path, llm=mock)
     try:
-        await mem.observe(role="user", content="x")
+        await mem.observe(role="user", content="just one")
         report = await mem.dream(trigger="task_completion")
         extract = report.outcome(PhaseName.EXTRACT)
         assert extract is not None
-        assert extract.status == "skipped"
-        # Mock LLM wasn't called yet — EXTRACT is stubbed in Checkpoint M.
-        assert mock.calls == []
+        assert extract.status == "ok"
+        assert extract.details["extracted"] == 0
+        assert mock.calls == []  # LLM not invoked for singleton clusters.
     finally:
         await mem.close()
 

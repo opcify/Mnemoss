@@ -395,6 +395,106 @@ class SQLiteBackend:
                 ),
             )
 
+    async def update_cluster_assignment(
+        self,
+        memory_id: str,
+        cluster_id: str | None,
+        similarity: float | None,
+        is_representative: bool,
+    ) -> None:
+        """P2 Cluster: write back cluster_id / similarity / representative flag."""
+
+        async with self._write_lock:
+            await self._run(
+                self._update_cluster_sync,
+                memory_id,
+                cluster_id,
+                similarity,
+                is_representative,
+            )
+
+    def _update_cluster_sync(
+        self,
+        memory_id: str,
+        cluster_id: str | None,
+        similarity: float | None,
+        is_representative: bool,
+    ) -> None:
+        conn = self._require_conn()
+        with conn:
+            conn.execute(
+                "UPDATE memory SET cluster_id = ?, cluster_similarity = ?, "
+                "is_cluster_representative = ? WHERE id = ?",
+                (
+                    cluster_id,
+                    similarity,
+                    1 if is_representative else 0,
+                    memory_id,
+                ),
+            )
+
+    async def get_embeddings(
+        self, memory_ids: Iterable[str]
+    ) -> dict[str, np.ndarray]:
+        """Return ``{memory_id: embedding}`` for every requested id present.
+
+        Missing ids are simply omitted from the result. Used by P2 Cluster.
+        """
+
+        return await self._run(self._get_embeddings_sync, list(memory_ids))
+
+    def _get_embeddings_sync(self, memory_ids: list[str]) -> dict[str, np.ndarray]:
+        if not memory_ids:
+            return {}
+        conn = self._require_conn()
+        placeholders = ",".join("?" for _ in memory_ids)
+        rows = conn.execute(
+            f"SELECT memory_id, embedding FROM memory_vec "
+            f"WHERE memory_id IN ({placeholders})",
+            tuple(memory_ids),
+        ).fetchall()
+        out: dict[str, np.ndarray] = {}
+        for mid, blob in rows:
+            out[mid] = np.frombuffer(blob, dtype=np.float32).copy()
+        return out
+
+    async def link_derived(
+        self, parent_ids: Iterable[str], child_id: str
+    ) -> int:
+        """Append ``child_id`` to each parent's ``derived_to`` list.
+
+        Returns the number of parents that were actually updated. Silently
+        skips missing parents and no-op when the edge already exists.
+        """
+
+        return await self._run(
+            self._link_derived_sync, list(parent_ids), child_id
+        )
+
+    def _link_derived_sync(self, parent_ids: list[str], child_id: str) -> int:
+        if not parent_ids:
+            return 0
+        conn = self._require_conn()
+        updated = 0
+        with conn:
+            for parent_id in parent_ids:
+                row = conn.execute(
+                    "SELECT derived_to FROM memory WHERE id = ?",
+                    (parent_id,),
+                ).fetchone()
+                if row is None:
+                    continue
+                current = json.loads(row[0] or "[]")
+                if child_id in current:
+                    continue
+                current.append(child_id)
+                conn.execute(
+                    "UPDATE memory SET derived_to = ? WHERE id = ?",
+                    (json.dumps(current), parent_id),
+                )
+                updated += 1
+        return updated
+
     async def reminisce_to_warm(self, memory_id: str) -> None:
         """Reactivate a DEEP memory: bump reminisced_count + set tier=WARM.
 

@@ -257,6 +257,7 @@ class Mnemoss:
             self._store,
             self._config.formula,
             llm=self._llm,
+            embedder=self._embedder,
         )
         return await runner.run(TriggerType(trigger), agent_id=agent_id)
 
