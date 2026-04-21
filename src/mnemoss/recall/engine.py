@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
 from mnemoss.encoder import Embedder
+from mnemoss.encoder.extraction import extract_heuristic
 from mnemoss.formula.activation import ActivationBreakdown, compute_activation
 from mnemoss.formula.query_bias import has_deep_cue
 from mnemoss.store.sqlite_backend import SQLiteBackend
@@ -188,12 +189,46 @@ class RecallEngine:
                 result.memory.idx_priority = 0.5
         self._working.extend(agent_id, (r.memory.id for r in top))
 
+        # Lazy heuristic extraction on the returned top-k (Stage 3 §9.541).
+        # Only runs once per memory — extraction_level=1 skips re-extraction
+        # until Stage 4's LLM refinement upgrades to level=2.
+        await self._apply_lazy_extraction(top)
+
         stats = CascadeStats(
             tiers_scanned=tiers_scanned,
             stopped_at=stopped_at,
             candidates_scored=len(scored),
         )
         return top, stats
+
+    async def _apply_lazy_extraction(self, results: list[RecallResult]) -> None:
+        """Fill ``extracted_*`` fields on any top-k memory at level 0."""
+
+        pending = [r.memory for r in results if r.memory.extraction_level == 0]
+        if not pending:
+            return
+        # Extraction is CPU-bound regex work — run the whole batch on the
+        # shared thread pool so we don't block the event loop. For a Stage 3
+        # k≈5, the whole pass finishes in a few milliseconds.
+        fields_list = await asyncio.to_thread(
+            _batch_extract, [m.content for m in pending]
+        )
+        for memory, fields in zip(pending, fields_list, strict=True):
+            memory.extracted_gist = fields.gist
+            memory.extracted_entities = fields.entities
+            memory.extracted_time = fields.time
+            memory.extracted_location = fields.location
+            memory.extracted_participants = fields.participants
+            memory.extraction_level = fields.level
+            await self._store.update_extraction(
+                memory.id,
+                gist=fields.gist,
+                entities=fields.entities,
+                time=fields.time,
+                location=fields.location,
+                participants=fields.participants,
+                level=fields.level,
+            )
 
     async def _score_candidates(
         self,
@@ -272,6 +307,13 @@ class RecallEngine:
             rng=random.Random(0),  # deterministic for explain
             params=self._params,
         )
+
+
+def _batch_extract(contents: list[str]):
+    """Module-level helper so asyncio.to_thread has something picklable-ish
+    to call without reaching into the engine."""
+
+    return [extract_heuristic(c) for c in contents]
 
 
 def _tier_plan(

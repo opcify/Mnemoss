@@ -16,10 +16,10 @@ from mnemoss import FormulaParams, Mnemoss
 
 
 async def main() -> None:
-    # Uses a Stage-2 workspace name; Stage-1 workspaces are schema-v1 and
-    # can't be opened by Stage-2 code (by design — see CLAUDE.md D2).
+    # Uses a Stage-3 workspace name; older-schema workspaces can't be
+    # opened by Stage-3 code (by design — see CLAUDE.md D2/D7).
     mem = Mnemoss(
-        workspace="quickstart_stage2",
+        workspace="quickstart_stage3",
         # Noise off so example output is reproducible.
         formula=FormulaParams(noise_scale=0.0),
     )
@@ -70,6 +70,18 @@ async def main() -> None:
         # like "what was the original plan" without needing include_deep=True.
         for r in await mem.recall("what did we decide long ago about Alice", k=3):
             print(f"  [{r.score:.3f}] {r.memory.content}")
+
+        print()
+        print("─── Stage 3: lazy extraction on top-k ───")
+        # Extraction ran automatically during the recall calls above.
+        # Peek at one of the memories to show populated extracted_* fields.
+        peek = await mem.recall("Alice", k=1)
+        if peek:
+            m = peek[0].memory
+            print(f"gist:     {m.extracted_gist!r}")
+            print(f"entities: {m.extracted_entities}")
+            print(f"time:     {m.extracted_time}")
+            print(f"level:    {m.extraction_level}")
     finally:
         await mem.close()
 

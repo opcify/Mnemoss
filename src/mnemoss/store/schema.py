@@ -36,6 +36,12 @@ DDL_STATEMENTS = [
       reminisced_count INTEGER NOT NULL DEFAULT 0,
       index_tier TEXT NOT NULL DEFAULT 'hot',
       idx_priority REAL NOT NULL DEFAULT 0.5,
+      extracted_gist TEXT,
+      extracted_entities TEXT,
+      extracted_time REAL,
+      extracted_location TEXT,
+      extracted_participants TEXT,
+      extraction_level INTEGER NOT NULL DEFAULT 0,
       source_message_ids TEXT NOT NULL DEFAULT '[]',
       source_context TEXT NOT NULL DEFAULT '{}'
     )

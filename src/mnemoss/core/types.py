@@ -71,6 +71,13 @@ class Memory:
     reminisced_count: int = 0
     index_tier: IndexTier = IndexTier.HOT
     idx_priority: float = 0.5
+    # Lazy-extracted fields — filled by recall's top-k extraction pass.
+    extracted_gist: str | None = None
+    extracted_entities: list[str] | None = None
+    extracted_time: datetime | None = None
+    extracted_location: str | None = None
+    extracted_participants: list[str] | None = None
+    extraction_level: int = 0  # 0=raw, 1=heuristic, 2=LLM (Stage 4+)
     source_message_ids: list[str] = field(default_factory=list)
     source_context: dict[str, Any] = field(default_factory=dict)
 

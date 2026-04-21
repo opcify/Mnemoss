@@ -179,8 +179,11 @@ class SQLiteBackend:
                     role, memory_type, abstraction_level, access_history,
                     last_accessed_at, rehearsal_count, salience, emotional_weight,
                     reminisced_count, index_tier, idx_priority,
+                    extracted_gist, extracted_entities, extracted_time,
+                    extracted_location, extracted_participants, extraction_level,
                     source_message_ids, source_context
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                          ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     memory.id,
@@ -200,6 +203,12 @@ class SQLiteBackend:
                     memory.reminisced_count,
                     memory.index_tier.value,
                     memory.idx_priority,
+                    memory.extracted_gist,
+                    _dump_json_or_none(memory.extracted_entities),
+                    memory.extracted_time.timestamp() if memory.extracted_time else None,
+                    memory.extracted_location,
+                    _dump_json_or_none(memory.extracted_participants),
+                    memory.extraction_level,
                     json.dumps(memory.source_message_ids),
                     json.dumps(_json_safe(memory.source_context)),
                 ),
@@ -310,6 +319,70 @@ class SQLiteBackend:
             conn.execute(
                 "UPDATE memory SET idx_priority = ?, index_tier = ? WHERE id = ?",
                 (idx_priority, tier.value, memory_id),
+            )
+
+    async def update_extraction(
+        self,
+        memory_id: str,
+        *,
+        gist: str | None,
+        entities: list[str] | None,
+        time: datetime | None,
+        location: str | None,
+        participants: list[str] | None,
+        level: int,
+    ) -> None:
+        """Persist a lazy-extraction pass's output.
+
+        Called by ``RecallEngine`` after it fills extraction fields on
+        returned top-k memories. ``level`` is 1 for heuristic fills,
+        2 for Stage 4+ LLM refinement.
+        """
+
+        async with self._write_lock:
+            await self._run(
+                self._update_extraction_sync,
+                memory_id,
+                gist,
+                entities,
+                time,
+                location,
+                participants,
+                level,
+            )
+
+    def _update_extraction_sync(
+        self,
+        memory_id: str,
+        gist: str | None,
+        entities: list[str] | None,
+        time: datetime | None,
+        location: str | None,
+        participants: list[str] | None,
+        level: int,
+    ) -> None:
+        conn = self._require_conn()
+        with conn:
+            conn.execute(
+                """
+                UPDATE memory SET
+                    extracted_gist = ?,
+                    extracted_entities = ?,
+                    extracted_time = ?,
+                    extracted_location = ?,
+                    extracted_participants = ?,
+                    extraction_level = ?
+                WHERE id = ?
+                """,
+                (
+                    gist,
+                    json.dumps(entities) if entities is not None else None,
+                    time.timestamp() if time else None,
+                    location,
+                    json.dumps(participants) if participants is not None else None,
+                    level,
+                    memory_id,
+                ),
             )
 
     async def reminisce_to_warm(self, memory_id: str) -> None:
@@ -655,6 +728,9 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
         if last_accessed_raw is not None
         else None
     )
+    entities_raw = row.get("extracted_entities")
+    participants_raw = row.get("extracted_participants")
+    time_raw = row.get("extracted_time")
     return Memory(
         id=row["id"],
         workspace_id=row["workspace_id"],
@@ -674,9 +750,23 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
         reminisced_count=row["reminisced_count"],
         index_tier=IndexTier(row["index_tier"]),
         idx_priority=row.get("idx_priority", 0.5),
+        extracted_gist=row.get("extracted_gist"),
+        extracted_entities=json.loads(entities_raw) if entities_raw else None,
+        extracted_time=(
+            datetime.fromtimestamp(time_raw, tz=UTC) if time_raw is not None else None
+        ),
+        extracted_location=row.get("extracted_location"),
+        extracted_participants=(
+            json.loads(participants_raw) if participants_raw else None
+        ),
+        extraction_level=row.get("extraction_level", 0),
         source_message_ids=json.loads(row["source_message_ids"]),
         source_context=json.loads(row["source_context"]),
     )
+
+
+def _dump_json_or_none(value: Any) -> str | None:
+    return json.dumps(value) if value is not None else None
 
 
 def _json_safe(obj: Any) -> Any:
