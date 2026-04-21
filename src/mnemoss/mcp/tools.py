@@ -223,3 +223,7 @@ async def tool_flush_session(
 ) -> dict[str, int]:
     n = await backend.flush_session(agent_id=agent_id, session_id=session_id)
     return {"flushed": n}
+
+
+async def tool_status(backend: Any) -> dict[str, Any]:
+    return await backend.status()

@@ -163,6 +163,7 @@ async def test_create_mcp_server_registers_expected_tools(
         "tier_counts",
         "export_markdown",
         "flush_session",
+        "status",
     }
 
 

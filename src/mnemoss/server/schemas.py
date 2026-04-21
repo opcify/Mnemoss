@@ -332,3 +332,25 @@ class FlushSessionRequest(BaseModel):
 
 class FlushSessionResponse(BaseModel):
     flushed: int
+
+
+# ─── status ──────────────────────────────────────────────────────
+
+
+class EmbedderInfo(BaseModel):
+    id: str
+    dim: int
+
+
+class StatusResponse(BaseModel):
+    workspace: str
+    schema_version: int
+    embedder: EmbedderInfo
+    memory_count: int
+    tier_counts: dict[str, int]
+    tombstone_count: int
+    last_observe_at: datetime | None = None
+    last_dream_at: datetime | None = None
+    last_dream_trigger: str | None = None
+    last_rebalance_at: datetime | None = None
+    last_dispose_at: datetime | None = None

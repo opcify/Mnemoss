@@ -127,13 +127,13 @@ async def test_auto_create_on_first_observe(tmp_path: Path) -> None:
         await mem.close()
 
 
-async def test_stubs_raise_not_implemented(tmp_path: Path) -> None:
+async def test_status_returns_snapshot(tmp_path: Path) -> None:
     mem = _mnemoss(tmp_path)
     try:
-        # dream() + export_markdown() landed in Stage 4.
-        # status() is still stubbed (Stage 5).
-        with pytest.raises(NotImplementedError):
-            await mem.status()
+        snapshot = await mem.status()
+        assert snapshot["workspace"] == "test"
+        assert "memory_count" in snapshot
+        assert "tier_counts" in snapshot
     finally:
         await mem.close()
 

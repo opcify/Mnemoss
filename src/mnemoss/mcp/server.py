@@ -157,4 +157,12 @@ def create_mcp_server(
             session_id=session_id,
         )
 
+    @mcp.tool()
+    async def status() -> dict[str, Any]:
+        """Return the workspace's operational snapshot — counts, last
+        dream / observe / rebalance / dispose timestamps, embedder info,
+        schema version."""
+
+        return await tools.tool_status(backend)
+
     return mcp

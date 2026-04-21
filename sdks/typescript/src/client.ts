@@ -13,6 +13,7 @@ import {
   parseRebalanceStats,
   parseRecallResult,
   parseTombstone,
+  parseWorkspaceStatus,
 } from "./parse.js";
 import type {
   ActivationBreakdown,
@@ -29,6 +30,7 @@ import type {
   RecallResult,
   Tombstone,
   TombstonesOptions,
+  WorkspaceStatus,
 } from "./types.js";
 
 // ─── error type ──────────────────────────────────────────────────
@@ -271,6 +273,11 @@ export class WorkspaceHandle {
       { agent_id: options.agentId },
     );
     return resp.flushed;
+  }
+
+  async status(): Promise<WorkspaceStatus> {
+    const resp = await this.client.get<any>(this.path("status"));
+    return parseWorkspaceStatus(resp);
   }
 
   private path(suffix: string): string {

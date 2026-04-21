@@ -533,6 +533,16 @@ class SQLiteBackend:
                 counts[IndexTier(tier_name)] = count
         return counts
 
+    async def count_tombstones(self) -> int:
+        """Count of tombstone rows across the whole workspace."""
+
+        return await self._run(self._count_tombstones_sync)
+
+    def _count_tombstones_sync(self) -> int:
+        conn = self._require_conn()
+        row = conn.execute("SELECT COUNT(*) FROM tombstone").fetchone()
+        return int(row[0]) if row is not None else 0
+
     async def list_memories_for_export(
         self,
         agent_id: str | None,

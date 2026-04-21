@@ -121,6 +121,25 @@ export interface DisposalStats {
   disposedIds: string[];
 }
 
+export interface EmbedderInfo {
+  id: string;
+  dim: number;
+}
+
+export interface WorkspaceStatus {
+  workspace: string;
+  schemaVersion: number;
+  embedder: EmbedderInfo;
+  memoryCount: number;
+  tierCounts: Record<string, number>;
+  tombstoneCount: number;
+  lastObserveAt: Date | null;
+  lastDreamAt: Date | null;
+  lastDreamTrigger: string | null;
+  lastRebalanceAt: Date | null;
+  lastDisposeAt: Date | null;
+}
+
 // ─── request options ─────────────────────────────────────────────
 
 export interface ObserveOptions {

@@ -18,6 +18,7 @@ Stage-6 endpoints:
 - ``GET  /workspaces/{id}/tiers``               — tier counts
 - ``POST /workspaces/{id}/export``              — render memory.md
 - ``POST /workspaces/{id}/flush``               — force-close event buffers
+- ``GET  /workspaces/{id}/status``              — operational snapshot
 
 Per-agent scoping is a query parameter (``?agent_id=alice``). Omitting
 it means "workspace-ambient", matching ``Mnemoss.for_agent`` semantics
@@ -52,6 +53,7 @@ from mnemoss.server.schemas import (
     RebalanceResponse,
     RecallRequest,
     RecallResponse,
+    StatusResponse,
     TierCountsResponse,
     TombstonesResponse,
     breakdown_to_dto,
@@ -293,6 +295,21 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         mem = await _resolve(request, workspace_id)
         n = await mem.flush_session(agent_id=agent_id, session_id=body.session_id)
         return FlushSessionResponse(flushed=n)
+
+    # ─── status ─────────────────────────────────────────────────
+
+    @app.get(
+        "/workspaces/{workspace_id}/status",
+        response_model=StatusResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def status(
+        workspace_id: str,
+        request: Request,
+    ) -> StatusResponse:
+        mem = await _resolve(request, workspace_id)
+        snapshot = await mem.status()
+        return StatusResponse.model_validate(snapshot)
 
     return app
 

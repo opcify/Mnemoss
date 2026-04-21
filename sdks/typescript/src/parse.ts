@@ -18,6 +18,7 @@ import type {
   RecallResult,
   Tombstone,
   TriggerType,
+  WorkspaceStatus,
 } from "./types.js";
 
 type Raw = Record<string, any>;
@@ -133,5 +134,21 @@ export function parseDisposalStats(dto: Raw): DisposalStats {
     redundant: dto.redundant,
     protected: dto.protected,
     disposedIds: [...(dto.disposed_ids ?? [])],
+  };
+}
+
+export function parseWorkspaceStatus(dto: Raw): WorkspaceStatus {
+  return {
+    workspace: dto.workspace,
+    schemaVersion: dto.schema_version,
+    embedder: { id: dto.embedder.id, dim: dto.embedder.dim },
+    memoryCount: dto.memory_count,
+    tierCounts: dto.tier_counts,
+    tombstoneCount: dto.tombstone_count,
+    lastObserveAt: parseDateOpt(dto.last_observe_at),
+    lastDreamAt: parseDateOpt(dto.last_dream_at),
+    lastDreamTrigger: dto.last_dream_trigger ?? null,
+    lastRebalanceAt: parseDateOpt(dto.last_rebalance_at),
+    lastDisposeAt: parseDateOpt(dto.last_dispose_at),
   };
 }

@@ -11,6 +11,7 @@ settled decision).
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 from datetime import datetime, timezone
 from typing import Any
@@ -18,6 +19,7 @@ from typing import Any
 import ulid
 
 from mnemoss.core.config import (
+    SCHEMA_VERSION,
     EncoderParams,
     FormulaParams,
     MnemossConfig,
@@ -43,6 +45,7 @@ from mnemoss.store.sqlite_backend import SQLiteBackend
 from mnemoss.working import WorkingMemory
 
 UTC = timezone.utc
+_log = logging.getLogger("mnemoss.client")
 
 
 class Mnemoss:
@@ -81,9 +84,14 @@ class Mnemoss:
         self._open_lock = asyncio.Lock()
         self._segment_lock = asyncio.Lock()
         self._rng = rng if rng is not None else random.Random()
-        # Timestamp of the most recent observe(). Read by the
-        # DreamScheduler's idle trigger; stays ``None`` until first use.
+        # Operational timestamps, exposed via ``status()``. ``None``
+        # means the corresponding operation has not run in this
+        # instance's lifetime.
         self._last_observe_at: datetime | None = None
+        self._last_dream_at: datetime | None = None
+        self._last_dream_trigger: str | None = None
+        self._last_rebalance_at: datetime | None = None
+        self._last_dispose_at: datetime | None = None
 
     # ─── public API ───────────────────────────────────────────────────
 
@@ -145,6 +153,16 @@ class Mnemoss:
         for event in step.closed_events:
             await self._persist_event(event)
 
+        _log.info(
+            "observed",
+            extra={
+                "workspace": self._config.workspace,
+                "agent_id": agent_id,
+                "role": role,
+                "encoded": step.pending_memory_id is not None,
+                "events_closed": len(step.closed_events),
+            },
+        )
         return step.pending_memory_id
 
     async def recall(
@@ -157,9 +175,20 @@ class Mnemoss:
     ) -> list[RecallResult]:
         await self._ensure_open()
         assert self._engine is not None
-        return await self._engine.recall(
+        results = await self._engine.recall(
             query, agent_id=agent_id, k=k, include_deep=include_deep
         )
+        _log.info(
+            "recalled",
+            extra={
+                "workspace": self._config.workspace,
+                "agent_id": agent_id,
+                "k": k,
+                "include_deep": include_deep,
+                "results": len(results),
+            },
+        )
+        return results
 
     async def pin(self, memory_id: str, *, agent_id: str | None = None) -> None:
         await self._ensure_open()
@@ -235,7 +264,18 @@ class Mnemoss:
 
         await self._ensure_open()
         assert self._store is not None
-        return await dispose_pass(self._store, self._config.formula)
+        stats = await dispose_pass(self._store, self._config.formula)
+        self._last_dispose_at = datetime.now(UTC)
+        _log.info(
+            "dispose",
+            extra={
+                "workspace": self._config.workspace,
+                "scanned": stats.scanned,
+                "disposed": stats.disposed,
+                "protected": stats.protected,
+            },
+        )
+        return stats
 
     async def tombstones(
         self, *, agent_id: str | None = None, limit: int = 100
@@ -257,7 +297,17 @@ class Mnemoss:
 
         await self._ensure_open()
         assert self._store is not None
-        return await _rebalance(self._store, self._config.formula)
+        stats = await _rebalance(self._store, self._config.formula)
+        self._last_rebalance_at = datetime.now(UTC)
+        _log.info(
+            "rebalance",
+            extra={
+                "workspace": self._config.workspace,
+                "scanned": stats.scanned,
+                "migrated": stats.migrated,
+            },
+        )
+        return stats
 
     async def tier_counts(self) -> dict[str, int]:
         """Convenience view for observability — mirrors ``store.tier_counts``
@@ -306,6 +356,18 @@ class Mnemoss:
         )
         append_entry(diary_path, report)
         report.diary_path = diary_path
+        self._last_dream_at = report.finished_at
+        self._last_dream_trigger = report.trigger.value
+        _log.info(
+            "dream",
+            extra={
+                "workspace": self._config.workspace,
+                "trigger": report.trigger.value,
+                "agent_id": agent_id,
+                "phases": [o.phase.value for o in report.outcomes],
+                "duration_seconds": report.duration_seconds(),
+            },
+        )
         return report
 
     async def export_markdown(
@@ -332,10 +394,51 @@ class Mnemoss:
             min_idx_priority=min_idx_priority,
         )
 
-    # ─── stubs for deferred stages ────────────────────────────────────
-
     async def status(self) -> dict[str, Any]:
-        raise NotImplementedError("status() lands in Stage 4")
+        """Return a snapshot of the workspace's operational state.
+
+        Provides everything an observability dashboard needs without
+        a full scan: counts, timestamps, embedder info, schema version.
+        """
+
+        await self._ensure_open()
+        assert self._store is not None
+        tier_counts_raw = await self._store.tier_counts()
+        tier_counts = {tier.value: count for tier, count in tier_counts_raw.items()}
+        memory_count = sum(tier_counts.values())
+        tombstone_count = await self._store.count_tombstones()
+        return {
+            "workspace": self._config.workspace,
+            "schema_version": SCHEMA_VERSION,
+            "embedder": {
+                "id": self._embedder.embedder_id,
+                "dim": self._embedder.dim,
+            },
+            "memory_count": memory_count,
+            "tier_counts": tier_counts,
+            "tombstone_count": tombstone_count,
+            "last_observe_at": (
+                self._last_observe_at.isoformat()
+                if self._last_observe_at is not None
+                else None
+            ),
+            "last_dream_at": (
+                self._last_dream_at.isoformat()
+                if self._last_dream_at is not None
+                else None
+            ),
+            "last_dream_trigger": self._last_dream_trigger,
+            "last_rebalance_at": (
+                self._last_rebalance_at.isoformat()
+                if self._last_rebalance_at is not None
+                else None
+            ),
+            "last_dispose_at": (
+                self._last_dispose_at.isoformat()
+                if self._last_dispose_at is not None
+                else None
+            ),
+        }
 
     # ─── internal ─────────────────────────────────────────────────────
 

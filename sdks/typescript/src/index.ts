@@ -24,4 +24,6 @@ export type {
   Tombstone,
   TombstonesOptions,
   TriggerType,
+  WorkspaceStatus,
+  EmbedderInfo,
 } from "./types.js";

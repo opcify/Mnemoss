@@ -248,6 +248,11 @@ class WorkspaceHandle:
         )
         return int(resp["flushed"])
 
+    async def status(self) -> dict[str, Any]:
+        """Return the workspace's operational snapshot."""
+
+        return await self._client._get(self._path("status"))
+
     # ─── internal ───────────────────────────────────────────────
 
     def _path(self, suffix: str) -> str:
