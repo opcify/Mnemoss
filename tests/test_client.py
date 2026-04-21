@@ -130,12 +130,10 @@ async def test_auto_create_on_first_observe(tmp_path: Path) -> None:
 async def test_stubs_raise_not_implemented(tmp_path: Path) -> None:
     mem = _mnemoss(tmp_path)
     try:
-        # dream() landed in Stage 4 Checkpoint M.
-        # status() and export_markdown() arrive in Stage 4 Checkpoint O.
+        # dream() + export_markdown() landed in Stage 4.
+        # status() is still stubbed (Stage 5).
         with pytest.raises(NotImplementedError):
             await mem.status()
-        with pytest.raises(NotImplementedError):
-            await mem.export_markdown()
     finally:
         await mem.close()
 

@@ -16,10 +16,10 @@ from mnemoss import FormulaParams, Mnemoss
 
 
 async def main() -> None:
-    # Uses a Stage-3 workspace name; older-schema workspaces can't be
-    # opened by Stage-3 code (by design — see CLAUDE.md D2/D7).
+    # Uses a Stage-4 workspace name; older-schema workspaces can't be
+    # opened by Stage-4 code (by design — see CLAUDE.md D2/D7/D12).
     mem = Mnemoss(
-        workspace="quickstart_stage3",
+        workspace="quickstart_stage4",
         # Noise off so example output is reproducible.
         formula=FormulaParams(noise_scale=0.0),
     )
@@ -82,6 +82,24 @@ async def main() -> None:
             print(f"entities: {m.extracted_entities}")
             print(f"time:     {m.extracted_time}")
             print(f"level:    {m.extraction_level}")
+
+        print()
+        print("─── Stage 4: dreaming (no LLM configured) ───")
+        # dream() runs P1 Replay and P2 Cluster; P3 Extract is skipped
+        # without an LLM; P5 Relations still writes similar_to edges.
+        # Pass a MockLLMClient or OpenAI/Anthropic client to exercise P3.
+        report = await mem.dream(trigger="idle")
+        print(f"Dream trigger: {report.trigger.value}")
+        print(f"Duration:      {report.duration_seconds():.3f}s")
+        for outcome in report.outcomes:
+            # Summarise by dropping the bulky `memories` list.
+            summary = {k: v for k, v in outcome.details.items() if k != "memories"}
+            print(f"  {outcome.phase.value:<10} {outcome.status:<8} {summary}")
+        print(f"Diary:         {report.diary_path}")
+
+        print()
+        print("─── Stage 4: memory.md (ambient view) ───")
+        print(await mem.export_markdown())
     finally:
         await mem.close()
 

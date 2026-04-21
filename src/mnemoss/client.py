@@ -25,11 +25,13 @@ from mnemoss.core.config import (
     StorageParams,
 )
 from mnemoss.core.types import RawMessage
+from mnemoss.dream.diary import append_entry, dream_diary_path
 from mnemoss.dream.runner import DreamRunner
 from mnemoss.dream.types import DreamReport, TriggerType
 from mnemoss.encoder import Embedder, make_embedder
 from mnemoss.encoder.event_encoder import encode_event, should_encode
 from mnemoss.encoder.event_segmentation import ClosedEvent, EventSegmenter
+from mnemoss.export import render_memory_md
 from mnemoss.index import RebalanceStats
 from mnemoss.index import rebalance as _rebalance
 from mnemoss.llm.client import LLMClient
@@ -259,15 +261,44 @@ class Mnemoss:
             llm=self._llm,
             embedder=self._embedder,
         )
-        return await runner.run(TriggerType(trigger), agent_id=agent_id)
+        report = await runner.run(TriggerType(trigger), agent_id=agent_id)
+
+        # Dream Diary (§2.5) — append a Markdown audit entry for this run.
+        diary_path = dream_diary_path(
+            self._config.storage.resolve_root(), self._config.workspace
+        )
+        append_entry(diary_path, report)
+        report.diary_path = diary_path
+        return report
+
+    async def export_markdown(
+        self, *, agent_id: str | None = None, min_idx_priority: float = 0.5
+    ) -> str:
+        """Render a deterministic Markdown view of high-priority memories.
+
+        Scope follows the recall rule: the root ``Mnemoss`` returns a
+        workspace-ambient view; a ``for_agent(id)`` handle returns that
+        agent's private + ambient memories. No LLM — only memories that
+        already cross the threshold are rendered.
+        """
+
+        await self._ensure_open()
+        assert self._store is not None
+        memories = await self._store.list_memories_for_export(
+            agent_id, min_idx_priority=0.0
+        )
+        pinned = await self._store.pinned_ids_in_scope(agent_id)
+        return render_memory_md(
+            memories,
+            pinned_ids=pinned,
+            agent_id=agent_id,
+            min_idx_priority=min_idx_priority,
+        )
 
     # ─── stubs for deferred stages ────────────────────────────────────
 
     async def status(self) -> dict[str, Any]:
         raise NotImplementedError("status() lands in Stage 4")
-
-    async def export_markdown(self, *, agent_id: str | None = None) -> str:
-        raise NotImplementedError("memory.md generation lands in Stage 4")
 
     # ─── internal ─────────────────────────────────────────────────────
 

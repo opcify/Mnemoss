@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -48,6 +49,7 @@ class DreamReport:
     finished_at: datetime
     agent_id: str | None = None
     outcomes: list[PhaseOutcome] = field(default_factory=list)
+    diary_path: Path | None = None
 
     def duration_seconds(self) -> float:
         return (self.finished_at - self.started_at).total_seconds()

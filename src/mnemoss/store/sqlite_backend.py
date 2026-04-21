@@ -533,6 +533,80 @@ class SQLiteBackend:
                 counts[IndexTier(tier_name)] = count
         return counts
 
+    async def list_memories_for_export(
+        self,
+        agent_id: str | None,
+        *,
+        min_idx_priority: float = 0.0,
+        limit: int = 500,
+    ) -> list[Memory]:
+        """Return in-scope memories ordered by idx_priority desc.
+
+        Used by ``Mnemoss.export_markdown``. Scope follows the recall
+        rule: ``agent_id=None`` → ambient-only; a non-None id → that
+        agent's private + ambient.
+        """
+
+        return await self._run(
+            self._list_memories_for_export_sync,
+            agent_id,
+            min_idx_priority,
+            limit,
+        )
+
+    def _list_memories_for_export_sync(
+        self,
+        agent_id: str | None,
+        min_idx_priority: float,
+        limit: int,
+    ) -> list[Memory]:
+        conn = self._require_conn()
+        if agent_id is None:
+            sql = (
+                "SELECT * FROM memory "
+                "WHERE agent_id IS NULL AND idx_priority >= ? "
+                "ORDER BY idx_priority DESC LIMIT ?"
+            )
+            rows = conn.execute(sql, (min_idx_priority, limit)).fetchall()
+        else:
+            sql = (
+                "SELECT * FROM memory "
+                "WHERE (agent_id = ? OR agent_id IS NULL) "
+                "AND idx_priority >= ? "
+                "ORDER BY idx_priority DESC LIMIT ?"
+            )
+            rows = conn.execute(
+                sql, (agent_id, min_idx_priority, limit)
+            ).fetchall()
+        if not rows:
+            return []
+        return [
+            _row_to_memory(dict(zip(self._memory_columns, row, strict=True)))
+            for row in rows
+        ]
+
+    async def pinned_ids_in_scope(self, agent_id: str | None) -> set[str]:
+        """Return the set of memory ids pinned by the caller's scope.
+
+        ``agent_id=None`` matches ambient pins only; a non-None id
+        matches that agent's pins *plus* ambient pins.
+        """
+
+        return await self._run(self._pinned_in_scope_sync, agent_id)
+
+    def _pinned_in_scope_sync(self, agent_id: str | None) -> set[str]:
+        conn = self._require_conn()
+        if agent_id is None:
+            rows = conn.execute(
+                "SELECT memory_id FROM pin WHERE agent_id IS NULL"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT memory_id FROM pin WHERE agent_id = ? OR agent_id IS NULL",
+                (agent_id,),
+            ).fetchall()
+        return {r[0] for r in rows}
+
     async def iter_memory_ids(self, batch_size: int = 500) -> list[str]:
         """Return every memory id in the workspace, for batch rebalance passes."""
 
