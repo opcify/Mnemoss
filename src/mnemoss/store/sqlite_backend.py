@@ -12,6 +12,7 @@ Stage 2+.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 import struct
@@ -160,9 +161,10 @@ class SQLiteBackend:
                 INSERT INTO memory (
                     id, workspace_id, agent_id, session_id, created_at, content,
                     role, memory_type, abstraction_level, access_history,
-                    rehearsal_count, salience, emotional_weight, reminisced_count,
-                    index_tier, source_message_ids, source_context
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    last_accessed_at, rehearsal_count, salience, emotional_weight,
+                    reminisced_count, index_tier, idx_priority,
+                    source_message_ids, source_context
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     memory.id,
@@ -175,11 +177,13 @@ class SQLiteBackend:
                     memory.memory_type.value,
                     memory.abstraction_level,
                     json.dumps([dt.timestamp() for dt in memory.access_history]),
+                    memory.last_accessed_at.timestamp() if memory.last_accessed_at else None,
                     memory.rehearsal_count,
                     memory.salience,
                     memory.emotional_weight,
                     memory.reminisced_count,
                     memory.index_tier.value,
+                    memory.idx_priority,
                     json.dumps(memory.source_message_ids),
                     json.dumps(_json_safe(memory.source_context)),
                 ),
@@ -267,10 +271,56 @@ class SQLiteBackend:
             history = json.loads(row[0])
             history.append(now.timestamp())
             conn.execute(
-                "UPDATE memory SET access_history = ?, rehearsal_count = ? "
-                "WHERE id = ?",
-                (json.dumps(history), row[1] + 1, memory_id),
+                "UPDATE memory SET access_history = ?, rehearsal_count = ?, "
+                "last_accessed_at = ? WHERE id = ?",
+                (json.dumps(history), row[1] + 1, now.timestamp(), memory_id),
             )
+
+    async def update_idx_priority(
+        self, memory_id: str, idx_priority: float, tier: IndexTier
+    ) -> None:
+        """P7 Rebalance entry point: persist a fresh priority + tier for one memory."""
+
+        async with self._write_lock:
+            await asyncio.to_thread(
+                self._update_idx_priority_sync, memory_id, idx_priority, tier
+            )
+
+    def _update_idx_priority_sync(
+        self, memory_id: str, idx_priority: float, tier: IndexTier
+    ) -> None:
+        conn = self._require_conn()
+        with conn:
+            conn.execute(
+                "UPDATE memory SET idx_priority = ?, index_tier = ? WHERE id = ?",
+                (idx_priority, tier.value, memory_id),
+            )
+
+    async def tier_counts(self) -> dict[IndexTier, int]:
+        """Return ``{tier: count}`` across every tier, including empty ones."""
+
+        return await asyncio.to_thread(self._tier_counts_sync)
+
+    def _tier_counts_sync(self) -> dict[IndexTier, int]:
+        conn = self._require_conn()
+        counts = {tier: 0 for tier in IndexTier}
+        rows = conn.execute(
+            "SELECT index_tier, COUNT(*) FROM memory GROUP BY index_tier"
+        ).fetchall()
+        for tier_name, count in rows:
+            with contextlib.suppress(ValueError):
+                counts[IndexTier(tier_name)] = count
+        return counts
+
+    async def iter_memory_ids(self, batch_size: int = 500) -> list[str]:
+        """Return every memory id in the workspace, for batch rebalance passes."""
+
+        return await asyncio.to_thread(self._iter_memory_ids_sync)
+
+    def _iter_memory_ids_sync(self) -> list[str]:
+        conn = self._require_conn()
+        rows = conn.execute("SELECT id FROM memory").fetchall()
+        return [r[0] for r in rows]
 
     # ─── reads ────────────────────────────────────────────────────────
 
@@ -506,6 +556,12 @@ def build_trigram_query(query: str) -> str | None:
 
 def _row_to_memory(row: dict[str, Any]) -> Memory:
     access_history = [datetime.fromtimestamp(t, tz=UTC) for t in json.loads(row["access_history"])]
+    last_accessed_raw = row.get("last_accessed_at")
+    last_accessed = (
+        datetime.fromtimestamp(last_accessed_raw, tz=UTC)
+        if last_accessed_raw is not None
+        else None
+    )
     return Memory(
         id=row["id"],
         workspace_id=row["workspace_id"],
@@ -518,11 +574,13 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
         memory_type=MemoryType(row["memory_type"]),
         abstraction_level=row["abstraction_level"],
         access_history=access_history,
+        last_accessed_at=last_accessed,
         rehearsal_count=row["rehearsal_count"],
         salience=row["salience"],
         emotional_weight=row["emotional_weight"],
         reminisced_count=row["reminisced_count"],
         index_tier=IndexTier(row["index_tier"]),
+        idx_priority=row.get("idx_priority", 0.5),
         source_message_ids=json.loads(row["source_message_ids"]),
         source_context=json.loads(row["source_context"]),
     )

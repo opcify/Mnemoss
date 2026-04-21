@@ -109,7 +109,7 @@ class Mnemoss:
         if not should_encode(msg, self._config.encoder):
             return None
 
-        memory = encode_message(msg, now=now)
+        memory = encode_message(msg, now=now, formula=self._config.formula)
         embedding = self._embedder.embed([content])[0]
         await self._store.write_memory(memory, embedding)
         await write_cooccurrence_edges(

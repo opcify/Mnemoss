@@ -5,7 +5,13 @@ from __future__ import annotations
 import math
 
 from mnemoss.core.config import FormulaParams
-from mnemoss.formula.idx_priority import compute_idx_priority, sigmoid
+from mnemoss.core.types import IndexTier
+from mnemoss.formula.idx_priority import (
+    compute_idx_priority,
+    idx_priority_to_tier,
+    initial_idx_priority,
+    sigmoid,
+)
 
 PARAMS = FormulaParams()
 
@@ -53,3 +59,30 @@ def test_salience_emotion_additive() -> None:
     assert emotional > base
     assert both > salient
     assert both > emotional
+
+
+def test_tier_boundaries_match_spec() -> None:
+    # >0.7 → HOT
+    assert idx_priority_to_tier(0.9) is IndexTier.HOT
+    assert idx_priority_to_tier(0.71) is IndexTier.HOT
+    # 0.3 < ip ≤ 0.7 → WARM; 0.7 is the upper boundary (inclusive on WARM)
+    assert idx_priority_to_tier(0.7) is IndexTier.WARM
+    assert idx_priority_to_tier(0.5) is IndexTier.WARM
+    assert idx_priority_to_tier(0.31) is IndexTier.WARM
+    # 0.1 < ip ≤ 0.3 → COLD
+    assert idx_priority_to_tier(0.3) is IndexTier.COLD
+    assert idx_priority_to_tier(0.2) is IndexTier.COLD
+    assert idx_priority_to_tier(0.11) is IndexTier.COLD
+    # ≤ 0.1 → DEEP
+    assert idx_priority_to_tier(0.1) is IndexTier.DEEP
+    assert idx_priority_to_tier(0.0) is IndexTier.DEEP
+
+
+def test_initial_idx_priority_is_sigmoid_eta() -> None:
+    """Fresh memory (pre-access, pre-pin, sal=emo=0) → σ(η_0)."""
+
+    ip = initial_idx_priority(PARAMS)
+    assert math.isclose(ip, sigmoid(PARAMS.eta_0), rel_tol=1e-12)
+    # With default η_0 = 1.0, σ(1.0) ≈ 0.7310585, so a fresh memory lands HOT.
+    assert ip > 0.7
+    assert idx_priority_to_tier(ip) is IndexTier.HOT

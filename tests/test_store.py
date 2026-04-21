@@ -191,12 +191,78 @@ async def test_reconsolidate_appends_access(tmp_path: Path) -> None:
     before = await b.get_memory("m1")
     assert before is not None
     assert len(before.access_history) == 1
+    assert before.last_accessed_at is None  # not yet reconsolidated
 
-    await b.reconsolidate("m1", datetime.now(UTC))
+    now = datetime.now(UTC)
+    await b.reconsolidate("m1", now)
     after = await b.get_memory("m1")
     assert after is not None
     assert len(after.access_history) == 2
     assert after.rehearsal_count == 1
+    assert after.last_accessed_at is not None
+    assert abs((after.last_accessed_at - now).total_seconds()) < 1e-3
+    await b.close()
+
+
+async def test_write_memory_persists_idx_priority_and_tier(tmp_path: Path) -> None:
+    b = await _backend(tmp_path)
+    m = _memory("m1", "hi")
+    m.idx_priority = 0.82
+    m.index_tier = IndexTier.HOT
+    await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
+    got = await b.get_memory("m1")
+    assert got is not None
+    assert got.idx_priority == pytest.approx(0.82)
+    assert got.index_tier is IndexTier.HOT
+    await b.close()
+
+
+async def test_update_idx_priority_rewrites_value_and_tier(tmp_path: Path) -> None:
+    b = await _backend(tmp_path)
+    m = _memory("m1", "hi")
+    m.idx_priority = 0.8
+    m.index_tier = IndexTier.HOT
+    await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
+
+    await b.update_idx_priority("m1", 0.05, IndexTier.DEEP)
+    got = await b.get_memory("m1")
+    assert got is not None
+    assert got.idx_priority == pytest.approx(0.05)
+    assert got.index_tier is IndexTier.DEEP
+    await b.close()
+
+
+async def test_tier_counts_returns_distribution(tmp_path: Path) -> None:
+    b = await _backend(tmp_path)
+    for i, tier in enumerate(
+        [IndexTier.HOT, IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]
+    ):
+        m = _memory(f"m{i}", f"content {i}")
+        m.index_tier = tier
+        emb = np.zeros(4, dtype=np.float32)
+        emb[i % 4] = 1.0
+        await b.write_memory(m, emb)
+
+    counts = await b.tier_counts()
+    assert counts[IndexTier.HOT] == 2
+    assert counts[IndexTier.WARM] == 1
+    assert counts[IndexTier.COLD] == 1
+    assert counts[IndexTier.DEEP] == 0
+    await b.close()
+
+
+async def test_iter_memory_ids_returns_all(tmp_path: Path) -> None:
+    b = await _backend(tmp_path)
+    written = []
+    for i in range(3):
+        m = _memory(f"m{i}", f"c{i}")
+        emb = np.zeros(4, dtype=np.float32)
+        emb[i] = 1.0
+        await b.write_memory(m, emb)
+        written.append(m.id)
+
+    ids = await b.iter_memory_ids()
+    assert set(ids) == set(written)
     await b.close()
 
 

@@ -102,6 +102,9 @@ dmypy.json
 *~
 .DS_Store
 
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
+
 # Mnemoss data (user workspaces)
 .mnemoss/
 mnemoss_workspaces/

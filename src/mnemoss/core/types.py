@@ -64,11 +64,13 @@ class Memory:
     memory_type: MemoryType
     abstraction_level: float
     access_history: list[datetime] = field(default_factory=list)
+    last_accessed_at: datetime | None = None
     rehearsal_count: int = 0
     salience: float = 0.0
     emotional_weight: float = 0.0
     reminisced_count: int = 0
     index_tier: IndexTier = IndexTier.HOT
+    idx_priority: float = 0.5
     source_message_ids: list[str] = field(default_factory=list)
     source_context: dict[str, Any] = field(default_factory=dict)
 

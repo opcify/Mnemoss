@@ -29,17 +29,20 @@ DDL_STATEMENTS = [
       memory_type TEXT NOT NULL,
       abstraction_level REAL NOT NULL,
       access_history TEXT NOT NULL,
+      last_accessed_at REAL,
       rehearsal_count INTEGER NOT NULL DEFAULT 0,
       salience REAL NOT NULL DEFAULT 0.0,
       emotional_weight REAL NOT NULL DEFAULT 0.0,
       reminisced_count INTEGER NOT NULL DEFAULT 0,
       index_tier TEXT NOT NULL DEFAULT 'hot',
+      idx_priority REAL NOT NULL DEFAULT 0.5,
       source_message_ids TEXT NOT NULL DEFAULT '[]',
       source_context TEXT NOT NULL DEFAULT '{}'
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_memory_agent ON memory(agent_id)",
     "CREATE INDEX IF NOT EXISTS idx_memory_session ON memory(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_memory_tier ON memory(index_tier)",
     """
     CREATE TABLE IF NOT EXISTS relation (
       src_id TEXT NOT NULL,
