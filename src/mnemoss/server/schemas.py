@@ -161,6 +161,11 @@ class RecallResponse(BaseModel):
     results: list[RecallResultDTO]
 
 
+class ExplainRequest(BaseModel):
+    query: str
+    memory_id: str
+
+
 class ExplainResponse(BaseModel):
     breakdown: ActivationBreakdownDTO
 

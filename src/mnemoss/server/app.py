@@ -4,12 +4,20 @@
 this via uvicorn; tests pass a custom ``ServerConfig`` (typically with a
 ``FakeEmbedder``) so suites run without downloading models.
 
-Stage-6 S1 surface:
+Stage-6 endpoints:
 
 - ``GET  /health``                              — liveness
 - ``POST /workspaces/{id}/observe``             — record a message
 - ``POST /workspaces/{id}/recall``              — cascade retrieval
 - ``POST /workspaces/{id}/pin``                 — pin a memory
+- ``POST /workspaces/{id}/explain``             — ActivationBreakdown for one memory
+- ``POST /workspaces/{id}/dream``               — run a dream cycle
+- ``POST /workspaces/{id}/rebalance``           — P7 rebalance (standalone)
+- ``POST /workspaces/{id}/dispose``             — P8 dispose (standalone)
+- ``GET  /workspaces/{id}/tombstones``          — list disposal audit rows
+- ``GET  /workspaces/{id}/tiers``               — tier counts
+- ``POST /workspaces/{id}/export``              — render memory.md
+- ``POST /workspaces/{id}/flush``               — force-close event buffers
 
 Per-agent scoping is a query parameter (``?agent_id=alice``). Omitting
 it means "workspace-ambient", matching ``Mnemoss.for_agent`` semantics
@@ -28,13 +36,30 @@ from mnemoss.server.auth import verify_api_key
 from mnemoss.server.config import ServerConfig
 from mnemoss.server.pool import WorkspaceNotAllowedError, WorkspacePool
 from mnemoss.server.schemas import (
+    DisposeResponse,
+    DreamRequest,
+    DreamResponse,
+    ExplainRequest,
+    ExplainResponse,
+    ExportMarkdownRequest,
+    ExportMarkdownResponse,
+    FlushSessionRequest,
+    FlushSessionResponse,
     ObserveRequest,
     ObserveResponse,
     OkResponse,
     PinRequest,
+    RebalanceResponse,
     RecallRequest,
     RecallResponse,
+    TierCountsResponse,
+    TombstonesResponse,
+    breakdown_to_dto,
+    disposal_stats_to_dto,
+    dream_report_to_dto,
+    rebalance_stats_to_dto,
     recall_result_to_dto,
+    tombstone_to_dto,
 )
 
 
@@ -130,6 +155,144 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         mem = await _resolve(request, workspace_id)
         await mem.pin(body.memory_id, agent_id=agent_id)
         return OkResponse()
+
+    # ─── explain_recall ─────────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/explain",
+        response_model=ExplainResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def explain(
+        workspace_id: str,
+        body: ExplainRequest,
+        request: Request,
+        agent_id: str | None = None,
+    ) -> ExplainResponse:
+        mem = await _resolve(request, workspace_id)
+        breakdown = await mem.explain_recall(
+            body.query, body.memory_id, agent_id=agent_id
+        )
+        return ExplainResponse(breakdown=breakdown_to_dto(breakdown))
+
+    # ─── dream ──────────────────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/dream",
+        response_model=DreamResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def dream(
+        workspace_id: str,
+        body: DreamRequest,
+        request: Request,
+        agent_id: str | None = None,
+    ) -> DreamResponse:
+        mem = await _resolve(request, workspace_id)
+        try:
+            report = await mem.dream(trigger=body.trigger, agent_id=agent_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return dream_report_to_dto(report)
+
+    # ─── rebalance ──────────────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/rebalance",
+        response_model=RebalanceResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def rebalance(
+        workspace_id: str,
+        request: Request,
+    ) -> RebalanceResponse:
+        mem = await _resolve(request, workspace_id)
+        stats = await mem.rebalance()
+        return rebalance_stats_to_dto(stats)
+
+    # ─── dispose ────────────────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/dispose",
+        response_model=DisposeResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def dispose(
+        workspace_id: str,
+        request: Request,
+    ) -> DisposeResponse:
+        mem = await _resolve(request, workspace_id)
+        stats = await mem.dispose()
+        return disposal_stats_to_dto(stats)
+
+    # ─── tombstones ─────────────────────────────────────────────
+
+    @app.get(
+        "/workspaces/{workspace_id}/tombstones",
+        response_model=TombstonesResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def tombstones(
+        workspace_id: str,
+        request: Request,
+        agent_id: str | None = None,
+        limit: int = 100,
+    ) -> TombstonesResponse:
+        mem = await _resolve(request, workspace_id)
+        rows = await mem.tombstones(agent_id=agent_id, limit=limit)
+        return TombstonesResponse(
+            tombstones=[tombstone_to_dto(t) for t in rows],
+        )
+
+    # ─── tier_counts ────────────────────────────────────────────
+
+    @app.get(
+        "/workspaces/{workspace_id}/tiers",
+        response_model=TierCountsResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def tiers(
+        workspace_id: str,
+        request: Request,
+    ) -> TierCountsResponse:
+        mem = await _resolve(request, workspace_id)
+        return TierCountsResponse(tiers=await mem.tier_counts())
+
+    # ─── export_markdown ────────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/export",
+        response_model=ExportMarkdownResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def export_markdown(
+        workspace_id: str,
+        body: ExportMarkdownRequest,
+        request: Request,
+        agent_id: str | None = None,
+    ) -> ExportMarkdownResponse:
+        mem = await _resolve(request, workspace_id)
+        md = await mem.export_markdown(
+            agent_id=agent_id, min_idx_priority=body.min_idx_priority
+        )
+        return ExportMarkdownResponse(markdown=md)
+
+    # ─── flush_session ──────────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/flush",
+        response_model=FlushSessionResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def flush_session(
+        workspace_id: str,
+        body: FlushSessionRequest,
+        request: Request,
+        agent_id: str | None = None,
+    ) -> FlushSessionResponse:
+        mem = await _resolve(request, workspace_id)
+        n = await mem.flush_session(agent_id=agent_id, session_id=body.session_id)
+        return FlushSessionResponse(flushed=n)
 
     return app
 
