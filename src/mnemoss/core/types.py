@@ -123,3 +123,23 @@ class Event:
     started_at: datetime
     ended_at: datetime
     closed_by: str
+
+
+@dataclass
+class Tombstone:
+    """Audit record of a disposed Memory.
+
+    Stage 5 P8 writes one per disposal. The gist snapshot and the
+    ``source_message_ids`` pointer into the Raw Log together allow
+    partial reconstruction if a downstream caller ever needs to chase
+    what was dropped and why.
+    """
+
+    original_id: str
+    workspace_id: str
+    agent_id: str | None
+    dropped_at: datetime
+    reason: str  # "activation_dead" | "redundant" | "fact_covered"
+    gist_snapshot: str
+    b_at_drop: float
+    source_message_ids: list[str] = field(default_factory=list)

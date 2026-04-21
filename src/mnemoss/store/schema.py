@@ -88,6 +88,20 @@ DDL_STATEMENTS = [
       metadata TEXT NOT NULL DEFAULT '{}'
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS tombstone (
+      original_id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      agent_id TEXT,
+      dropped_at REAL NOT NULL,
+      reason TEXT NOT NULL,
+      gist_snapshot TEXT NOT NULL,
+      b_at_drop REAL NOT NULL,
+      source_message_ids TEXT NOT NULL DEFAULT '[]'
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_tombstone_agent ON tombstone(agent_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tombstone_dropped_at ON tombstone(dropped_at)",
 ]
 
 

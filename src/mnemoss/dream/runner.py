@@ -22,7 +22,9 @@ import numpy as np
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import Memory
 from mnemoss.dream.cluster import ClusterAssignment, cluster_embeddings, group_by_cluster
+from mnemoss.dream.dispose import dispose_pass
 from mnemoss.dream.extract import extract_from_cluster
+from mnemoss.dream.generalize import generalize_facts
 from mnemoss.dream.refine import refine_memory_fields
 from mnemoss.dream.relations import (
     write_derived_from_edges,
@@ -36,6 +38,7 @@ from mnemoss.dream.types import (
     TriggerType,
 )
 from mnemoss.encoder import Embedder
+from mnemoss.index import rebalance as _rebalance
 from mnemoss.llm.client import LLMClient
 from mnemoss.store.sqlite_backend import SQLiteBackend
 
@@ -74,6 +77,7 @@ class _DreamState:
     embeddings: dict[str, np.ndarray] = field(default_factory=dict)
     cluster_assignments: dict[str, ClusterAssignment] = field(default_factory=dict)
     extracted: list[Memory] = field(default_factory=list)
+    generalized: list[Memory] = field(default_factory=list)
 
 
 class DreamRunner:
@@ -140,6 +144,12 @@ class DreamRunner:
             return await self._phase_refine(state)
         if phase is PhaseName.RELATIONS:
             return await self._phase_relations(state)
+        if phase is PhaseName.GENERALIZE:
+            return await self._phase_generalize(state, now)
+        if phase is PhaseName.REBALANCE:
+            return await self._phase_rebalance(now)
+        if phase is PhaseName.DISPOSE:
+            return await self._phase_dispose(state, now)
         raise RuntimeError(f"unknown phase {phase}")
 
     # ─── P1 Replay ─────────────────────────────────────────────────
@@ -348,5 +358,94 @@ class DreamRunner:
                 "similar_to_edges": similar_edges,
                 "derived_from_edges": derived_edges,
                 "total_edges": similar_edges + derived_edges,
+            },
+        )
+
+    # ─── P6 Generalize ─────────────────────────────────────────────
+
+    async def _phase_generalize(
+        self, state: _DreamState, now: datetime
+    ) -> PhaseOutcome:
+        if self._llm is None:
+            return PhaseOutcome(
+                phase=PhaseName.GENERALIZE,
+                status="skipped",
+                details={"reason": "no llm configured"},
+            )
+        if self._embedder is None:
+            return PhaseOutcome(
+                phase=PhaseName.GENERALIZE,
+                status="skipped",
+                details={"reason": "no embedder configured"},
+            )
+        if len(state.extracted) < 2:
+            return PhaseOutcome(
+                phase=PhaseName.GENERALIZE,
+                status="ok",
+                details={
+                    "patterns": 0,
+                    "reason": "need >=2 extracted facts to generalize",
+                },
+            )
+
+        patterns = await generalize_facts(
+            state.extracted, self._llm, self._params, now=now
+        )
+        for pattern in patterns:
+            embedding = await asyncio.to_thread(
+                self._embedder.embed, [pattern.content]
+            )
+            await self._store.write_memory(pattern, embedding[0])
+            await self._store.link_derived(pattern.derived_from, pattern.id)
+
+        state.generalized = patterns
+        return PhaseOutcome(
+            phase=PhaseName.GENERALIZE,
+            status="ok",
+            details={
+                "patterns": len(patterns),
+                "ids": [p.id for p in patterns],
+                "cross_agent_promotions": sum(
+                    1 for p in patterns if p.agent_id is None
+                ),
+            },
+        )
+
+    # ─── P7 Rebalance ──────────────────────────────────────────────
+
+    async def _phase_rebalance(self, now: datetime) -> PhaseOutcome:
+        stats = await _rebalance(self._store, self._params, now=now)
+        return PhaseOutcome(
+            phase=PhaseName.REBALANCE,
+            status="ok",
+            details={
+                "scanned": stats.scanned,
+                "migrated": stats.migrated,
+                "tier_after": {
+                    tier.value: count for tier, count in stats.tier_after.items()
+                },
+            },
+        )
+
+    # ─── P8 Dispose ────────────────────────────────────────────────
+
+    async def _phase_dispose(
+        self, state: _DreamState, now: datetime
+    ) -> PhaseOutcome:
+        # P8 scans the replay set when P1 ran, else the full table.
+        candidates = state.replay_set if state.replay_set else None
+        stats = await dispose_pass(
+            self._store, self._params, now=now, candidates=candidates
+        )
+        return PhaseOutcome(
+            phase=PhaseName.DISPOSE,
+            status="ok",
+            details={
+                "scanned": stats.scanned,
+                "disposed": stats.disposed,
+                "activation_dead": stats.activation_dead,
+                "redundant": stats.redundant,
+                "protected": stats.protected,
+                "disposed_ids": stats.disposed_ids,
             },
         )

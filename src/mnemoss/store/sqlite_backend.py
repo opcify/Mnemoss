@@ -29,7 +29,7 @@ import numpy as np
 import sqlite_vec
 
 from mnemoss.core.config import SCHEMA_VERSION
-from mnemoss.core.types import IndexTier, Memory, MemoryType, RawMessage
+from mnemoss.core.types import IndexTier, Memory, MemoryType, RawMessage, Tombstone
 from mnemoss.store.schema import DDL_STATEMENTS, FTS_DDL, MIN_SQLITE_VERSION, vec_ddl
 
 UTC = timezone.utc
@@ -606,6 +606,115 @@ class SQLiteBackend:
                 (agent_id,),
             ).fetchall()
         return {r[0] for r in rows}
+
+    async def cluster_size(self, cluster_id: str) -> int:
+        """Return the number of memories currently registered in ``cluster_id``."""
+
+        return await self._run(self._cluster_size_sync, cluster_id)
+
+    def _cluster_size_sync(self, cluster_id: str) -> int:
+        conn = self._require_conn()
+        row = conn.execute(
+            "SELECT COUNT(*) FROM memory WHERE cluster_id = ?",
+            (cluster_id,),
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+    async def write_tombstone(self, tombstone: Tombstone) -> None:
+        """Persist a disposal record."""
+
+        async with self._write_lock:
+            await self._run(self._write_tombstone_sync, tombstone)
+
+    def _write_tombstone_sync(self, t: Tombstone) -> None:
+        conn = self._require_conn()
+        with conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO tombstone
+                (original_id, workspace_id, agent_id, dropped_at, reason,
+                 gist_snapshot, b_at_drop, source_message_ids)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    t.original_id,
+                    t.workspace_id,
+                    t.agent_id,
+                    t.dropped_at.timestamp(),
+                    t.reason,
+                    t.gist_snapshot,
+                    t.b_at_drop,
+                    json.dumps(t.source_message_ids),
+                ),
+            )
+
+    async def list_tombstones(
+        self, *, agent_id: str | None = None, limit: int = 100
+    ) -> list[Tombstone]:
+        """Return recent tombstones, newest first. Scope follows recall: a
+        non-None ``agent_id`` returns that agent's + ambient; ``None``
+        returns ambient-only."""
+
+        return await self._run(self._list_tombstones_sync, agent_id, limit)
+
+    def _list_tombstones_sync(
+        self, agent_id: str | None, limit: int
+    ) -> list[Tombstone]:
+        conn = self._require_conn()
+        if agent_id is None:
+            sql = (
+                "SELECT * FROM tombstone WHERE agent_id IS NULL "
+                "ORDER BY dropped_at DESC LIMIT ?"
+            )
+            rows = conn.execute(sql, (limit,)).fetchall()
+        else:
+            sql = (
+                "SELECT * FROM tombstone "
+                "WHERE agent_id = ? OR agent_id IS NULL "
+                "ORDER BY dropped_at DESC LIMIT ?"
+            )
+            rows = conn.execute(sql, (agent_id, limit)).fetchall()
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(tombstone)")]
+        out = []
+        for row in rows:
+            d = dict(zip(cols, row, strict=True))
+            out.append(
+                Tombstone(
+                    original_id=d["original_id"],
+                    workspace_id=d["workspace_id"],
+                    agent_id=d["agent_id"],
+                    dropped_at=datetime.fromtimestamp(d["dropped_at"], tz=UTC),
+                    reason=d["reason"],
+                    gist_snapshot=d["gist_snapshot"],
+                    b_at_drop=d["b_at_drop"],
+                    source_message_ids=json.loads(d["source_message_ids"]),
+                )
+            )
+        return out
+
+    async def delete_memory_completely(self, memory_id: str) -> None:
+        """Remove a memory from ``memory``, ``memory_vec``, ``memory_fts``,
+        and every edge in ``relation`` / ``pin``. Raw Log is never touched.
+        """
+
+        async with self._write_lock:
+            await self._run(self._delete_memory_sync, memory_id)
+
+    def _delete_memory_sync(self, memory_id: str) -> None:
+        conn = self._require_conn()
+        with conn:
+            conn.execute("DELETE FROM memory WHERE id = ?", (memory_id,))
+            conn.execute(
+                "DELETE FROM memory_vec WHERE memory_id = ?", (memory_id,)
+            )
+            conn.execute(
+                "DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,)
+            )
+            conn.execute(
+                "DELETE FROM relation WHERE src_id = ? OR dst_id = ?",
+                (memory_id, memory_id),
+            )
+            conn.execute("DELETE FROM pin WHERE memory_id = ?", (memory_id,))
 
     async def iter_memory_ids(self, batch_size: int = 500) -> list[str]:
         """Return every memory id in the workspace, for batch rebalance passes."""

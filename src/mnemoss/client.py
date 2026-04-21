@@ -24,8 +24,9 @@ from mnemoss.core.config import (
     SegmentationParams,
     StorageParams,
 )
-from mnemoss.core.types import RawMessage
+from mnemoss.core.types import RawMessage, Tombstone
 from mnemoss.dream.diary import append_entry, dream_diary_path
+from mnemoss.dream.dispose import DisposalStats, dispose_pass
 from mnemoss.dream.runner import DreamRunner
 from mnemoss.dream.types import DreamReport, TriggerType
 from mnemoss.encoder import Embedder, make_embedder
@@ -209,6 +210,30 @@ class Mnemoss:
             await self._store.close()
             self._store = None
             self._engine = None
+
+    async def dispose(self) -> DisposalStats:
+        """Run P8 Dispose standalone (without the rest of the dream pipeline).
+
+        Scans every memory, enforces hard protections (pin / high
+        salience / high emotional_weight / age < 30 days), and removes
+        any that satisfy ``activation_dead`` or ``redundant`` criteria.
+        Writes a Tombstone per disposal; content never silently
+        disappears without an audit entry.
+        """
+
+        await self._ensure_open()
+        assert self._store is not None
+        return await dispose_pass(self._store, self._config.formula)
+
+    async def tombstones(
+        self, *, agent_id: str | None = None, limit: int = 100
+    ) -> list[Tombstone]:
+        """Return recent tombstones, newest first, scoped the same way as
+        recall (agent + ambient, or ambient only)."""
+
+        await self._ensure_open()
+        assert self._store is not None
+        return await self._store.list_tombstones(agent_id=agent_id, limit=limit)
 
     async def rebalance(self) -> RebalanceStats:
         """Recompute ``idx_priority`` and tier for every memory.

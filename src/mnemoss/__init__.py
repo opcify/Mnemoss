@@ -15,8 +15,10 @@ from mnemoss.core.types import (
     MemoryType,
     RawMessage,
     Relation,
+    Tombstone,
 )
 from mnemoss.dream import DreamReport, DreamRunner, PhaseName, PhaseOutcome, TriggerType
+from mnemoss.dream.dispose import DisposalStats
 from mnemoss.encoder import Embedder, FakeEmbedder, LocalEmbedder, OpenAIEmbedder
 from mnemoss.index import RebalanceStats
 from mnemoss.llm import (
@@ -34,6 +36,7 @@ __all__ = [
     "AgentHandle",
     "AnthropicClient",
     "CascadeStats",
+    "DisposalStats",
     "DreamReport",
     "DreamRunner",
     "Embedder",
@@ -60,5 +63,6 @@ __all__ = [
     "Relation",
     "SegmentationParams",
     "StorageParams",
+    "Tombstone",
     "TriggerType",
 ]
