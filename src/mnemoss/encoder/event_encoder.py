@@ -13,6 +13,7 @@ import ulid
 
 from mnemoss.core.config import EncoderParams, FormulaParams
 from mnemoss.core.types import Memory, MemoryType, RawMessage
+from mnemoss.encoder.salience import compute_salience
 from mnemoss.formula.idx_priority import idx_priority_to_tier, initial_idx_priority
 
 UTC = timezone.utc
@@ -55,6 +56,7 @@ def encode_message(
         abstraction_level=0.0,
         access_history=[t],
         last_accessed_at=None,
+        salience=compute_salience(msg.content, role=msg.role),
         idx_priority=ip,
         index_tier=idx_priority_to_tier(ip),
         source_message_ids=[msg.id],
@@ -109,6 +111,7 @@ def encode_event(
         abstraction_level=0.0,
         access_history=[t],
         last_accessed_at=None,
+        salience=compute_salience(content, role=first.role),
         idx_priority=ip,
         index_tier=idx_priority_to_tier(ip),
         source_message_ids=[m.id for m in messages],
