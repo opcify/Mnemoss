@@ -61,6 +61,7 @@ class SQLiteBackend:
         self._embedder_id = embedder_id
         self._conn: apsw.Connection | None = None
         self._write_lock = asyncio.Lock()
+        self._memory_columns: list[str] = []
 
     # ─── open / close ─────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ class SQLiteBackend:
             self._validate_meta(conn)
 
         self._conn = conn
+        self._memory_columns = [row[1] for row in conn.execute("PRAGMA table_info(memory)")]
 
     def _create_schema(self, conn: apsw.Connection) -> None:
         with conn:
@@ -277,12 +279,12 @@ class SQLiteBackend:
 
     def _get_memory_sync(self, memory_id: str) -> Memory | None:
         conn = self._require_conn()
-        cursor = conn.execute("SELECT * FROM memory WHERE id = ?", (memory_id,))
-        row = cursor.fetchone()
+        row = conn.execute(
+            "SELECT * FROM memory WHERE id = ?", (memory_id,)
+        ).fetchone()
         if row is None:
             return None
-        cols = [d[0] for d in cursor.get_description()]
-        return _row_to_memory(dict(zip(cols, row, strict=True)))
+        return _row_to_memory(dict(zip(self._memory_columns, row, strict=True)))
 
     async def is_pinned(self, memory_id: str, agent_id: str | None) -> bool:
         return await asyncio.to_thread(self._is_pinned_sync, memory_id, agent_id)
@@ -412,15 +414,14 @@ class SQLiteBackend:
         if not ids:
             return []
         placeholders = ",".join("?" for _ in ids)
-        cursor = conn.execute(
+        rows = conn.execute(
             f"SELECT * FROM memory WHERE id IN ({placeholders})", tuple(ids)
-        )
-        rows = cursor.fetchall()
+        ).fetchall()
         if not rows:
             return []
-        cols = [d[0] for d in cursor.get_description()]
         by_id = {
-            row[0]: _row_to_memory(dict(zip(cols, row, strict=True))) for row in rows
+            row[0]: _row_to_memory(dict(zip(self._memory_columns, row, strict=True)))
+            for row in rows
         }
         return [by_id[i] for i in ids if i in by_id]
 
