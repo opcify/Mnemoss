@@ -310,9 +310,9 @@ pick a high quantile rather than a true maximum).
 
 $$
 \text{redundant}(m_i): \begin{cases}
-\text{cluster}\_\text{size} \geq 5 \\
-\text{sim}\_\text{to}\_\text{centroid} > 0.92 \\
-\neg \text{is}\_\text{representative}
+\text{cluster\_size} \geq 5 \\
+\text{sim\_to\_centroid} > 0.92 \\
+\neg \text{is\_representative}
 \end{cases}
 $$
 

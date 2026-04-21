@@ -281,11 +281,12 @@ gateway. Multiple **agents** coexist within a workspace.
 - One SQLite DB per workspace (do not shard by agent — joins are needed 
   for the shared-memory query path).
 
-**Stage 1 behavior:** all memories written via `mem.for_agent("A").observe(...)` 
-get `agent_id="A"`; all memories written via the top-level 
-`mem.observe(...)` get `agent_id=None`. Cross-agent promotion (Dreaming 
-moving a per-agent pattern/entity to workspace-shared) is deferred to 
-Stage 4+.
+**Write-side behavior:** all memories written via 
+`mem.for_agent("A").observe(...)` get `agent_id="A"`; all memories 
+written via the top-level `mem.observe(...)` get `agent_id=None`. 
+Cross-agent promotion (Dreaming's Extract phase emitting a fact derived 
+from a cluster that spans multiple agents as `agent_id=None`) shipped 
+in Stage 4.
 
 **Privacy model — cooperative, not adversarial.** The `for_agent` handle 
 enforces agent isolation at the recall/pin surface (via the SQL filter 
@@ -440,17 +441,25 @@ Mnemoss(
 ---
 ## 8. Package Structure
 
-*To be filled once Stage 1 scaffolding lands. Generate from `tree src/` at 
-that point — no value in hand-writing a tree that diverges from the code.*
+See [`CLAUDE.md`](./CLAUDE.md) §"Architecture at a Glance" for the 
+current `src/mnemoss/` layout, plus the monorepo's TypeScript SDK and 
+framework adapters. Don't mirror the tree here — it drifts. The 
+authoritative view is `tree src/mnemoss` against a clean checkout.
 
 ---
 
 ## 9. Stage-Based Development Plan
 
-### Stage 1 — MVP Foundation (3 weeks)
+> **Status — all six stages shipped.** The sections below are kept as a 
+> record of how the system was built and why each layer exists. They are 
+> not a forward roadmap. For current state and active invariants, see 
+> `CLAUDE.md`. For the next wave of work (benchmarks, whitepaper, 
+> additional adapters, performance tuning), see the issue tracker.
+
+### Stage 1 — MVP Foundation ✅
 
 **Goal:** End-to-end observe → recall works with the **full activation 
-formula** engaged. API is clean. Published to PyPI.
+formula** engaged. API is clean.
 
 **Scoping principle — the formula is not progressive.** The four terms of 
 the activation equation ($B_i$, spreading, matching, noise) interact: 
@@ -480,7 +489,7 @@ progressive.
     written at encode time. `fan_j` recomputed on the fly. Richer 
     relation types (supersedes, part_of, etc.) come from Dreaming P5 
     in Stage 4+.
-- Single-tier index (HOT only, sqlite-vec + FTS5; HNSW deferred to Stage 2)
+- Single-tier index (HOT only, sqlite-vec + FTS5; multi-tier came in Stage 2, still on sqlite-vec rather than a separate HNSW binary)
 - `idx_priority` recomputed on the fly from latest $B_i$ (persistence 
   + tier migration = Stage 2)
 - Core API: `observe`, `recall`, `pin`, plus `mem.for_agent(id)` handle 
@@ -520,9 +529,9 @@ async def main():
 asyncio.run(main())
 ```
 
-### Stage 2 — Multi-Tier Architecture (2 weeks)
+### Stage 2 — Multi-Tier Architecture ✅
 
-The formula already works from Stage 1; Stage 2 builds the index 
+The formula already works from Stage 1; Stage 2 built the index 
 architecture around it.
 
 - Multi-tier indices (HOT/WARM/COLD/DEEP) — per-tier index structures
@@ -533,14 +542,14 @@ architecture around it.
 - Async embedding path (so cloud embedders don't block the Hot Path 
   budget)
 
-### Stage 3 — Encoding Completeness (2 weeks)
+### Stage 3 — Encoding Completeness ✅
 
 - Proper event segmentation (rule-based)
 - Multi-dimensional salience scoring
 - Lazy extraction (heuristic tools: dateparser, NER, gazetteer)
 - Complete Working Memory
 
-### Stage 4 — Light Dreaming (3 weeks)
+### Stage 4 — Light Dreaming ✅
 
 - Phases P1–P5
 - Session-end, idle, task-completion triggers
@@ -551,7 +560,7 @@ architecture around it.
   cluster that spans multiple agents, emit it with `agent_id=None` 
   (workspace-shared)
 
-### Stage 5 — Deep Dreaming + Disposal (3 weeks)
+### Stage 5 — Deep Dreaming + Disposal ✅
 
 - Phases P6–P8
 - Nightly trigger
@@ -559,13 +568,19 @@ architecture around it.
 - DEEP index + reminiscence
 - Surprise and cognitive-load triggers
 
-### Stage 6 — Integration (ongoing)
+### Stage 6 — Integration ✅ (shipped surfaces; post-ship work continues)
 
-- MCP Server (`mnemoss-mcp`)
-- OpenClaw plugin (`mnemoss-openclaw`)
-- Hermes provider (`mnemoss-hermes`)
+Shipped:
+- REST server (`mnemoss-server`) + Python SDK (`mnemoss.sdk`)
+- TypeScript SDK (`@mnemoss/sdk`)
+- MCP server (`mnemoss-mcp`)
+- Hermes `MemoryProvider` adapter (`adapters/hermes-agent/`)
+- OpenClaw plugin (`adapters/openclaw/`, TypeScript)
+
+Post-ship (tracked separately):
 - Whitepaper
-- Benchmarks vs mem0/Zep
+- Benchmarks vs mem0 / Zep / Letta
+- Adapter polish as host frameworks evolve
 
 ---
 
@@ -598,14 +613,17 @@ SQLite is the default backend because:
 
 Storage layout per workspace:
 ~/.mnemoss/workspaces/{workspace_id}/
-├── memory.sqlite           # Memory + Relations + Tombstones
+├── memory.sqlite           # Memory + Relations + Tombstones (+ sqlite-vec vectors, FTS5 index)
 ├── raw_log.sqlite          # Append-only message log
-├── vector_index/           # HNSW binary files (Stage 2+)
 ├── memory.md               # Generated view
 ├── memory_overrides.md     # User-edited
 └── dreams/
 ├── 2026-04-21.md
 └── ...
+
+Vectors live in a `vec0` virtual table inside `memory.sqlite` (via 
+`sqlite-vec`), not in a separate HNSW file. FTS5 trigram index lives 
+in the same file.
 
 ### 10.4 Performance Targets
 
@@ -686,27 +704,38 @@ These are known unknowns. Document answers here as they're settled.
 
 1. **Formula parameter calibration**: What are good defaults for d, τ, MP, α, β, γ 
    given actual Mnemoss usage patterns (vs. the original ACT-R experiments)?
-   → *Deferred to post-Stage-1 with real data*
+   → *Still open — calibration against real workloads (see benchmarks 
+   work) is the remaining task. Current defaults come from Anderson & 
+   Schooler's original ACT-R values.*
 
 2. **Event segmentation thresholds**: What time_gap, topic_shift_distance, 
    token_budget values produce natural-feeling events?
-   → *Stage 3*
+   → *Resolved in Stage 3. Defaults live in `FormulaParams` / 
+   `EncoderParams`; tunable per workspace.*
 
 3. **Relation graph construction**: How are relations first populated before 
    any dreaming runs?
-   → *Start with co-occurrence baseline in Stage 2*
+   → *Resolved. Co-occurrence edges (`co_occurs_in_session`) written at 
+   encode-time (Stage 1); richer predicates (`similar_to`, `derived_from`, 
+   `supersedes`, `part_of`) populated by Dreaming P5 (Stage 4).*
 
 4. **LLM cost envelope**: What's a reasonable daily LLM budget for dreaming 
    in typical use? How to enforce it?
-   → *Stage 4*
+   → *Partially resolved. Stage 4 shipped per-phase token budgeting + 
+   retry caps in the LLM client abstraction. A full cost-governor 
+   (across runs, across phases) remains open.*
 
 5. **memory.md size ceiling**: What happens when pinned + auto-promoted 
    memories exceed comfortable system prompt size?
-   → *Stage 4, with tiered memory.md proposals*
+   → *Resolved in Stage 4. `export_markdown()` accepts 
+   `min_idx_priority` and emits Facts → Entities → Patterns → Episodes 
+   in priority order; callers truncate to fit their budget.*
 
 6. **Concurrent access**: How should Mnemoss handle multiple processes 
    writing to the same workspace?
-   → *Stage 2, likely advisory locking on SQLite*
+   → *Still open. Within-process writes serialize via `asyncio.Lock` + 
+   SQLite WAL (single writer process per workspace). Cross-process 
+   coordination is not implemented.*
 
 ---
 
@@ -741,7 +770,7 @@ These are known unknowns. Document answers here as they're settled.
 - **Homepage:** https://github.com/opcify/mnemoss
 - **Repository:** https://github.com/opcify/mnemoss
 - **PyPI package:** `mnemoss`
-- **Initial version:** 0.1.0 (Stage 1)
+- **Current version:** 0.1.0 (Alpha — MVP feature-complete across Stages 1–6)
 - **Maintainer:** Guangyang Qi ([@opcify](https://github.com/opcify))
 - **Started:** 2026
 - **Built on top of:** Opcify's internal memory needs + broader agent ecosystem

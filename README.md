@@ -14,8 +14,10 @@ and relevance — not just semantic similarity.
 
 ## Status
 
-🚧 **Early development** — Stage 1 MVP in progress. Not yet published 
-to PyPI. API may change.
+**Alpha (0.1.0)** — MVP is complete. The core library, REST server, 
+Python/TypeScript SDKs, MCP wrapper, scheduler, observability, and 
+Hermes + OpenClaw adapters all ship in this repo. PyPI publish is 
+pending. API may still change.
 
 ## Why Mnemoss
 
@@ -48,7 +50,7 @@ a half-century of cognitive science research.
 - **Framework-agnostic** — integrate with OpenClaw, Hermes, Claude Code, 
   Cursor, or your own agent.
 
-## Quick Start (Planned)
+## Quick Start
 
 ```python
 import asyncio
