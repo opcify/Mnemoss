@@ -23,6 +23,7 @@ from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import Memory
 from mnemoss.dream.cluster import ClusterAssignment, cluster_embeddings, group_by_cluster
 from mnemoss.dream.extract import extract_from_cluster
+from mnemoss.dream.refine import refine_memory_fields
 from mnemoss.dream.relations import (
     write_derived_from_edges,
     write_similar_to_edges,
@@ -42,8 +43,8 @@ UTC = timezone.utc
 
 
 PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
-    # Per §6.3. P4 Refine is in the spec for session_end/nightly but is
-    # deferred to Stage 5 (D10).
+    # Per §6.3. P6 Generalize / P7 Rebalance / P8 Dispose + the
+    # surprise / cognitive_load / nightly triggers are Stage 5 additions.
     TriggerType.IDLE: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
@@ -54,6 +55,7 @@ PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
         PhaseName.EXTRACT,
+        PhaseName.REFINE,
         PhaseName.RELATIONS,
     ],
     TriggerType.TASK_COMPLETION: [
@@ -87,6 +89,7 @@ class DreamRunner:
         replay_limit: int = 100,
         replay_min_base_level: float | None = None,
         cluster_min_size: int = 3,
+        refine_batch_size: int = 25,
     ) -> None:
         self._store = store
         self._params = params
@@ -95,6 +98,7 @@ class DreamRunner:
         self._replay_limit = replay_limit
         self._replay_min_base_level = replay_min_base_level
         self._cluster_min_size = cluster_min_size
+        self._refine_batch_size = refine_batch_size
 
     async def run(
         self,
@@ -132,6 +136,8 @@ class DreamRunner:
             return await self._phase_cluster(state)
         if phase is PhaseName.EXTRACT:
             return await self._phase_extract(state, now)
+        if phase is PhaseName.REFINE:
+            return await self._phase_refine(state)
         if phase is PhaseName.RELATIONS:
             return await self._phase_relations(state)
         raise RuntimeError(f"unknown phase {phase}")
@@ -262,6 +268,67 @@ class DreamRunner:
                 "cross_agent_promotions": sum(
                     1 for m in extracted if m.agent_id is None
                 ),
+            },
+        )
+
+    # ─── P4 Refine ─────────────────────────────────────────────────
+
+    async def _phase_refine(self, state: _DreamState) -> PhaseOutcome:
+        if self._llm is None:
+            return PhaseOutcome(
+                phase=PhaseName.REFINE,
+                status="skipped",
+                details={"reason": "no llm configured"},
+            )
+
+        # Replay set is already B_i-sorted desc, so taking the first N keeps
+        # the highest-priority memories.
+        candidates = [m for m in state.replay_set if m.extraction_level < 2]
+        batch = candidates[: self._refine_batch_size]
+
+        if not batch:
+            return PhaseOutcome(
+                phase=PhaseName.REFINE,
+                status="ok",
+                details={
+                    "refined": 0,
+                    "candidates": 0,
+                    "reason": "no memories below level=2",
+                },
+            )
+
+        refined = 0
+        failures = 0
+        for memory in batch:
+            fields = await refine_memory_fields(memory, self._llm)
+            if fields is None:
+                failures += 1
+                continue
+            memory.extracted_gist = fields.gist
+            memory.extracted_entities = fields.entities
+            memory.extracted_time = fields.time
+            memory.extracted_location = fields.location
+            memory.extracted_participants = fields.participants
+            memory.extraction_level = fields.level
+            await self._store.update_extraction(
+                memory.id,
+                gist=fields.gist,
+                entities=fields.entities,
+                time=fields.time,
+                location=fields.location,
+                participants=fields.participants,
+                level=fields.level,
+            )
+            refined += 1
+
+        return PhaseOutcome(
+            phase=PhaseName.REFINE,
+            status="ok",
+            details={
+                "refined": refined,
+                "failures": failures,
+                "candidates": len(candidates),
+                "batch_limit": self._refine_batch_size,
             },
         )
 

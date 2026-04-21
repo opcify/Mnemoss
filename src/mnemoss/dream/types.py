@@ -19,16 +19,22 @@ class TriggerType(str, Enum):
 
 
 class PhaseName(str, Enum):
-    """Stage 4 only wires P1/P2/P3/P5.
+    """Names of dreaming phases per §6.3.
 
-    P4 Refine is in the spec but deferred — see CLAUDE.md D10. P6 / P7 /
-    P8 arrive with Stage 5 (P7 is already exposed on Mnemoss.rebalance).
+    Stage 4 wired P1/P2/P3/P5. Stage 5 adds P4 Refine, P6 Generalize, P8
+    Dispose. P7 Rebalance is already exposed standalone on
+    Mnemoss.rebalance() but is also dispatched from the nightly
+    trigger.
     """
 
     REPLAY = "replay"
     CLUSTER = "cluster"
     EXTRACT = "extract"
+    REFINE = "refine"
     RELATIONS = "relations"
+    GENERALIZE = "generalize"
+    REBALANCE = "rebalance"
+    DISPOSE = "dispose"
 
 
 @dataclass
