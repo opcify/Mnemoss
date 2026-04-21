@@ -19,6 +19,7 @@ Stage-6 endpoints:
 - ``POST /workspaces/{id}/export``              — render memory.md
 - ``POST /workspaces/{id}/flush``               — force-close event buffers
 - ``GET  /workspaces/{id}/status``              — operational snapshot
+- ``GET  /metrics``                             — Prometheus (when [observability] installed)
 
 Per-agent scoping is a query parameter (``?agent_id=alice``). Omitting
 it means "workspace-ambient", matching ``Mnemoss.for_agent`` semantics
@@ -27,12 +28,14 @@ on the library side.
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 from mnemoss import __version__
+from mnemoss.server import metrics
 from mnemoss.server.auth import verify_api_key
 from mnemoss.server.config import ServerConfig
 from mnemoss.server.pool import WorkspaceNotAllowedError, WorkspacePool
@@ -106,6 +109,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> ObserveResponse:
         mem = await _resolve(request, workspace_id)
+        start = time.perf_counter()
         memory_id = await mem.observe(
             role=body.role,
             content=body.content,
@@ -114,6 +118,11 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             turn_id=body.turn_id,
             parent_id=body.parent_id,
             metadata=body.metadata,
+        )
+        metrics.record_observe(
+            workspace_id,
+            encoded=memory_id is not None,
+            duration=time.perf_counter() - start,
         )
         return ObserveResponse(memory_id=memory_id)
 
@@ -131,11 +140,15 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> RecallResponse:
         mem = await _resolve(request, workspace_id)
+        start = time.perf_counter()
         results = await mem.recall(
             body.query,
             k=body.k,
             agent_id=agent_id,
             include_deep=body.include_deep,
+        )
+        metrics.record_recall(
+            workspace_id, duration=time.perf_counter() - start
         )
         return RecallResponse(
             results=[recall_result_to_dto(r) for r in results],
@@ -191,10 +204,16 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> DreamResponse:
         mem = await _resolve(request, workspace_id)
+        start = time.perf_counter()
         try:
             report = await mem.dream(trigger=body.trigger, agent_id=agent_id)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        metrics.record_dream(
+            workspace_id,
+            trigger=report.trigger.value,
+            duration=time.perf_counter() - start,
+        )
         return dream_report_to_dto(report)
 
     # ─── rebalance ──────────────────────────────────────────────
@@ -225,6 +244,11 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
     ) -> DisposeResponse:
         mem = await _resolve(request, workspace_id)
         stats = await mem.dispose()
+        metrics.record_disposal(
+            workspace_id,
+            activation_dead=stats.activation_dead,
+            redundant=stats.redundant,
+        )
         return disposal_stats_to_dto(stats)
 
     # ─── tombstones ─────────────────────────────────────────────
@@ -310,6 +334,17 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         mem = await _resolve(request, workspace_id)
         snapshot = await mem.status()
         return StatusResponse.model_validate(snapshot)
+
+    # ─── /metrics (Prometheus, optional) ────────────────────────
+
+    if metrics.HAS_PROMETHEUS:
+
+        @app.get("/metrics", include_in_schema=False)
+        async def metrics_endpoint(request: Request) -> Response:
+            # Refresh gauges at scrape time so values are current.
+            await metrics.refresh_memory_gauges(request.app.state.pool)
+            body, content_type = metrics.latest_metrics()
+            return Response(content=body, media_type=content_type)
 
     return app
 
