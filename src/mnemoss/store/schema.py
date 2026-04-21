@@ -42,6 +42,11 @@ DDL_STATEMENTS = [
       extracted_location TEXT,
       extracted_participants TEXT,
       extraction_level INTEGER NOT NULL DEFAULT 0,
+      cluster_id TEXT,
+      cluster_similarity REAL,
+      is_cluster_representative INTEGER NOT NULL DEFAULT 0,
+      derived_from TEXT NOT NULL DEFAULT '[]',
+      derived_to TEXT NOT NULL DEFAULT '[]',
       source_message_ids TEXT NOT NULL DEFAULT '[]',
       source_context TEXT NOT NULL DEFAULT '{}'
     )
@@ -49,6 +54,7 @@ DDL_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_memory_agent ON memory(agent_id)",
     "CREATE INDEX IF NOT EXISTS idx_memory_session ON memory(session_id)",
     "CREATE INDEX IF NOT EXISTS idx_memory_tier ON memory(index_tier)",
+    "CREATE INDEX IF NOT EXISTS idx_memory_cluster ON memory(cluster_id)",
     """
     CREATE TABLE IF NOT EXISTS relation (
       src_id TEXT NOT NULL,

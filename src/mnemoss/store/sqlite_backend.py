@@ -181,9 +181,14 @@ class SQLiteBackend:
                     reminisced_count, index_tier, idx_priority,
                     extracted_gist, extracted_entities, extracted_time,
                     extracted_location, extracted_participants, extraction_level,
+                    cluster_id, cluster_similarity, is_cluster_representative,
+                    derived_from, derived_to,
                     source_message_ids, source_context
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?, ?)
+                          ?, ?, ?, ?, ?, ?,
+                          ?, ?, ?,
+                          ?, ?,
+                          ?, ?)
                 """,
                 (
                     memory.id,
@@ -209,6 +214,11 @@ class SQLiteBackend:
                     memory.extracted_location,
                     _dump_json_or_none(memory.extracted_participants),
                     memory.extraction_level,
+                    memory.cluster_id,
+                    memory.cluster_similarity,
+                    1 if memory.is_cluster_representative else 0,
+                    json.dumps(memory.derived_from),
+                    json.dumps(memory.derived_to),
                     json.dumps(memory.source_message_ids),
                     json.dumps(_json_safe(memory.source_context)),
                 ),
@@ -731,6 +741,8 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
     entities_raw = row.get("extracted_entities")
     participants_raw = row.get("extracted_participants")
     time_raw = row.get("extracted_time")
+    derived_from_raw = row.get("derived_from") or "[]"
+    derived_to_raw = row.get("derived_to") or "[]"
     return Memory(
         id=row["id"],
         workspace_id=row["workspace_id"],
@@ -760,6 +772,11 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
             json.loads(participants_raw) if participants_raw else None
         ),
         extraction_level=row.get("extraction_level", 0),
+        cluster_id=row.get("cluster_id"),
+        cluster_similarity=row.get("cluster_similarity"),
+        is_cluster_representative=bool(row.get("is_cluster_representative") or 0),
+        derived_from=json.loads(derived_from_raw),
+        derived_to=json.loads(derived_to_raw),
         source_message_ids=json.loads(row["source_message_ids"]),
         source_context=json.loads(row["source_context"]),
     )

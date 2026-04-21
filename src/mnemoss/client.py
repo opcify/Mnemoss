@@ -25,11 +25,14 @@ from mnemoss.core.config import (
     StorageParams,
 )
 from mnemoss.core.types import RawMessage
+from mnemoss.dream.runner import DreamRunner
+from mnemoss.dream.types import DreamReport, TriggerType
 from mnemoss.encoder import Embedder, make_embedder
 from mnemoss.encoder.event_encoder import encode_event, should_encode
 from mnemoss.encoder.event_segmentation import ClosedEvent, EventSegmenter
 from mnemoss.index import RebalanceStats
 from mnemoss.index import rebalance as _rebalance
+from mnemoss.llm.client import LLMClient
 from mnemoss.recall import RecallEngine, RecallResult
 from mnemoss.relations import write_cooccurrence_edges
 from mnemoss.store.paths import workspace_db_path
@@ -56,6 +59,7 @@ class Mnemoss:
         encoder: EncoderParams | None = None,
         storage: StorageParams | None = None,
         segmentation: SegmentationParams | None = None,
+        llm: LLMClient | None = None,
         rng: random.Random | None = None,
     ) -> None:
         self._config = MnemossConfig(
@@ -66,6 +70,7 @@ class Mnemoss:
             segmentation=segmentation or SegmentationParams(),
         )
         self._embedder = make_embedder(embedding_model)
+        self._llm = llm
         self._store: SQLiteBackend | None = None
         self._working = WorkingMemory(capacity=self._config.encoder.working_memory_capacity)
         self._engine: RecallEngine | None = None
@@ -224,10 +229,38 @@ class Mnemoss:
         counts = await self._store.tier_counts()
         return {tier.value: count for tier, count in counts.items()}
 
-    # ─── stubs for deferred stages ────────────────────────────────────
+    async def dream(
+        self,
+        trigger: str = "session_end",
+        *,
+        agent_id: str | None = None,
+    ) -> DreamReport:
+        """Run a dreaming cycle for ``trigger``.
 
-    async def dream(self, scope: str = "session") -> None:
-        raise NotImplementedError("Dreaming lands in Stage 4")
+        Valid triggers in Stage 4: ``"idle"``, ``"session_end"``,
+        ``"task_completion"``. The remaining three (surprise,
+        cognitive_load, nightly) plus the deep phases P6–P8 arrive in
+        Stage 5. If no LLM is configured, LLM-dependent phases record
+        ``status="skipped"`` with an explanatory reason and the rest
+        still run.
+        """
+
+        await self._ensure_open()
+        assert self._store is not None
+        # Flush pending event buffers so dreaming sees a consistent snapshot.
+        async with self._segment_lock:
+            closed = self._segmenter.flush(agent_id=agent_id)
+        for event in closed:
+            await self._persist_event(event)
+
+        runner = DreamRunner(
+            self._store,
+            self._config.formula,
+            llm=self._llm,
+        )
+        return await runner.run(TriggerType(trigger), agent_id=agent_id)
+
+    # ─── stubs for deferred stages ────────────────────────────────────
 
     async def status(self) -> dict[str, Any]:
         raise NotImplementedError("status() lands in Stage 4")

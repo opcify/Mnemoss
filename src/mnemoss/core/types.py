@@ -78,6 +78,12 @@ class Memory:
     extracted_location: str | None = None
     extracted_participants: list[str] | None = None
     extraction_level: int = 0  # 0=raw, 1=heuristic, 2=LLM (Stage 4+)
+    # Dream pipeline metadata (set by P2 Cluster and P3 Extract).
+    cluster_id: str | None = None
+    cluster_similarity: float | None = None
+    is_cluster_representative: bool = False
+    derived_from: list[str] = field(default_factory=list)
+    derived_to: list[str] = field(default_factory=list)
     source_message_ids: list[str] = field(default_factory=list)
     source_context: dict[str, Any] = field(default_factory=dict)
 
