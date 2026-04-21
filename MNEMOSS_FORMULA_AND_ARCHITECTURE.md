@@ -306,19 +306,13 @@ roughly the 99.5th percentile of $\text{Logistic}(0, 0.25)$, i.e. about
 $3 \cdot \text{stddev}$; the distribution is formally unbounded so we 
 pick a high quantile rather than a true maximum).
 
-**Geometric auxiliary criteria** (non-formula, use clustering and cosine):
+**Geometric auxiliary criteria** (non-formula, use clustering and cosine). A memory $m_i$ is flagged **redundant** when all three hold:
 
-$$
-\text{redundant}(m_i): \begin{cases}
-\text{cluster\_size} \geq 5 \\
-\text{sim\_to\_centroid} > 0.92 \\
-\neg \text{is\_representative}
-\end{cases}
-$$
+- `cluster_size` $\geq 5$
+- `sim_to_centroid` $> 0.92$
+- $\neg$ `is_representative`
 
-$$
-\text{fact}\_\text{covered}(m_i): \cos(\vec{m_i}, \vec{\text{aggregated}\_\text{facts}}) > 0.85 \land B_i < -3
-$$
+It is flagged **fact-covered** when $\cos(\vec{m_i},\ \vec{v}_\text{facts}) > 0.85$ and $B_i < -3$, where $\vec{v}_\text{facts}$ is the mean embedding of the aggregated fact memories that cover $m_i$.
 
 **Hard protections** (veto any disposal):
 - `pinned_fields` is non-empty
