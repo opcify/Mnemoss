@@ -636,7 +636,7 @@ coexistence and the P7 migration step land in Stage 2+.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│             DREAMING: 5 Triggers × 8 Phases                         │
+│             DREAMING: 5 Triggers × 6 Phases                         │
 ├────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   ═══ TRIGGERS ═══                                                  │
@@ -660,26 +660,26 @@ coexistence and the P7 migration step land in Stage 2+.
 │     HDBSCAN on embeddings. Assign cluster_id, similarity,           │
 │     representative flag.                                            │
 │                                                                     │
-│   P3: Extract  (uses LLM)                                           │
-│     From clusters, extract facts/entities as new memories with     │
-│     higher abstraction_level, filling derived_from chain.          │
+│   P3: Consolidate  (uses LLM — one call per cluster)                │
+│     Merged from the former Extract + Refine + Generalize trio.     │
+│     One structured call per cluster emits:                          │
+│      (A) a summary memory (fact/entity/pattern) with                │
+│          derived_from linking to members,                           │
+│      (B) refined extracted_* fields for each member                 │
+│          (gist, entities, time, location, participants),            │
+│      (C) zero or more intra-cluster patterns.                       │
+│     Cross-cluster generalization is dropped — clusters are the     │
+│     semantic boundary.                                              │
 │                                                                     │
-│   P4: Refine  (uses LLM)                                            │
-│     Populate lazy fields on original memories: gist, entities,     │
-│     time, location, participants. Content never modified.          │
-│                                                                     │
-│   P5: Relations                                                     │
+│   P4: Relations                                                     │
 │     Update memory-to-memory relations. Handle conflicts via         │
 │     supersedes chains. Recompute fan values.                       │
 │                                                                     │
-│   P6: Generalize  (uses LLM)                                        │
-│     Discover cross-episode patterns; create pattern memories.      │
-│                                                                     │
-│   P7: Rebalance  ⭐                                                 │
+│   P5: Rebalance  ⭐                                                 │
 │     Recompute idx_priority = σ(B + α·sal + β·emo + γ) for all.     │
 │     Migrate between index tiers. Metadata only, content untouched. │
 │                                                                     │
-│   P8: Dispose  ⭐                                                   │
+│   P6: Dispose  ⭐                                                   │
 │     Formula-based disposal:                                         │
 │      · activation_dead: max(A_i) < τ - δ                            │
 │      · redundant: cluster geometry                                  │
@@ -688,11 +688,11 @@ coexistence and the P7 migration step land in Stage 2+.
 │                                                                     │
 │   ═══ TRIGGER → PHASE MAPPING ═══                                   │
 │                                                                     │
-│   idle:            P1, P2, P3, P5                                   │
-│   session_end:     P1, P2, P3, P4, P5                               │
-│   surprise:        P3, P5                                           │
-│   cognitive_load:  P3, P4                                           │
-│   nightly:         P1–P8 (all phases)                               │
+│   idle:            P1, P2, P3, P4                                   │
+│   session_end:     P1, P2, P3, P4                                   │
+│   surprise:        P3, P4                                           │
+│   cognitive_load:  P3                                               │
+│   nightly:         P1–P6 (all phases)                               │
 │                                                                     │
 │   ═══ OUTPUT ═══                                                    │
 │                                                                     │
@@ -771,10 +771,11 @@ coexistence and the P7 migration step land in Stage 2+.
 ║  │  │    idle | session_end | surprise |                        │    │   ║
 ║  │  │    cognitive_load | nightly                               │    │   ║
 ║  │  │                                                            │    │   ║
-║  │  │   8-Phase Pipeline:                                        │    │   ║
-║  │  │    P1 Replay → P2 Cluster → P3 Extract →                  │    │   ║
-║  │  │    P4 Refine → P5 Relations → P6 Generalize →             │    │   ║
-║  │  │    P7 Rebalance → P8 Dispose                              │    │   ║
+║  │  │   6-Phase Pipeline:                                        │    │   ║
+║  │  │    P1 Replay → P2 Cluster → P3 Consolidate →              │    │   ║
+║  │  │    P4 Relations → P5 Rebalance → P6 Dispose               │    │   ║
+║  │  │    (P3 is one LLM call per cluster —                      │    │   ║
+║  │  │     summary + refinements + intra-cluster patterns)       │    │   ║
 ║  │  │                                                            │    │   ║
 ║  │  │   Output: Dream Diary (auditable Markdown)                 │    │   ║
 ║  │  └──────────────────────┬───────────────────────────────────┘    │   ║
@@ -873,17 +874,17 @@ Successful retrieval
 │                                                                   │
 │     HOT  (<50ms)   Encode + Retrieve                              │
 │     WARM (<1s)     Index maintenance                              │
-│     COLD (offline) Dreaming (5 triggers × 8 phases)               │
+│     COLD (offline) Dreaming (5 triggers × 6 phases)               │
 │                                                                   │
 │   FOUR INDEX TIERS                                                │
 │                                                                   │
 │     HOT (<10ms) / WARM (<50ms) / COLD (<200ms) / DEEP (<500ms)    │
 │     (one data copy, tier via metadata)                            │
 │                                                                   │
-│   EIGHT DREAMING PHASES                                           │
+│   SIX DREAMING PHASES                                             │
 │                                                                   │
-│     P1 Replay → P2 Cluster → P3 Extract → P4 Refine →             │
-│     P5 Relations → P6 Generalize → P7 Rebalance → P8 Dispose      │
+│     P1 Replay → P2 Cluster → P3 Consolidate →                     │
+│     P4 Relations → P5 Rebalance → P6 Dispose                      │
 │                                                                   │
 │   DRIVEN BY FORMULA, NOT LLM                                      │
 │                                                                   │

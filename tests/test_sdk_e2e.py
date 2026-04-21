@@ -25,22 +25,25 @@ from mnemoss.sdk import MnemossClient
 from mnemoss.server import ServerConfig, create_app
 
 
-def _canned(prompt: str) -> dict:
-    if "improve or correct" in prompt:
-        return {
-            "gist": "refined",
-            "entities": [],
-            "time": None,
-            "location": None,
-            "participants": [],
-        }
-    if "higher-level patterns that span multiple" in prompt:
-        return {"patterns": []}
+def _canned(_prompt: str) -> dict:
     return {
-        "memory_type": "fact",
-        "content": "extracted fact",
-        "abstraction_level": 0.6,
-        "aliases": [],
+        "summary": {
+            "memory_type": "fact",
+            "content": "consolidated fact",
+            "abstraction_level": 0.6,
+            "aliases": [],
+        },
+        "refinements": [
+            {
+                "index": 1,
+                "gist": "refined",
+                "entities": [],
+                "time": None,
+                "location": None,
+                "participants": [],
+            }
+        ],
+        "patterns": [],
     }
 
 
@@ -153,7 +156,7 @@ async def test_dream_e2e_runs_phases_and_diary(tmp_path: Path) -> None:
         report = await ws.dream(trigger="idle")
         assert report.trigger.value == "idle"
         phases = [o.phase.value for o in report.outcomes]
-        assert phases == ["replay", "cluster", "extract", "relations"]
+        assert phases == ["replay", "cluster", "consolidate", "relations"]
         # Diary path comes back as a proper Path, not None.
         assert report.diary_path is not None
         assert str(report.diary_path).endswith(".md")

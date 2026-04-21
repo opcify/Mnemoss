@@ -1,16 +1,17 @@
-"""P5 Relations — graph edges derived from P2 clusters and P3 extractions.
+"""Relations phase — graph edges derived from P2 clusters and P3 Consolidate outputs.
 
-Stage 4 adds two edge types on top of the Stage 1 ``co_occurs_in_session``:
+Two edge types on top of the baseline ``co_occurs_in_session``:
 
 - ``similar_to`` (symmetric): pairwise within each non-noise cluster.
   Confidence = the lower of the two members' HDBSCAN probabilities, so
   a weak outlier doesn't inflate an otherwise-strong cluster's edges.
-- ``derived_from`` (directed): new extracted memory → each source
+- ``derived_from`` (directed): new consolidated memory → each source
   cluster member. Spreading activation uses this so a recalled fact
   fans into its supporting episodes.
 
-Supersedes edges (when a new extraction conflicts with an older one)
-arrive with Stage 5's P6 Generalize / conflict-resolution work.
+Supersedes edges (when a new consolidation conflicts with an older fact)
+are emitted by Consolidate's structured response when the LLM flags a
+conflict; the conflict-resolution policy that acts on them lives here.
 """
 
 from __future__ import annotations

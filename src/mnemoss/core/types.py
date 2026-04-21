@@ -77,8 +77,8 @@ class Memory:
     extracted_time: datetime | None = None
     extracted_location: str | None = None
     extracted_participants: list[str] | None = None
-    extraction_level: int = 0  # 0=raw, 1=heuristic, 2=LLM (Stage 4+)
-    # Dream pipeline metadata (set by P2 Cluster and P3 Extract).
+    extraction_level: int = 0  # 0=raw, 1=heuristic, 2=LLM (via dream P3 Consolidate)
+    # Dream pipeline metadata (set by P2 Cluster and P3 Consolidate).
     cluster_id: str | None = None
     cluster_similarity: float | None = None
     is_cluster_representative: bool = False

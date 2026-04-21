@@ -40,7 +40,7 @@ def _fake_report() -> DreamReport:
                 details={"clusters": 1, "noise": 0, "total": 5},
             ),
             PhaseOutcome(
-                phase=PhaseName.EXTRACT,
+                phase=PhaseName.CONSOLIDATE,
                 status="skipped",
                 details={"reason": "no llm configured"},
             ),
@@ -67,7 +67,7 @@ def test_render_dream_entry_has_expected_structure() -> None:
     sections = (
         "### REPLAY · ok",
         "### CLUSTER · ok",
-        "### EXTRACT · skipped",
+        "### CONSOLIDATE · skipped",
         "### RELATIONS · ok",
     )
     for section in sections:

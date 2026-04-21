@@ -1,13 +1,17 @@
 """Cold-path consolidation (Dreaming).
 
-Stage 4 shipped phases P1 (Replay), P2 (Cluster), P3 (Extract), P5
-(Relations) and the two "light" triggers (idle, session_end). Stage 5
-added P4 Refine, P6 Generalize, P8 Dispose, and the deep triggers
-(surprise, cognitive_load, nightly). P7 Rebalance is available
-standalone via ``Mnemoss.rebalance`` and is also dispatched by the
-nightly trigger.
+Six phases — Replay, Cluster, Consolidate, Relations, Rebalance,
+Dispose. Consolidate collapses the former Extract / Refine / Generalize
+trio into one LLM call per cluster (see ``consolidate.py``). P7
+Rebalance is also available standalone via ``Mnemoss.rebalance``.
 """
 
+from mnemoss.dream.consolidate import (
+    ConsolidationResult,
+    Refinement,
+    build_consolidate_prompt,
+    consolidate_cluster,
+)
 from mnemoss.dream.runner import DreamRunner
 from mnemoss.dream.types import (
     DreamReport,
@@ -17,9 +21,13 @@ from mnemoss.dream.types import (
 )
 
 __all__ = [
+    "ConsolidationResult",
     "DreamReport",
     "DreamRunner",
     "PhaseName",
     "PhaseOutcome",
+    "Refinement",
     "TriggerType",
+    "build_consolidate_prompt",
+    "consolidate_cluster",
 ]

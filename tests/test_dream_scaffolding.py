@@ -43,15 +43,14 @@ async def test_dream_returns_report_with_phase_outcomes(tmp_path: Path) -> None:
 
         report = await mem.dream(trigger="idle")
         assert report.trigger is TriggerType.IDLE
-        # Idle runs all four listed phases.
+        # Idle runs the four light-trigger phases.
         phases = [o.phase for o in report.outcomes]
         assert phases == [
             PhaseName.REPLAY,
             PhaseName.CLUSTER,
-            PhaseName.EXTRACT,
+            PhaseName.CONSOLIDATE,
             PhaseName.RELATIONS,
         ]
-        # Replay produced memories; later phases are stubbed in M.
         replay = report.outcome(PhaseName.REPLAY)
         assert replay is not None and replay.status == "ok"
         assert replay.details["selected"] >= 2
@@ -64,29 +63,29 @@ async def test_dream_without_llm_records_explicit_skip(tmp_path: Path) -> None:
     try:
         await mem.observe(role="user", content="x")
         report = await mem.dream(trigger="idle")
-        extract = report.outcome(PhaseName.EXTRACT)
-        assert extract is not None
-        assert extract.status == "skipped"
-        assert "llm" in extract.details.get("reason", "").lower()
+        consolidate = report.outcome(PhaseName.CONSOLIDATE)
+        assert consolidate is not None
+        assert consolidate.status == "skipped"
+        assert "llm" in consolidate.details.get("reason", "").lower()
     finally:
         await mem.close()
 
 
-async def test_dream_skips_extract_for_tiny_replay_sets(tmp_path: Path) -> None:
-    """Extract needs at least 2 memories in a cluster — a single-memory
+async def test_dream_skips_consolidate_for_tiny_replay_sets(tmp_path: Path) -> None:
+    """Consolidate needs ≥2 memories per cluster — a single-memory
     workspace exercises the happy path without burning an LLM call."""
 
     mock = MockLLMClient()
     mem = _mnemoss(tmp_path, llm=mock)
     try:
         await mem.observe(role="user", content="just one")
-        # idle skips REFINE, so the only LLM-touching phase is EXTRACT —
-        # which itself short-circuits on a singleton cluster.
         report = await mem.dream(trigger="idle")
-        extract = report.outcome(PhaseName.EXTRACT)
-        assert extract is not None
-        assert extract.status == "ok"
-        assert extract.details["extracted"] == 0
+        consolidate = report.outcome(PhaseName.CONSOLIDATE)
+        assert consolidate is not None
+        assert consolidate.status == "ok"
+        assert consolidate.details["summaries"] == 0
+        assert consolidate.details["patterns"] == 0
+        assert consolidate.details["refined"] == 0
         assert mock.calls == []  # LLM not invoked for singleton clusters.
     finally:
         await mem.close()

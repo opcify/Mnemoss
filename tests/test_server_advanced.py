@@ -15,28 +15,29 @@ from mnemoss import FakeEmbedder, MockLLMClient
 from mnemoss.server import ServerConfig, create_app
 
 
-def _canned(prompt: str) -> dict:
-    """Shape-correct stand-in LLM responses for every dream prompt."""
+def _canned(_prompt: str) -> dict:
+    """Shape-correct stand-in LLM response for the merged Consolidate phase."""
 
-    if "improve or correct" in prompt:
-        return {
-            "gist": "refined gist",
-            "entities": ["Alice"],
-            "time": None,
-            "location": None,
-            "participants": ["Alice"],
-        }
-    if "higher-level patterns that span multiple" in prompt:
-        return {
-            "patterns": [
-                {"content": "Alice-related pattern", "derived_from": [1, 2]}
-            ]
-        }
     return {
-        "memory_type": "fact",
-        "content": "Alice fact",
-        "abstraction_level": 0.6,
-        "aliases": [],
+        "summary": {
+            "memory_type": "fact",
+            "content": "Alice fact",
+            "abstraction_level": 0.6,
+            "aliases": [],
+        },
+        "refinements": [
+            {
+                "index": 1,
+                "gist": "refined gist",
+                "entities": ["Alice"],
+                "time": None,
+                "location": None,
+                "participants": ["Alice"],
+            }
+        ],
+        "patterns": [
+            {"content": "Alice-related pattern", "derived_from": [1, 2]}
+        ],
     }
 
 
@@ -90,13 +91,13 @@ def test_dream_idle_runs_without_llm(tmp_path: Path) -> None:
     body = r.json()
     assert body["trigger"] == "idle"
     phases = [o["phase"] for o in body["outcomes"]]
-    assert phases == ["replay", "cluster", "extract", "relations"]
-    # Extract is skipped without an LLM.
-    extract = next(o for o in body["outcomes"] if o["phase"] == "extract")
-    assert extract["status"] == "skipped"
+    assert phases == ["replay", "cluster", "consolidate", "relations"]
+    # Consolidate is skipped without an LLM.
+    consolidate = next(o for o in body["outcomes"] if o["phase"] == "consolidate")
+    assert consolidate["status"] == "skipped"
 
 
-def test_dream_nightly_with_llm_runs_all_eight_phases(tmp_path: Path) -> None:
+def test_dream_nightly_with_llm_runs_all_six_phases(tmp_path: Path) -> None:
     with _client(tmp_path, llm=MockLLMClient(callback=_canned)) as c:
         for i in range(5):
             c.post(
@@ -109,10 +110,8 @@ def test_dream_nightly_with_llm_runs_all_eight_phases(tmp_path: Path) -> None:
     assert phases == [
         "replay",
         "cluster",
-        "extract",
-        "refine",
+        "consolidate",
         "relations",
-        "generalize",
         "rebalance",
         "dispose",
     ]

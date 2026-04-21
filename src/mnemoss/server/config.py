@@ -44,9 +44,9 @@ class ServerConfig:
     # practice.
     embedder_override: Embedder | None = None
 
-    # LLM client shared across every workspace. ``None`` means dream
-    # LLM-dependent phases (P3 Extract, P4 Refine, P6 Generalize) will
-    # record ``status="skipped"`` — the rest still run.
+    # LLM client shared across every workspace. ``None`` means the
+    # LLM-dependent phase (P3 Consolidate) will record
+    # ``status="skipped"`` — the rest still run.
     llm: LLMClient | None = None
 
     # Workspace names the server is willing to open. ``None`` means any

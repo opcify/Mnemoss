@@ -5,10 +5,10 @@ runner records a ``PhaseOutcome`` for every phase it attempts, so the
 report always tells the caller what happened even when a phase was
 skipped (e.g. no LLM configured, empty replay set).
 
-Stage 4 ships P1 Replay, P2 Cluster, P3 Extract, P5 Relations. P4
-Refine is deferred (see CLAUDE.md D10). If no LLM is configured the
-LLM-dependent phases record ``status="skipped"`` and the remaining
-phases still run.
+Six phases: Replay → Cluster → Consolidate → Relations → Rebalance →
+Dispose. Consolidate is a single LLM call per cluster that produces
+the summary, per-member refinements, and any intra-cluster patterns —
+it replaces the former three-phase Extract / Refine / Generalize trio.
 """
 
 from __future__ import annotations
@@ -22,10 +22,11 @@ import numpy as np
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import Memory
 from mnemoss.dream.cluster import ClusterAssignment, cluster_embeddings, group_by_cluster
+from mnemoss.dream.consolidate import (
+    ConsolidationResult,
+    consolidate_cluster,
+)
 from mnemoss.dream.dispose import dispose_pass
-from mnemoss.dream.extract import extract_from_cluster
-from mnemoss.dream.generalize import generalize_facts
-from mnemoss.dream.refine import refine_memory_fields
 from mnemoss.dream.relations import (
     write_derived_from_edges,
     write_similar_to_edges,
@@ -46,39 +47,34 @@ UTC = timezone.utc
 
 
 PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
-    # Per §6.3. Stage 5 adds SURPRISE / COGNITIVE_LOAD / NIGHTLY.
-    # surprise / cognitive_load intentionally skip REPLAY — they're meant
-    # to run on state already in working memory. A framework integration
-    # would typically call them after feeding Mnemoss a specific memory
-    # (Stage 6+ adds an explicit `memories=` parameter for that).
+    # The former Extract / Refine / Generalize trio is now a single
+    # Consolidate phase. Surprise and cognitive_load intentionally skip
+    # REPLAY — they run on memories already surfaced by the host
+    # framework (Stage 6+ will add an explicit `memories=` parameter).
     TriggerType.IDLE: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
-        PhaseName.EXTRACT,
+        PhaseName.CONSOLIDATE,
         PhaseName.RELATIONS,
     ],
     TriggerType.SESSION_END: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
-        PhaseName.EXTRACT,
-        PhaseName.REFINE,
+        PhaseName.CONSOLIDATE,
         PhaseName.RELATIONS,
     ],
     TriggerType.SURPRISE: [
-        PhaseName.EXTRACT,
+        PhaseName.CONSOLIDATE,
         PhaseName.RELATIONS,
     ],
     TriggerType.COGNITIVE_LOAD: [
-        PhaseName.REFINE,
-        PhaseName.EXTRACT,
+        PhaseName.CONSOLIDATE,
     ],
     TriggerType.NIGHTLY: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
-        PhaseName.EXTRACT,
-        PhaseName.REFINE,
+        PhaseName.CONSOLIDATE,
         PhaseName.RELATIONS,
-        PhaseName.GENERALIZE,
         PhaseName.REBALANCE,
         PhaseName.DISPOSE,
     ],
@@ -92,8 +88,9 @@ class _DreamState:
     replay_set: list[Memory] = field(default_factory=list)
     embeddings: dict[str, np.ndarray] = field(default_factory=dict)
     cluster_assignments: dict[str, ClusterAssignment] = field(default_factory=dict)
-    extracted: list[Memory] = field(default_factory=list)
-    generalized: list[Memory] = field(default_factory=list)
+    # Every Memory emitted by Consolidate (summaries + patterns). P5
+    # Relations writes derived_from edges from these back to their sources.
+    consolidated: list[Memory] = field(default_factory=list)
 
 
 class DreamRunner:
@@ -109,7 +106,6 @@ class DreamRunner:
         replay_limit: int = 100,
         replay_min_base_level: float | None = None,
         cluster_min_size: int = 3,
-        refine_batch_size: int = 25,
     ) -> None:
         self._store = store
         self._params = params
@@ -118,7 +114,6 @@ class DreamRunner:
         self._replay_limit = replay_limit
         self._replay_min_base_level = replay_min_base_level
         self._cluster_min_size = cluster_min_size
-        self._refine_batch_size = refine_batch_size
 
     async def run(
         self,
@@ -154,14 +149,10 @@ class DreamRunner:
             return await self._phase_replay(state, agent_id, now)
         if phase is PhaseName.CLUSTER:
             return await self._phase_cluster(state)
-        if phase is PhaseName.EXTRACT:
-            return await self._phase_extract(state, now)
-        if phase is PhaseName.REFINE:
-            return await self._phase_refine(state)
+        if phase is PhaseName.CONSOLIDATE:
+            return await self._phase_consolidate(state, now)
         if phase is PhaseName.RELATIONS:
             return await self._phase_relations(state)
-        if phase is PhaseName.GENERALIZE:
-            return await self._phase_generalize(state, now)
         if phase is PhaseName.REBALANCE:
             return await self._phase_rebalance(now)
         if phase is PhaseName.DISPOSE:
@@ -231,132 +222,123 @@ class DreamRunner:
             },
         )
 
-    # ─── P3 Extract ────────────────────────────────────────────────
+    # ─── P3 Consolidate (merged Extract + Refine + Generalize) ─────
 
-    async def _phase_extract(
+    async def _phase_consolidate(
         self, state: _DreamState, now: datetime
     ) -> PhaseOutcome:
         if self._llm is None:
             return PhaseOutcome(
-                phase=PhaseName.EXTRACT,
+                phase=PhaseName.CONSOLIDATE,
                 status="skipped",
                 details={"reason": "no llm configured"},
             )
         if self._embedder is None:
             return PhaseOutcome(
-                phase=PhaseName.EXTRACT,
+                phase=PhaseName.CONSOLIDATE,
                 status="skipped",
                 details={"reason": "no embedder configured"},
             )
 
-        # Without clustering (e.g. surprise trigger), treat the full replay
-        # set as one synthetic cluster so the LLM still gets to summarize
-        # the recent window.
-        if state.cluster_assignments:
-            clusters_by_id = group_by_cluster(state.cluster_assignments)
-            by_id = {m.id: m for m in state.replay_set}
-            clusters = [
-                [by_id[mid] for mid in members if mid in by_id]
-                for members in clusters_by_id.values()
-            ]
-        elif state.replay_set:
-            clusters = [state.replay_set]
-        else:
-            clusters = []
+        # Without clustering (surprise/cognitive_load triggers), fall back
+        # to treating the whole replay set as one synthetic cluster so
+        # the LLM still gets one pass over what's active.
+        clusters = self._clusters_for_consolidation(state)
 
-        extracted: list[Memory] = []
+        summaries: list[Memory] = []
+        patterns: list[Memory] = []
+        refined_ids: list[str] = []
         llm_failures = 0
+
         for cluster_members in clusters:
             if len(cluster_members) < 2:
-                continue  # Singleton clusters aren't worth extracting.
-            new_mem = await extract_from_cluster(
+                continue  # Singletons have nothing to consolidate.
+            result = await consolidate_cluster(
                 cluster_members, self._llm, self._params, now=now
             )
-            if new_mem is None:
+            if result.is_empty:
                 llm_failures += 1
                 continue
 
-            embedding = await asyncio.to_thread(
-                self._embedder.embed, [new_mem.content]
-            )
-            await self._store.write_memory(new_mem, embedding[0])
-            await self._store.link_derived(new_mem.derived_from, new_mem.id)
-            extracted.append(new_mem)
+            # (A) Summary — write new memory + derived edges, embed it.
+            if result.summary is not None:
+                await self._persist_derived(result.summary)
+                summaries.append(result.summary)
 
-        state.extracted = extracted
+            # (B) Refinements — bump extraction_level=2 on members.
+            for ref in result.refinements:
+                member = cluster_members[ref.member_index]
+                fields = ref.fields
+                member.extracted_gist = fields.gist
+                member.extracted_entities = fields.entities
+                member.extracted_time = fields.time
+                member.extracted_location = fields.location
+                member.extracted_participants = fields.participants
+                member.extraction_level = fields.level
+                await self._store.update_extraction(
+                    member.id,
+                    gist=fields.gist,
+                    entities=fields.entities,
+                    time=fields.time,
+                    location=fields.location,
+                    participants=fields.participants,
+                    level=fields.level,
+                )
+                refined_ids.append(member.id)
+
+            # (C) Patterns — intra-cluster PATTERN memories.
+            for pattern in result.patterns:
+                await self._persist_derived(pattern)
+                patterns.append(pattern)
+
+        # Relations phase edges off summaries + patterns together.
+        state.consolidated = summaries + patterns
+
         return PhaseOutcome(
-            phase=PhaseName.EXTRACT,
+            phase=PhaseName.CONSOLIDATE,
             status="ok",
             details={
-                "extracted": len(extracted),
-                "ids": [m.id for m in extracted],
+                "clusters_processed": sum(
+                    1 for c in clusters if len(c) >= 2
+                ),
+                "summaries": len(summaries),
+                "patterns": len(patterns),
+                "refined": len(refined_ids),
                 "llm_failures": llm_failures,
+                "summary_ids": [m.id for m in summaries],
+                "pattern_ids": [m.id for m in patterns],
+                "refined_ids": refined_ids,
                 "cross_agent_promotions": sum(
-                    1 for m in extracted if m.agent_id is None
+                    1 for m in (summaries + patterns) if m.agent_id is None
                 ),
             },
         )
 
-    # ─── P4 Refine ─────────────────────────────────────────────────
+    def _clusters_for_consolidation(
+        self, state: _DreamState
+    ) -> list[list[Memory]]:
+        """Resolve the flat clusters list the phase iterates over."""
 
-    async def _phase_refine(self, state: _DreamState) -> PhaseOutcome:
-        if self._llm is None:
-            return PhaseOutcome(
-                phase=PhaseName.REFINE,
-                status="skipped",
-                details={"reason": "no llm configured"},
-            )
+        if state.cluster_assignments:
+            groups = group_by_cluster(state.cluster_assignments)
+            by_id = {m.id: m for m in state.replay_set}
+            return [
+                [by_id[mid] for mid in members if mid in by_id]
+                for members in groups.values()
+            ]
+        if state.replay_set:
+            return [state.replay_set]
+        return []
 
-        # Replay set is already B_i-sorted desc, so taking the first N keeps
-        # the highest-priority memories.
-        candidates = [m for m in state.replay_set if m.extraction_level < 2]
-        batch = candidates[: self._refine_batch_size]
+    async def _persist_derived(self, memory: Memory) -> None:
+        """Embed + write a derived memory, link its derived_from edges."""
 
-        if not batch:
-            return PhaseOutcome(
-                phase=PhaseName.REFINE,
-                status="ok",
-                details={
-                    "refined": 0,
-                    "candidates": 0,
-                    "reason": "no memories below level=2",
-                },
-            )
-
-        refined = 0
-        failures = 0
-        for memory in batch:
-            fields = await refine_memory_fields(memory, self._llm)
-            if fields is None:
-                failures += 1
-                continue
-            memory.extracted_gist = fields.gist
-            memory.extracted_entities = fields.entities
-            memory.extracted_time = fields.time
-            memory.extracted_location = fields.location
-            memory.extracted_participants = fields.participants
-            memory.extraction_level = fields.level
-            await self._store.update_extraction(
-                memory.id,
-                gist=fields.gist,
-                entities=fields.entities,
-                time=fields.time,
-                location=fields.location,
-                participants=fields.participants,
-                level=fields.level,
-            )
-            refined += 1
-
-        return PhaseOutcome(
-            phase=PhaseName.REFINE,
-            status="ok",
-            details={
-                "refined": refined,
-                "failures": failures,
-                "candidates": len(candidates),
-                "batch_limit": self._refine_batch_size,
-            },
+        assert self._embedder is not None  # guarded by phase entry
+        embedding = await asyncio.to_thread(
+            self._embedder.embed, [memory.content]
         )
+        await self._store.write_memory(memory, embedding[0])
+        await self._store.link_derived(memory.derived_from, memory.id)
 
     # ─── P5 Relations ──────────────────────────────────────────────
 
@@ -365,7 +347,7 @@ class DreamRunner:
             self._store, state.cluster_assignments
         )
         derived_edges = await write_derived_from_edges(
-            self._store, state.extracted
+            self._store, state.consolidated
         )
         return PhaseOutcome(
             phase=PhaseName.RELATIONS,
@@ -374,56 +356,6 @@ class DreamRunner:
                 "similar_to_edges": similar_edges,
                 "derived_from_edges": derived_edges,
                 "total_edges": similar_edges + derived_edges,
-            },
-        )
-
-    # ─── P6 Generalize ─────────────────────────────────────────────
-
-    async def _phase_generalize(
-        self, state: _DreamState, now: datetime
-    ) -> PhaseOutcome:
-        if self._llm is None:
-            return PhaseOutcome(
-                phase=PhaseName.GENERALIZE,
-                status="skipped",
-                details={"reason": "no llm configured"},
-            )
-        if self._embedder is None:
-            return PhaseOutcome(
-                phase=PhaseName.GENERALIZE,
-                status="skipped",
-                details={"reason": "no embedder configured"},
-            )
-        if len(state.extracted) < 2:
-            return PhaseOutcome(
-                phase=PhaseName.GENERALIZE,
-                status="ok",
-                details={
-                    "patterns": 0,
-                    "reason": "need >=2 extracted facts to generalize",
-                },
-            )
-
-        patterns = await generalize_facts(
-            state.extracted, self._llm, self._params, now=now
-        )
-        for pattern in patterns:
-            embedding = await asyncio.to_thread(
-                self._embedder.embed, [pattern.content]
-            )
-            await self._store.write_memory(pattern, embedding[0])
-            await self._store.link_derived(pattern.derived_from, pattern.id)
-
-        state.generalized = patterns
-        return PhaseOutcome(
-            phase=PhaseName.GENERALIZE,
-            status="ok",
-            details={
-                "patterns": len(patterns),
-                "ids": [p.id for p in patterns],
-                "cross_agent_promotions": sum(
-                    1 for p in patterns if p.agent_id is None
-                ),
             },
         )
 
@@ -448,7 +380,7 @@ class DreamRunner:
     async def _phase_dispose(
         self, state: _DreamState, now: datetime
     ) -> PhaseOutcome:
-        # P8 scans the replay set when P1 ran, else the full table.
+        # Dispose scans the replay set when P1 ran, else the full table.
         candidates = state.replay_set if state.replay_set else None
         stats = await dispose_pass(
             self._store, self._params, now=now, candidates=candidates
@@ -465,3 +397,11 @@ class DreamRunner:
                 "disposed_ids": stats.disposed_ids,
             },
         )
+
+
+# Public re-export so tests can import without reaching into consolidate.py
+__all__ = [
+    "DreamRunner",
+    "PHASES_BY_TRIGGER",
+    "ConsolidationResult",
+]

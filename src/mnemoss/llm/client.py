@@ -2,8 +2,9 @@
 
 The two methods on the Protocol are the minimum surface Dreaming needs:
 
-- ``complete_text``: free-form continuation. P6 Generalize uses this.
-- ``complete_json``: structured output. P3 Extract and P4 Refine use this.
+- ``complete_text``: free-form continuation. Currently unused by the
+  core pipeline but kept for future phases / integrators.
+- ``complete_json``: structured output. P3 Consolidate uses this.
 
 Both are ``async``. Provider SDKs are lazy-imported inside the first
 call so the Protocol itself (and ``MockLLMClient``) have no runtime

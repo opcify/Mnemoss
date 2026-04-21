@@ -1,8 +1,11 @@
-"""Nightly dream cycle + new triggers (Checkpoint R).
+"""Nightly dream cycle + the five triggers.
 
 Validates that every phase dispatches correctly under the ``nightly``
 trigger, and spot-checks the ``surprise`` / ``cognitive_load`` triggers'
 phase lists. Uses MockLLMClient so no network traffic.
+
+After the P3/P4/P6 merger the pipeline is six phases —
+Replay → Cluster → Consolidate → Relations → Rebalance → Dispose.
 """
 
 from __future__ import annotations
@@ -21,32 +24,41 @@ from mnemoss import (
 )
 
 
-def _canned(prompt: str) -> dict:
-    """MockLLMClient callback — returns shape-correct responses based on
-    which prompt type we're looking at."""
+def _canned(_prompt: str) -> dict:
+    """MockLLMClient callback — returns a fully-shaped Consolidate response.
 
-    if "improve or correct" in prompt:
-        # P4 Refine prompt.
-        return {
-            "gist": "refined gist",
-            "entities": ["Alice"],
-            "time": None,
-            "location": None,
-            "participants": ["Alice"],
-        }
-    if "higher-level patterns that span multiple" in prompt:
-        # P6 Generalize prompt.
-        return {
-            "patterns": [
-                {"content": "Alice-related pattern", "derived_from": [1, 2]},
-            ]
-        }
-    # Fall through: P3 Extract prompt.
+    The merged phase asks for all three outputs in one JSON object, so
+    one canned dict covers every call during a dream run.
+    """
+
     return {
-        "memory_type": "fact",
-        "content": "Alice fact",
-        "abstraction_level": 0.6,
-        "aliases": [],
+        "summary": {
+            "memory_type": "fact",
+            "content": "Alice fact",
+            "abstraction_level": 0.6,
+            "aliases": [],
+        },
+        "refinements": [
+            {
+                "index": 1,
+                "gist": "refined gist",
+                "entities": ["Alice"],
+                "time": None,
+                "location": None,
+                "participants": ["Alice"],
+            },
+            {
+                "index": 2,
+                "gist": "refined gist 2",
+                "entities": ["Alice"],
+                "time": None,
+                "location": None,
+                "participants": ["Alice"],
+            },
+        ],
+        "patterns": [
+            {"content": "Alice-related pattern", "derived_from": [1, 2]},
+        ],
     }
 
 
@@ -59,7 +71,7 @@ def _mnemoss(tmp_path: Path, llm: MockLLMClient | None = None) -> Mnemoss:
     )
 
 
-async def test_nightly_runs_all_eight_phases(tmp_path: Path) -> None:
+async def test_nightly_runs_all_six_phases(tmp_path: Path) -> None:
     mock = MockLLMClient(callback=_canned)
     mem = _mnemoss(tmp_path, llm=mock)
     try:
@@ -72,14 +84,11 @@ async def test_nightly_runs_all_eight_phases(tmp_path: Path) -> None:
         assert phases == [
             PhaseName.REPLAY,
             PhaseName.CLUSTER,
-            PhaseName.EXTRACT,
-            PhaseName.REFINE,
+            PhaseName.CONSOLIDATE,
             PhaseName.RELATIONS,
-            PhaseName.GENERALIZE,
             PhaseName.REBALANCE,
             PhaseName.DISPOSE,
         ]
-        # Every phase should run (ok/skipped are both valid end-states).
         for outcome in report.outcomes:
             assert outcome.status in ("ok", "skipped")
 
@@ -97,26 +106,26 @@ async def test_nightly_runs_all_eight_phases(tmp_path: Path) -> None:
         await mem.close()
 
 
-async def test_surprise_trigger_runs_extract_and_relations(tmp_path: Path) -> None:
+async def test_surprise_trigger_runs_consolidate_and_relations(tmp_path: Path) -> None:
     mock = MockLLMClient(callback=_canned)
     mem = _mnemoss(tmp_path, llm=mock)
     try:
         await mem.observe(role="user", content="x")
         report = await mem.dream(trigger="surprise")
         phases = [o.phase for o in report.outcomes]
-        assert phases == [PhaseName.EXTRACT, PhaseName.RELATIONS]
+        assert phases == [PhaseName.CONSOLIDATE, PhaseName.RELATIONS]
     finally:
         await mem.close()
 
 
-async def test_cognitive_load_trigger_runs_refine_then_extract(tmp_path: Path) -> None:
+async def test_cognitive_load_trigger_runs_consolidate_only(tmp_path: Path) -> None:
     mock = MockLLMClient(callback=_canned)
     mem = _mnemoss(tmp_path, llm=mock)
     try:
         await mem.observe(role="user", content="x")
         report = await mem.dream(trigger="cognitive_load")
         phases = [o.phase for o in report.outcomes]
-        assert phases == [PhaseName.REFINE, PhaseName.EXTRACT]
+        assert phases == [PhaseName.CONSOLIDATE]
     finally:
         await mem.close()
 
@@ -134,10 +143,8 @@ async def test_nightly_diary_records_all_phases(tmp_path: Path) -> None:
         for section in (
             "REPLAY",
             "CLUSTER",
-            "EXTRACT",
-            "REFINE",
+            "CONSOLIDATE",
             "RELATIONS",
-            "GENERALIZE",
             "REBALANCE",
             "DISPOSE",
         ):
@@ -157,6 +164,18 @@ async def test_trigger_type_enum_has_all_five_values() -> None:
     }
 
 
+async def test_phase_name_enum_has_the_six_post_merge_phases() -> None:
+    values = {p.value for p in PhaseName}
+    assert values == {
+        "replay",
+        "cluster",
+        "consolidate",
+        "relations",
+        "rebalance",
+        "dispose",
+    }
+
+
 @pytest.mark.parametrize(
     "trigger",
     ["idle", "session_end", "surprise", "cognitive_load", "nightly"],
@@ -170,6 +189,6 @@ async def test_all_triggers_dispatch_without_error(
         await mem.observe(role="user", content="some memory")
         report = await mem.dream(trigger=trigger)
         assert report.trigger.value == trigger
-        assert report.outcomes  # Non-empty; every trigger has at least one phase.
+        assert report.outcomes  # Non-empty; every trigger has ≥1 phase.
     finally:
         await mem.close()

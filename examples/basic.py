@@ -84,10 +84,11 @@ async def main() -> None:
             print(f"level:    {m.extraction_level}")
 
         print()
-        print("─── Stage 4: dreaming (no LLM configured) ───")
-        # dream() runs P1 Replay and P2 Cluster; P3 Extract is skipped
-        # without an LLM; P5 Relations still writes similar_to edges.
-        # Pass a MockLLMClient or OpenAI/Anthropic client to exercise P3.
+        print("─── Dreaming (no LLM configured) ───")
+        # dream() runs P1 Replay and P2 Cluster; P3 Consolidate is
+        # skipped without an LLM; P4 Relations still writes similar_to
+        # edges. Pass a MockLLMClient / OpenAI / Anthropic / Gemini
+        # client to exercise P3.
         report = await mem.dream(trigger="idle")
         print(f"Dream trigger: {report.trigger.value}")
         print(f"Duration:      {report.duration_seconds():.3f}s")

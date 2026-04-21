@@ -9,7 +9,7 @@ first principles of human cognition. It's a **standalone Python library**
 plus a REST server, MCP wrapper, and framework adapters (Hermes, OpenClaw) 
 that any agent stack can integrate.
 
-(Pronunciation and naming — see `MNEMOSS_PROJECT_KNOWLEDGE.md` §0.)
+(Pronunciation and naming — see the intro of `README.md`.)
 
 ## Repository State
 
@@ -19,7 +19,7 @@ post-Stage-6: benchmarks, whitepaper, adapter polish, new capabilities.
 
 Concretely, the repo ships:
 
-- Python library (`src/mnemoss/`) — full ACT-R recall, 8-phase dreaming 
+- Python library (`src/mnemoss/`) — full ACT-R recall, 6-phase dreaming 
   pipeline, multi-tier index (HOT/WARM/COLD/DEEP) with cascade.
 - REST server (`src/mnemoss/server/`) + Python SDK (`src/mnemoss/sdk/`) + 
   TypeScript SDK (`sdks/typescript/`).
@@ -86,9 +86,11 @@ needed to be productive without re-reading them cover-to-cover.
   index updates on turn-end/session-end/idle.
 - **Cold Path** (dreaming, opportunistic, offline) — five triggers 
   (`idle`, `session_end`, `surprise`, `cognitive_load`, `nightly`) 
-  drive an 8-phase pipeline: Replay → Cluster → Extract → Refine → 
-  Relations → Generalize → Rebalance → Dispose. LLM is used only for 
-  content generation here, never for system decisions.
+  drive a 6-phase pipeline: Replay → Cluster → Consolidate → Relations → 
+  Rebalance → Dispose. Consolidate is a single LLM call per cluster 
+  that emits the summary, per-member refinements, and any intra-cluster 
+  patterns (it replaces the former Extract / Refine / Generalize trio). 
+  LLM is used only for content generation, never for system decisions.
 
 **The formula (the heart):** a single ACT-R activation equation 
 `A_i = B_i + Σ W_j·S_ji + MP·[w_F·s̃_F + w_S·s̃_S] + ε` drives 
@@ -122,7 +124,8 @@ src/mnemoss/
   relations/         graph.py (co_occurs_in_session + dream-populated)
   recall/            engine.py (parallel vec+FTS → ACT-R scoring →
                      reconsolidation), history.py, expand.py, cascade.py
-  dream/             runner.py (8-phase pipeline), types.py (triggers)
+  dream/             runner.py (6-phase pipeline), consolidate.py
+                     (merged P3 LLM phase), types.py (triggers)
   scheduler/         nightly + idle trigger automation
   index/             tier management (HOT/WARM/COLD/DEEP)
   export/            memory.md generator

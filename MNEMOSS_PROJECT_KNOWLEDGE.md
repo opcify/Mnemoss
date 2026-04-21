@@ -17,9 +17,6 @@ Framework Plugins.
 **One-sentence pitch:**
 > Memory, the way your mind actually works. Recall what matters, when it matters.
 
-**Pronunciation:** /ˈniːmɒs/ — "nee-moss". The M is silent (like "mnemonic"). 
-From Greek Mnemosyne, goddess of memory.
-
 ---
 
 ## 1. Why Mnemoss Exists
@@ -109,7 +106,7 @@ dreaming, facts emerge from repetition clustering.
 
 **Principle 6: Dreaming is opportunistic.**
 Five triggers (idle, session-end, surprise, cognitive-load, nightly) drive 
-an 8-phase pipeline. Integration happens when signals indicate it should, 
+a 6-phase pipeline. Integration happens when signals indicate it should, 
 not on a fixed schedule.
 
 **Principle 7: Multi-tier index, unified data.**
@@ -284,9 +281,11 @@ gateway. Multiple **agents** coexist within a workspace.
 **Write-side behavior:** all memories written via 
 `mem.for_agent("A").observe(...)` get `agent_id="A"`; all memories 
 written via the top-level `mem.observe(...)` get `agent_id=None`. 
-Cross-agent promotion (Dreaming's Extract phase emitting a fact derived 
-from a cluster that spans multiple agents as `agent_id=None`) shipped 
-in Stage 4.
+Cross-agent promotion (Dreaming's Consolidate phase emitting a summary 
+derived from a cluster that spans multiple agents as `agent_id=None`) 
+shipped in Stage 4. After the P3/P4/P6 merger it's still the same rule 
+— the Consolidate call looks at the cluster's agent set and promotes 
+to ambient when >1 agent is represented.
 
 **Privacy model — cooperative, not adversarial.** The `for_agent` handle 
 enforces agent isolation at the recall/pin surface (via the SQL filter 
@@ -316,34 +315,40 @@ actors, use separate **workspaces** (separate SQLite DBs), not separate
 - Async LLM refinement queue
 
 **Cold Path (opportunistic, offline):** Dreaming
-- Five triggers drive an 8-phase pipeline
+- Five triggers drive a 6-phase pipeline
 - LLM used only for content generation (not system decisions)
+- Consolidate is one LLM call per cluster — merged from the former 
+  Extract / Refine / Generalize trio
 
 ### 6.2 Dreaming Pipeline
 
-Eight phases, selected per trigger:
+Six phases, selected per trigger:
 
 | Phase | Purpose |
 |---|---|
 | P1: Replay | Select memories by ACT-R B_i |
 | P2: Cluster | HDBSCAN on embeddings, set cluster metadata |
-| P3: Extract | LLM extracts facts/entities, creates new memories with derived_from |
-| P4: Refine | LLM fills lazy extraction fields |
-| P5: Relations | Update memory-to-memory relations, handle conflicts (supersedes) |
-| P6: Generalize | Discover cross-episode patterns, create pattern memories |
-| P7: Rebalance | Recompute idx_priority for all memories, migrate between tiers |
-| P8: Dispose | Formula-driven disposal, write tombstones |
+| P3: Consolidate | **One LLM call per cluster** emits: (a) summary memory (fact/entity/pattern), (b) refined `extracted_*` fields for every member, (c) intra-cluster patterns. Replaces the former Extract + Refine + Generalize phases. |
+| P4: Relations | Update memory-to-memory relations from cluster co-membership and `derived_from` edges; handle conflicts (supersedes) |
+| P5: Rebalance | Recompute `idx_priority` for all memories, migrate between tiers |
+| P6: Dispose | Formula-driven disposal, write tombstones |
+
+Cross-cluster generalization (the former P6 scanning all newly-
+extracted facts run-wide) is intentionally dropped: clusters are
+already the semantic boundary, and patterns that truly span multiple
+clusters are rare. Intra-cluster patterns remain, emitted inside the
+same Consolidate call.
 
 ### 6.3 Trigger → Phase Mapping
 
 ```python
 PHASES_BY_TRIGGER = {
-    "idle":            ["replay", "cluster", "extract", "relations"],
-    "session_end":     ["replay", "cluster", "extract", "refine", "relations"],
-    "surprise":        ["extract", "relations"],
-    "cognitive_load":  ["refine", "extract"],
-    "nightly":         ["replay", "cluster", "extract", "refine", 
-                        "relations", "generalize", "rebalance", "dispose"],
+    "idle":            ["replay", "cluster", "consolidate", "relations"],
+    "session_end":     ["replay", "cluster", "consolidate", "relations"],
+    "surprise":        ["consolidate", "relations"],
+    "cognitive_load":  ["consolidate"],
+    "nightly":         ["replay", "cluster", "consolidate", "relations",
+                        "rebalance", "dispose"],
 }
 ```
 
@@ -556,8 +561,8 @@ architecture around it.
 - LLM client abstraction
 - Memory.md generation
 - Dream Diary
-- Cross-agent memory promotion: when Extract (P3) creates a fact from a 
-  cluster that spans multiple agents, emit it with `agent_id=None` 
+- Cross-agent memory promotion: when Consolidate creates a summary from 
+  a cluster that spans multiple agents, emit it with `agent_id=None` 
   (workspace-shared)
 
 ### Stage 5 — Deep Dreaming + Disposal ✅

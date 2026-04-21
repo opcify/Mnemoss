@@ -1,4 +1,4 @@
-"""Dreaming types (Stage 4)."""
+"""Dreaming types."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ class TriggerType(str, Enum):
 
     The two "light" triggers (idle / session_end) fire often and cheap;
     the deeper ones (surprise / cognitive_load / nightly) run the
-    LLM-heavy phases or, for nightly, everything.
+    LLM-heavy phase or, for nightly, everything.
     """
 
     IDLE = "idle"
@@ -25,20 +25,17 @@ class TriggerType(str, Enum):
 
 
 class PhaseName(str, Enum):
-    """Names of dreaming phases per §6.3.
+    """Names of the six dream phases.
 
-    Stage 4 wired P1/P2/P3/P5. Stage 5 adds P4 Refine, P6 Generalize, P8
-    Dispose. P7 Rebalance is already exposed standalone on
-    Mnemoss.rebalance() but is also dispatched from the nightly
-    trigger.
+    Consolidate collapses the former Extract / Refine / Generalize trio
+    into one LLM call per cluster — see ``dream/consolidate.py``. The
+    dream pipeline is therefore six phases, not eight.
     """
 
     REPLAY = "replay"
     CLUSTER = "cluster"
-    EXTRACT = "extract"
-    REFINE = "refine"
+    CONSOLIDATE = "consolidate"
     RELATIONS = "relations"
-    GENERALIZE = "generalize"
     REBALANCE = "rebalance"
     DISPOSE = "dispose"
 

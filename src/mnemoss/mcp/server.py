@@ -130,7 +130,7 @@ def create_mcp_server(
     @mcp.tool()
     async def dream(trigger: str = "session_end") -> dict[str, Any]:
         """Run a dream cycle. Valid triggers: idle, session_end, surprise,
-        cognitive_load, nightly. Each trigger runs a subset of the 8-phase
+        cognitive_load, nightly. Each trigger runs a subset of the 6-phase
         pipeline; nightly runs everything.
         """
 

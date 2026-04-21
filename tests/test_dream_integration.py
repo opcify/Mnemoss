@@ -1,7 +1,7 @@
-"""Stage 4 dream integration — full cycle with MockLLMClient (Checkpoint O).
+"""Dream integration — full cycle with MockLLMClient.
 
 Does not hit the network. Exercises the whole path: observe →
-flush → replay → cluster → extract → relations → diary → export.
+flush → replay → cluster → consolidate → relations → diary → export.
 """
 
 from __future__ import annotations
@@ -14,10 +14,14 @@ from mnemoss import FakeEmbedder, Mnemoss, MockLLMClient, StorageParams
 async def test_full_dream_cycle_end_to_end(tmp_path: Path) -> None:
     def canned(_prompt: str) -> dict:
         return {
-            "memory_type": "fact",
-            "content": "shared fact about Alice",
-            "abstraction_level": 0.7,
-            "aliases": ["A"],
+            "summary": {
+                "memory_type": "fact",
+                "content": "shared fact about Alice",
+                "abstraction_level": 0.7,
+                "aliases": ["A"],
+            },
+            "refinements": [],
+            "patterns": [],
         }
 
     mock = MockLLMClient(callback=canned)
@@ -33,12 +37,11 @@ async def test_full_dream_cycle_end_to_end(tmp_path: Path) -> None:
 
         report = await mem.dream(trigger="idle")
 
-        # Report wiring: every phase ran.
         phase_statuses = {o.phase.value: o.status for o in report.outcomes}
         assert phase_statuses == {
             "replay": "ok",
             "cluster": "ok",
-            "extract": "ok",
+            "consolidate": "ok",
             "relations": "ok",
         }
 
@@ -50,7 +53,7 @@ async def test_full_dream_cycle_end_to_end(tmp_path: Path) -> None:
         assert "REPLAY · ok" in diary_text
 
         # memory.md includes the original observations; if the mock LLM
-        # produced an extracted fact, it should be in the facts section.
+        # produced a consolidated fact, it should be in the facts section.
         md = await mem.export_markdown(min_idx_priority=0.5)
         assert "Memory — ambient" in md
     finally:
