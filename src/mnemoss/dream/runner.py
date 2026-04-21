@@ -46,8 +46,11 @@ UTC = timezone.utc
 
 
 PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
-    # Per §6.3. P6 Generalize / P7 Rebalance / P8 Dispose + the
-    # surprise / cognitive_load / nightly triggers are Stage 5 additions.
+    # Per §6.3. Stage 5 adds SURPRISE / COGNITIVE_LOAD / NIGHTLY.
+    # surprise / cognitive_load intentionally skip REPLAY — they're meant
+    # to run on state already in working memory. A framework integration
+    # would typically call them after feeding Mnemoss a specific memory
+    # (Stage 6+ adds an explicit `memories=` parameter for that).
     TriggerType.IDLE: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
@@ -65,6 +68,24 @@ PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
         PhaseName.REPLAY,
         PhaseName.EXTRACT,
         PhaseName.RELATIONS,
+    ],
+    TriggerType.SURPRISE: [
+        PhaseName.EXTRACT,
+        PhaseName.RELATIONS,
+    ],
+    TriggerType.COGNITIVE_LOAD: [
+        PhaseName.REFINE,
+        PhaseName.EXTRACT,
+    ],
+    TriggerType.NIGHTLY: [
+        PhaseName.REPLAY,
+        PhaseName.CLUSTER,
+        PhaseName.EXTRACT,
+        PhaseName.REFINE,
+        PhaseName.RELATIONS,
+        PhaseName.GENERALIZE,
+        PhaseName.REBALANCE,
+        PhaseName.DISPOSE,
     ],
 }
 

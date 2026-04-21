@@ -16,10 +16,10 @@ from mnemoss import FormulaParams, Mnemoss
 
 
 async def main() -> None:
-    # Uses a Stage-4 workspace name; older-schema workspaces can't be
-    # opened by Stage-4 code (by design — see CLAUDE.md D2/D7/D12).
+    # Uses a Stage-5 workspace name; older-schema workspaces can't be
+    # opened by Stage-5 code (by design — see CLAUDE.md D2/D7/D12/D17).
     mem = Mnemoss(
-        workspace="quickstart_stage4",
+        workspace="quickstart_stage5",
         # Noise off so example output is reproducible.
         formula=FormulaParams(noise_scale=0.0),
     )
@@ -100,6 +100,25 @@ async def main() -> None:
         print()
         print("─── Stage 4: memory.md (ambient view) ───")
         print(await mem.export_markdown())
+
+        print()
+        print("─── Stage 5: standalone dispose pass ───")
+        dispose_stats = await mem.dispose()
+        print(
+            f"Scanned: {dispose_stats.scanned}, "
+            f"disposed: {dispose_stats.disposed}, "
+            f"protected: {dispose_stats.protected}"
+        )
+        print("(Fresh memories are age-protected; nothing disposed.)")
+
+        print()
+        print("─── Stage 5: tombstones (disposal audit trail) ───")
+        tombs = await mem.tombstones()
+        if tombs:
+            for t in tombs:
+                print(f"  · {t.original_id} dropped ({t.reason}): {t.gist_snapshot!r}")
+        else:
+            print("(none yet)")
     finally:
         await mem.close()
 

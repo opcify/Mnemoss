@@ -190,7 +190,7 @@ async def test_replay_prioritizes_higher_base_level(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "bad_trigger",
-    ["surprise", "nightly", "cognitive_load", "not_a_trigger"],
+    ["not_a_trigger", "random", ""],
 )
 async def test_dream_rejects_unknown_trigger(tmp_path: Path, bad_trigger: str) -> None:
     mem = _mnemoss(tmp_path)

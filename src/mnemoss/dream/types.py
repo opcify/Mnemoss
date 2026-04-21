@@ -10,12 +10,19 @@ from typing import Any
 
 
 class TriggerType(str, Enum):
-    """Light triggers ship in Stage 4; surprise / cognitive_load / nightly
-    arrive with Stage 5's P6–P8 phases."""
+    """All six triggers from §2.5.
+
+    The three "light" triggers (idle / session_end / task_completion)
+    fire often and cheap; the deeper ones (surprise / cognitive_load /
+    nightly) run the LLM-heavy phases or, for nightly, everything.
+    """
 
     IDLE = "idle"
     SESSION_END = "session_end"
     TASK_COMPLETION = "task_completion"
+    SURPRISE = "surprise"
+    COGNITIVE_LOAD = "cognitive_load"
+    NIGHTLY = "nightly"
 
 
 class PhaseName(str, Enum):
