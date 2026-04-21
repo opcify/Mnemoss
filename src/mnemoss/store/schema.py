@@ -1,16 +1,26 @@
 """SQL DDL for Mnemoss workspaces.
 
-Stage 1 schema: single file per workspace, all tables colocated. The Raw Log
-lives in the same DB file as the Memory Store — the Principle 3 separation
-is a *layer* distinction, not a *file* distinction. Splitting files is
-deferred to Stage 2+ if operationally useful.
+Schema v6 split the Raw Log into its own SQLite file. Two DBs per
+workspace:
+
+- ``memory.sqlite`` — ``MEMORY_DDL_STATEMENTS`` below (memory, relations,
+  pins, tombstones, workspace_meta) plus the ``vec0`` and FTS5
+  virtual tables built separately.
+- ``raw_log.sqlite`` — ``RAW_LOG_DDL_STATEMENTS`` below. A single
+  ``raw_message`` table plus a minimal ``raw_log_meta`` for the schema
+  version pin.
+
+The split lets Raw Log (pure append, unbounded, rarely read) carry its
+own retention and backup policy without dragging the Memory Store
+(bounded, read-heavy) along. Queries never JOIN across the two files,
+so keeping them as independent connections is cleaner than ATTACH.
 """
 
 from __future__ import annotations
 
 MIN_SQLITE_VERSION = (3, 34, 0)  # First bundled-trigram release
 
-DDL_STATEMENTS = [
+MEMORY_DDL_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS workspace_meta (
       k TEXT PRIMARY KEY,
@@ -75,20 +85,6 @@ DDL_STATEMENTS = [
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS raw_message (
-      id TEXT PRIMARY KEY,
-      workspace_id TEXT NOT NULL,
-      agent_id TEXT,
-      session_id TEXT NOT NULL,
-      turn_id TEXT NOT NULL,
-      parent_id TEXT,
-      timestamp REAL NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      metadata TEXT NOT NULL DEFAULT '{}'
-    )
-    """,
-    """
     CREATE TABLE IF NOT EXISTS tombstone (
       original_id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -102,6 +98,32 @@ DDL_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_tombstone_agent ON tombstone(agent_id)",
     "CREATE INDEX IF NOT EXISTS idx_tombstone_dropped_at ON tombstone(dropped_at)",
+]
+
+RAW_LOG_DDL_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS raw_log_meta (
+      k TEXT PRIMARY KEY,
+      v TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS raw_message (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      agent_id TEXT,
+      session_id TEXT NOT NULL,
+      turn_id TEXT NOT NULL,
+      parent_id TEXT,
+      timestamp REAL NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}'
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_raw_session ON raw_message(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_raw_agent ON raw_message(agent_id)",
+    "CREATE INDEX IF NOT EXISTS idx_raw_timestamp ON raw_message(timestamp)",
 ]
 
 

@@ -156,6 +156,7 @@ async def test_create_mcp_server_registers_expected_tools(
         "recall",
         "pin",
         "explain_recall",
+        "expand",
         "dream",
         "rebalance",
         "dispose",

@@ -81,6 +81,7 @@ export function parseRecallResult(dto: Raw): RecallResult {
     memory: parseMemory(dto.memory),
     score: dto.score,
     breakdown: parseBreakdown(dto.breakdown),
+    source: (dto.source ?? "direct") as "direct" | "expanded",
   };
 }
 

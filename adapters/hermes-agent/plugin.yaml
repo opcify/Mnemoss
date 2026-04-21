@@ -1,0 +1,12 @@
+name: mnemoss
+version: 0.1.0
+description: >-
+  Mnemoss ACT-R memory for Hermes — recall ranked by a cognitive-science
+  activation formula, with spreading activation, lazy extraction, and
+  opportunistic consolidation (dreaming) across sessions.
+pip_dependencies:
+  - mnemoss
+hooks:
+  - on_session_end
+  - on_pre_compress
+  - on_memory_write

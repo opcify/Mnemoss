@@ -154,10 +154,16 @@ class WorkspaceHandle:
         k: int = 5,
         agent_id: str | None = None,
         include_deep: bool = False,
+        auto_expand: bool = True,
     ) -> list[RecallResult]:
         resp = await self._client._post(
             self._path("recall"),
-            json={"query": query, "k": k, "include_deep": include_deep},
+            json={
+                "query": query,
+                "k": k,
+                "include_deep": include_deep,
+                "auto_expand": auto_expand,
+            },
             params={"agent_id": agent_id},
         )
         return [parse_recall_result(r) for r in resp["results"]]
@@ -182,6 +188,29 @@ class WorkspaceHandle:
             params={"agent_id": agent_id},
         )
         return parse_breakdown(resp["breakdown"])
+
+    async def expand(
+        self,
+        memory_id: str,
+        *,
+        agent_id: str | None = None,
+        query: str | None = None,
+        hops: int = 1,
+        k: int = 5,
+    ) -> list[RecallResult]:
+        """Explicit relation-graph expansion from a single memory."""
+
+        resp = await self._client._post(
+            self._path("expand"),
+            json={
+                "memory_id": memory_id,
+                "query": query,
+                "hops": hops,
+                "k": k,
+            },
+            params={"agent_id": agent_id},
+        )
+        return [parse_recall_result(r) for r in resp["results"]]
 
     # ─── dream / housekeeping ────────────────────────────────────
 
@@ -303,12 +332,14 @@ class AgentHandle:
         *,
         k: int = 5,
         include_deep: bool = False,
+        auto_expand: bool = True,
     ) -> list[RecallResult]:
         return await self._ws.recall(
             query,
             k=k,
             agent_id=self._agent_id,
             include_deep=include_deep,
+            auto_expand=auto_expand,
         )
 
     async def pin(self, memory_id: str) -> None:
@@ -319,6 +350,22 @@ class AgentHandle:
     ) -> ActivationBreakdown:
         return await self._ws.explain_recall(
             query, memory_id, agent_id=self._agent_id
+        )
+
+    async def expand(
+        self,
+        memory_id: str,
+        *,
+        query: str | None = None,
+        hops: int = 1,
+        k: int = 5,
+    ) -> list[RecallResult]:
+        return await self._ws.expand(
+            memory_id,
+            agent_id=self._agent_id,
+            query=query,
+            hops=hops,
+            k=k,
         )
 
     async def export_markdown(self, *, min_idx_priority: float = 0.5) -> str:

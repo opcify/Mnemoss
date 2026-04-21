@@ -40,7 +40,7 @@ from mnemoss.index import rebalance as _rebalance
 from mnemoss.llm.client import LLMClient
 from mnemoss.recall import RecallEngine, RecallResult
 from mnemoss.relations import write_cooccurrence_edges
-from mnemoss.store.paths import workspace_db_path
+from mnemoss.store.paths import raw_log_db_path, workspace_db_path
 from mnemoss.store.sqlite_backend import SQLiteBackend
 from mnemoss.working import WorkingMemory
 
@@ -172,11 +172,16 @@ class Mnemoss:
         k: int = 5,
         agent_id: str | None = None,
         include_deep: bool = False,
+        auto_expand: bool = True,
     ) -> list[RecallResult]:
         await self._ensure_open()
         assert self._engine is not None
         results = await self._engine.recall(
-            query, agent_id=agent_id, k=k, include_deep=include_deep
+            query,
+            agent_id=agent_id,
+            k=k,
+            include_deep=include_deep,
+            auto_expand=auto_expand,
         )
         _log.info(
             "recalled",
@@ -185,7 +190,9 @@ class Mnemoss:
                 "agent_id": agent_id,
                 "k": k,
                 "include_deep": include_deep,
+                "auto_expand": auto_expand,
                 "results": len(results),
+                "expanded": sum(1 for r in results if r.source == "expanded"),
             },
         )
         return results
@@ -207,6 +214,47 @@ class Mnemoss:
         await self._ensure_open()
         assert self._engine is not None
         return await self._engine.explain(query, memory_id, agent_id=agent_id)
+
+    async def expand(
+        self,
+        memory_id: str,
+        *,
+        agent_id: str | None = None,
+        query: str | None = None,
+        hops: int = 1,
+        k: int = 5,
+    ) -> list[RecallResult]:
+        """Explicitly expand from one memory via the relation graph.
+
+        Companion to ``recall()``'s auto-expand: auto-expand fires on
+        heuristic same-topic detection; this method fires whenever the
+        caller wants it. Use for "show related" buttons, agent-framework
+        follow-up detectors that have their own signals, or "drill into
+        this" planner steps. Returns memories reachable via the relation
+        graph, ranked by spreading activation from the seed. All results
+        are tagged ``source="expanded"``.
+        """
+
+        await self._ensure_open()
+        assert self._engine is not None
+        results = await self._engine.expand_recall(
+            memory_id,
+            agent_id=agent_id,
+            query=query,
+            hops=hops,
+            k=k,
+        )
+        _log.info(
+            "expanded",
+            extra={
+                "workspace": self._config.workspace,
+                "agent_id": agent_id,
+                "memory_id": memory_id,
+                "hops": hops,
+                "results": len(results),
+            },
+        )
+        return results
 
     def for_agent(self, agent_id: str) -> AgentHandle:
         """Return a thin per-agent handle that binds ``agent_id`` on every call."""
@@ -326,12 +374,11 @@ class Mnemoss:
     ) -> DreamReport:
         """Run a dreaming cycle for ``trigger``.
 
-        Valid triggers in Stage 4: ``"idle"``, ``"session_end"``,
-        ``"task_completion"``. The remaining three (surprise,
-        cognitive_load, nightly) plus the deep phases P6–P8 arrive in
-        Stage 5. If no LLM is configured, LLM-dependent phases record
-        ``status="skipped"`` with an explanatory reason and the rest
-        still run.
+        Valid triggers: ``"idle"``, ``"session_end"``, ``"surprise"``,
+        ``"cognitive_load"``, ``"nightly"``. Each one maps to a specific
+        phase subset (see ``dream.runner.TRIGGER_PHASES``). If no LLM is
+        configured, LLM-dependent phases record ``status="skipped"``
+        with an explanatory reason and the rest still run.
         """
 
         await self._ensure_open()
@@ -470,8 +517,12 @@ class Mnemoss:
             db_path = workspace_db_path(
                 self._config.storage.root, self._config.workspace
             )
+            raw_path = raw_log_db_path(
+                self._config.storage.root, self._config.workspace
+            )
             store = SQLiteBackend(
                 db_path=db_path,
+                raw_log_path=raw_path,
                 workspace_id=self._config.workspace,
                 embedding_dim=self._embedder.dim,
                 embedder_id=self._embedder.embedder_id,
@@ -521,10 +572,19 @@ class AgentHandle:
         )
 
     async def recall(
-        self, query: str, *, k: int = 5, include_deep: bool = False
+        self,
+        query: str,
+        *,
+        k: int = 5,
+        include_deep: bool = False,
+        auto_expand: bool = True,
     ) -> list[RecallResult]:
         return await self._mem.recall(
-            query, k=k, agent_id=self._agent_id, include_deep=include_deep
+            query,
+            k=k,
+            agent_id=self._agent_id,
+            include_deep=include_deep,
+            auto_expand=auto_expand,
         )
 
     async def pin(self, memory_id: str) -> None:
@@ -533,6 +593,22 @@ class AgentHandle:
     async def explain_recall(self, query: str, memory_id: str):
         return await self._mem.explain_recall(
             query, memory_id, agent_id=self._agent_id
+        )
+
+    async def expand(
+        self,
+        memory_id: str,
+        *,
+        query: str | None = None,
+        hops: int = 1,
+        k: int = 5,
+    ) -> list[RecallResult]:
+        return await self._mem.expand(
+            memory_id,
+            agent_id=self._agent_id,
+            query=query,
+            hops=hops,
+            k=k,
         )
 
     async def export_markdown(self) -> str:

@@ -103,10 +103,35 @@ def create_mcp_server(
         )
 
     @mcp.tool()
+    async def expand(
+        memory_id: str,
+        query: str | None = None,
+        hops: int = 1,
+        k: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Explicitly expand from one memory via the relation graph.
+
+        Dig deeper into a specific memory on demand — an LLM override of
+        the automatic same-topic heuristic that ``recall`` uses. Returns
+        memories reachable through the relation graph from the seed,
+        ranked by spreading activation. If ``query`` is omitted, the
+        seed's own content is used as the matching term.
+        """
+
+        return await tools.tool_expand(
+            backend,
+            memory_id=memory_id,
+            query=query,
+            hops=hops,
+            k=k,
+            agent_id=agent,
+        )
+
+    @mcp.tool()
     async def dream(trigger: str = "session_end") -> dict[str, Any]:
-        """Run a dream cycle. Valid triggers: idle, session_end,
-        task_completion, surprise, cognitive_load, nightly. Each trigger
-        runs a subset of the 8-phase pipeline; nightly runs everything.
+        """Run a dream cycle. Valid triggers: idle, session_end, surprise,
+        cognitive_load, nightly. Each trigger runs a subset of the 8-phase
+        pipeline; nightly runs everything.
         """
 
         return await tools.tool_dream(backend, trigger=trigger, agent_id=agent)

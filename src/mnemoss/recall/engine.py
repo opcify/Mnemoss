@@ -18,6 +18,7 @@ import math
 import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Literal
 
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
@@ -25,6 +26,8 @@ from mnemoss.encoder import Embedder
 from mnemoss.encoder.extraction import extract_heuristic
 from mnemoss.formula.activation import ActivationBreakdown, compute_activation
 from mnemoss.formula.query_bias import has_deep_cue
+from mnemoss.recall.expand import expand_from_seeds, hops_for_streak
+from mnemoss.recall.history import PastQuery, RecallHistory, is_same_topic
 from mnemoss.store.sqlite_backend import SQLiteBackend
 from mnemoss.working import WorkingMemory
 
@@ -33,11 +36,19 @@ UTC = timezone.utc
 
 @dataclass
 class RecallResult:
-    """One entry in the list returned to the caller of ``recall``."""
+    """One entry in the list returned to the caller of ``recall``.
+
+    ``source`` distinguishes direct cascade hits from memories surfaced
+    by the auto-expand path. Direct hits cleared the activation formula
+    on the query itself; expanded hits were reached via the relation
+    graph from the direct hits, so their ranking leans on spreading
+    activation and their ``bm25_raw`` / ``cos_sim`` are zero.
+    """
 
     memory: Memory
     score: float
     breakdown: ActivationBreakdown
+    source: Literal["direct", "expanded"] = "direct"
 
 
 @dataclass
@@ -57,12 +68,14 @@ class RecallEngine:
         working: WorkingMemory,
         params: FormulaParams,
         rng: random.Random | None = None,
+        history: RecallHistory | None = None,
     ) -> None:
         self._store = store
         self._embedder = embedder
         self._working = working
         self._params = params
         self._rng = rng if rng is not None else random.Random()
+        self._history = history if history is not None else RecallHistory()
 
     async def recall(
         self,
@@ -72,8 +85,17 @@ class RecallEngine:
         k: int = 5,
         pool_size: int = 32,
         include_deep: bool = False,
+        auto_expand: bool = True,
     ) -> list[RecallResult]:
-        """Score candidates tier-by-tier; return the top-k whose A > tau."""
+        """Score candidates tier-by-tier; return the top-k whose A > tau.
+
+        When ``auto_expand`` is true (the default), a follow-up recall on
+        the same topic as the previous one — defined by either result
+        overlap or query-embedding cosine within the same-topic window —
+        additionally surfaces spreading-reached memories ranked by the
+        full activation formula. See ``recall/expand.py`` for the
+        algorithm and ``recall/history.py`` for the detection rule.
+        """
 
         top, _ = await self._recall_with_stats(
             query,
@@ -81,6 +103,7 @@ class RecallEngine:
             k=k,
             pool_size=pool_size,
             include_deep=include_deep,
+            auto_expand=auto_expand,
         )
         return top
 
@@ -92,6 +115,7 @@ class RecallEngine:
         k: int = 5,
         pool_size: int = 32,
         include_deep: bool = False,
+        auto_expand: bool = True,
     ) -> tuple[list[RecallResult], CascadeStats]:
         """Same as ``recall`` but also returns cascade telemetry."""
 
@@ -101,6 +125,7 @@ class RecallEngine:
             k=k,
             pool_size=pool_size,
             include_deep=include_deep,
+            auto_expand=auto_expand,
         )
 
     async def _recall_with_stats(
@@ -111,6 +136,7 @@ class RecallEngine:
         k: int,
         pool_size: int,
         include_deep: bool,
+        auto_expand: bool,
     ) -> tuple[list[RecallResult], CascadeStats]:
         query_vec = (await asyncio.to_thread(self._embedder.embed, [query]))[0]
         now = datetime.now(UTC)
@@ -172,6 +198,99 @@ class RecallEngine:
         top = sorted(scored.values(), key=lambda r: r.score, reverse=True)
         # Secondary threshold: only return candidates clearing tau.
         top = [r for r in top if r.score > tau][:k]
+
+        # ─── auto-expand on same-topic follow-up ─────────────────────
+        # Runs AFTER the direct cascade so expansion seeds from the real
+        # top-k; runs BEFORE reconsolidation so expanded memories also
+        # get their access_history bumped. Skipped on empty direct
+        # results (nothing to spread from) and when the caller opted out.
+        #
+        # Two independent time scales:
+        # - Same-topic detection is pure semantic (result overlap or
+        #   query cosine) — no time gate. A user returning to the thread
+        #   hours later still benefits.
+        # - Streak (for hop-count escalation) resets after a gap longer
+        #   than ``streak_reset_seconds``, so a fresh thread starts at
+        #   hops=1 even when the topic is clearly the same.
+        #
+        #   recall()
+        #      │
+        #      ├─► cascade HOT→WARM→COLD, filter τ, take top-k
+        #      │
+        #      ├─► auto_expand AND top non-empty AND prev in history?
+        #      │       │                                    │  no
+        #      │       │ yes                                ▼
+        #      │       ▼                              record + return
+        #      │    is_same_topic(prev)?
+        #      │       │                                    │  no
+        #      │       │ yes                                ▼
+        #      │       ▼                              record + return
+        #      │    gap ≤ streak_reset?  yes → streak = prev+1
+        #      │                         no  → streak = 1
+        #      │       │
+        #      │       ▼
+        #      │    hops = hops_for_streak(streak, hops_max)
+        #      │    BFS relation graph (capped by expand_candidates_max)
+        #      │    score with bm25=0, cos=0, seeds in active_set
+        #      │    filter τ, take limit=k, tag source="expanded"
+        #      │       │
+        #      └───────┴──► record history, reconsolidate, return
+        streak = 1
+        if auto_expand and top:
+            prev = self._history.latest(agent_id)
+            current_result_ids = {r.memory.id for r in top}
+            if prev is not None and is_same_topic(
+                prev,
+                current_query_vec=query_vec,
+                current_result_ids=current_result_ids,
+                cosine_threshold=self._params.same_topic_cosine,
+            ):
+                # ``max(0, …)`` guards against wall-clock skew producing
+                # a negative gap (e.g. NTP step-back, replayed timestamps
+                # in tests). Without the clamp, a negative gap would
+                # always pass the ≤ check and streak could grow
+                # indefinitely.
+                gap_seconds = max(
+                    0.0, (now - prev.timestamp).total_seconds()
+                )
+                if gap_seconds <= self._params.streak_reset_seconds:
+                    streak = prev.streak + 1
+                # else: fresh thread, streak stays at 1 (shallow expansion)
+                hops = hops_for_streak(streak, self._params.expand_hops_max)
+                expanded = await expand_from_seeds(
+                    self._store,
+                    seed_memories=[r.memory for r in top],
+                    query=query,
+                    now=now,
+                    agent_id=agent_id,
+                    hops=hops,
+                    limit=k,
+                    params=self._params,
+                    rng=self._rng,
+                    exclude_ids=current_result_ids | scored.keys(),
+                )
+                top.extend(
+                    RecallResult(
+                        memory=c.memory,
+                        score=c.score,
+                        breakdown=c.breakdown,
+                        source="expanded",
+                    )
+                    for c in expanded
+                )
+
+        # Record this recall for future same-topic detection. Done before
+        # reconsolidation so the snapshot captures what the caller saw.
+        self._history.record(
+            agent_id,
+            PastQuery(
+                query=query,
+                query_vec=query_vec,
+                timestamp=now,
+                result_ids={r.memory.id for r in top},
+                streak=streak,
+            ),
+        )
 
         for result in top:
             await self._store.reconsolidate(result.memory.id, now)
@@ -307,6 +426,87 @@ class RecallEngine:
             rng=random.Random(0),  # deterministic for explain
             params=self._params,
         )
+
+    async def expand_recall(
+        self,
+        memory_id: str,
+        *,
+        agent_id: str | None,
+        query: str | None = None,
+        hops: int = 1,
+        k: int = 5,
+    ) -> list[RecallResult]:
+        """Explicitly expand from one memory via the relation graph.
+
+        Bypasses the same-topic heuristic used by auto-expand. Use when
+        the caller has an external signal for "dig deeper now" — an
+        agent framework's own follow-up detection, a user click on
+        "show related," a planner asking "what else is connected?".
+
+        ``query`` seeds the matching term of the activation formula. If
+        ``None`` (default), the seed memory's own content is used, which
+        rewards candidates that are both related to the seed *and*
+        textually similar. Pass an empty string to disable matching
+        entirely (pure spreading + base-level). Seed memory is excluded
+        from the returned list — the caller already has it.
+
+        Reconsolidates the seed and every returned memory: calling
+        ``expand()`` is itself an act of engaging with the seed, so
+        access_history gets bumped just like for direct recall.
+        """
+
+        if hops < 1:
+            raise ValueError(f"hops must be >= 1, got {hops}")
+
+        seed = await self._store.get_memory(memory_id)
+        if seed is None:
+            return []
+
+        # Agent scoping: caller bound to ``agent_id`` can only seed
+        # expansion from memories they can see.
+        if agent_id is None:
+            if seed.agent_id is not None:
+                return []
+        else:
+            if seed.agent_id not in (agent_id, None):
+                return []
+
+        effective_query = seed.content if query is None else query
+        now = datetime.now(UTC)
+
+        expanded = await expand_from_seeds(
+            self._store,
+            seed_memories=[seed],
+            query=effective_query,
+            now=now,
+            agent_id=agent_id,
+            hops=hops,
+            limit=k,
+            params=self._params,
+            rng=self._rng,
+            exclude_ids={memory_id},
+        )
+        results = [
+            RecallResult(
+                memory=c.memory,
+                score=c.score,
+                breakdown=c.breakdown,
+                source="expanded",
+            )
+            for c in expanded
+        ]
+
+        # Reconsolidate seed + every returned memory. User explicitly
+        # engaged with these; the formula treats access as rehearsal.
+        await self._store.reconsolidate(seed.id, now)
+        for r in results:
+            await self._store.reconsolidate(r.memory.id, now)
+            r.memory.access_history.append(now)
+            r.memory.rehearsal_count += 1
+            r.memory.last_accessed_at = now
+        self._working.extend(agent_id, (r.memory.id for r in results))
+
+        return results
 
 
 def _batch_extract(contents: list[str]):

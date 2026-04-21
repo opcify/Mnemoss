@@ -108,9 +108,9 @@ Don't pre-structure. Fields fill on query demand, relations build during
 dreaming, facts emerge from repetition clustering.
 
 **Principle 6: Dreaming is opportunistic.**
-Six triggers (idle, session-end, task-completion, surprise, cognitive-load, 
-nightly) drive an 8-phase pipeline. Integration happens when signals indicate 
-it should, not on a fixed schedule.
+Five triggers (idle, session-end, surprise, cognitive-load, nightly) drive 
+an 8-phase pipeline. Integration happens when signals indicate it should, 
+not on a fixed schedule.
 
 **Principle 7: Multi-tier index, unified data.**
 Four index tiers (HOT/WARM/COLD/DEEP) with latency gradient from <10ms to 
@@ -310,12 +310,12 @@ actors, use separate **workspaces** (separate SQLite DBs), not separate
 - On event closure: encode to Memory, store, index
 
 **Warm Path (<1s, event-driven):** Index maintenance
-- Triggered on: turn-end, session-end, task-done, idle
+- Triggered on: turn-end, session-end, idle
 - Incremental index updates
 - Async LLM refinement queue
 
 **Cold Path (opportunistic, offline):** Dreaming
-- Six triggers drive an 8-phase pipeline
+- Five triggers drive an 8-phase pipeline
 - LLM used only for content generation (not system decisions)
 
 ### 6.2 Dreaming Pipeline
@@ -339,7 +339,6 @@ Eight phases, selected per trigger:
 PHASES_BY_TRIGGER = {
     "idle":            ["replay", "cluster", "extract", "relations"],
     "session_end":     ["replay", "cluster", "extract", "refine", "relations"],
-    "task_completion": ["replay", "extract", "relations"],
     "surprise":        ["extract", "relations"],
     "cognitive_load":  ["refine", "extract"],
     "nightly":         ["replay", "cluster", "extract", "refine", 

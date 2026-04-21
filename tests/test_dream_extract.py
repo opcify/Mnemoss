@@ -205,7 +205,7 @@ async def test_full_dream_cycle_writes_extracted_memory(tmp_path: Path) -> None:
         for i in range(4):
             await mem.observe(role="user", content=f"alice note {i}")
 
-        # Use idle so all four phases run (task_completion skips cluster).
+        # Use idle so all four light-trigger phases run.
         report = await mem.dream(trigger="idle")
 
         # Cluster phase ran; extract ran; relations ran.

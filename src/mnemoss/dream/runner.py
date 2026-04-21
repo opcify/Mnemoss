@@ -64,11 +64,6 @@ PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
         PhaseName.REFINE,
         PhaseName.RELATIONS,
     ],
-    TriggerType.TASK_COMPLETION: [
-        PhaseName.REPLAY,
-        PhaseName.EXTRACT,
-        PhaseName.RELATIONS,
-    ],
     TriggerType.SURPRISE: [
         PhaseName.EXTRACT,
         PhaseName.RELATIONS,
@@ -254,9 +249,9 @@ class DreamRunner:
                 details={"reason": "no embedder configured"},
             )
 
-        # Without clustering (e.g. task_completion trigger), treat the full
-        # replay set as one synthetic cluster so the LLM still gets to
-        # summarize the recent window.
+        # Without clustering (e.g. surprise trigger), treat the full replay
+        # set as one synthetic cluster so the LLM still gets to summarize
+        # the recent window.
         if state.cluster_assignments:
             clusters_by_id = group_by_cluster(state.cluster_assignments)
             by_id = {m.id: m for m in state.replay_set}

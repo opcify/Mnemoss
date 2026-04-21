@@ -1,0 +1,33 @@
+{
+  "id": "mnemoss",
+  "name": "Mnemoss",
+  "description": "ACT-R memory system for OpenClaw — ranked recall with spreading activation and dreaming.",
+  "memoryCapability": {
+    "id": "mnemoss",
+    "label": "Mnemoss",
+    "blurb": "Cognitive-science-grounded recall backed by a shared Mnemoss server."
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "description": "URL of the Mnemoss REST server (e.g. https://memory.internal)."
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "Bearer token (optional if the server is unauthenticated)."
+      },
+      "workspace": {
+        "type": "string",
+        "description": "Mnemoss workspace id. Defaults to the OpenClaw gateway id."
+      },
+      "timeoutMs": {
+        "type": "number",
+        "description": "Per-request timeout in milliseconds (default 30000)."
+      }
+    },
+    "required": ["baseUrl"]
+  }
+}

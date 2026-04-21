@@ -25,6 +25,7 @@ async def _setup(
     embedder = FakeEmbedder(dim=dim)
     store = SQLiteBackend(
         db_path=tmp_path / "mem.sqlite",
+        raw_log_path=tmp_path / "raw_log.sqlite",
         workspace_id="ws",
         embedding_dim=dim,
         embedder_id=embedder.embedder_id,

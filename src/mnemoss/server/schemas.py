@@ -115,6 +115,7 @@ class RecallRequest(BaseModel):
     query: str
     k: int = 5
     include_deep: bool = False
+    auto_expand: bool = True
 
 
 class ActivationBreakdownDTO(BaseModel):
@@ -147,6 +148,7 @@ class RecallResultDTO(BaseModel):
     memory: MemoryDTO
     score: float
     breakdown: ActivationBreakdownDTO
+    source: str = "direct"
 
 
 def recall_result_to_dto(r: RecallResult) -> RecallResultDTO:
@@ -154,6 +156,7 @@ def recall_result_to_dto(r: RecallResult) -> RecallResultDTO:
         memory=memory_to_dto(r.memory),
         score=r.score,
         breakdown=breakdown_to_dto(r.breakdown),
+        source=r.source,
     )
 
 
@@ -168,6 +171,13 @@ class ExplainRequest(BaseModel):
 
 class ExplainResponse(BaseModel):
     breakdown: ActivationBreakdownDTO
+
+
+class ExpandRequest(BaseModel):
+    memory_id: str
+    query: str | None = None
+    hops: int = 1
+    k: int = 5
 
 
 # ─── pin ─────────────────────────────────────────────────────────

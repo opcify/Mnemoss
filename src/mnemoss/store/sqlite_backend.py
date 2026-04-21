@@ -30,7 +30,13 @@ import sqlite_vec
 
 from mnemoss.core.config import SCHEMA_VERSION
 from mnemoss.core.types import IndexTier, Memory, MemoryType, RawMessage, Tombstone
-from mnemoss.store.schema import DDL_STATEMENTS, FTS_DDL, MIN_SQLITE_VERSION, vec_ddl
+from mnemoss.store.schema import (
+    FTS_DDL,
+    MEMORY_DDL_STATEMENTS,
+    MIN_SQLITE_VERSION,
+    RAW_LOG_DDL_STATEMENTS,
+    vec_ddl,
+)
 
 UTC = timezone.utc
 
@@ -54,20 +60,25 @@ class SQLiteBackend:
     def __init__(
         self,
         db_path: Path,
+        raw_log_path: Path,
         workspace_id: str,
         embedding_dim: int,
         embedder_id: str,
     ) -> None:
         self._db_path = db_path
+        self._raw_log_path = raw_log_path
         self._workspace_id = workspace_id
         self._embedding_dim = embedding_dim
         self._embedder_id = embedder_id
         self._conn: apsw.Connection | None = None
+        self._raw_conn: apsw.Connection | None = None
         self._write_lock = asyncio.Lock()
         self._memory_columns: list[str] = []
         # apsw connections are pinned to the thread that created them, so we
         # funnel every DB call through a single dedicated worker. This makes
         # concurrent callers safe without paying for per-thread connections.
+        # Both the memory and raw-log connections run on this one thread, so
+        # two files do not mean two worker threads.
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="mnemoss-db"
         )
@@ -116,9 +127,21 @@ class SQLiteBackend:
         self._conn = conn
         self._memory_columns = [row[1] for row in conn.execute("PRAGMA table_info(memory)")]
 
+        # Raw-log DB lives alongside the memory DB. It does not need the
+        # sqlite-vec extension or FTS, just a plain SQLite connection with
+        # WAL journalling for write throughput.
+        raw_is_new = not self._raw_log_path.exists()
+        raw_conn = apsw.Connection(str(self._raw_log_path))
+        raw_conn.execute("PRAGMA journal_mode=WAL")
+        if raw_is_new:
+            self._create_raw_schema(raw_conn)
+        else:
+            self._validate_raw_meta(raw_conn)
+        self._raw_conn = raw_conn
+
     def _create_schema(self, conn: apsw.Connection) -> None:
         with conn:
-            for ddl in DDL_STATEMENTS:
+            for ddl in MEMORY_DDL_STATEMENTS:
                 conn.execute(ddl)
             conn.execute(vec_ddl(self._embedding_dim))
             conn.execute(FTS_DDL)
@@ -128,6 +151,18 @@ class SQLiteBackend:
                     "schema_version", str(SCHEMA_VERSION),
                     "embedding_dim", str(self._embedding_dim),
                     "embedder_id", self._embedder_id,
+                ),
+            )
+
+    def _create_raw_schema(self, conn: apsw.Connection) -> None:
+        with conn:
+            for ddl in RAW_LOG_DDL_STATEMENTS:
+                conn.execute(ddl)
+            conn.execute(
+                "INSERT INTO raw_log_meta(k, v) VALUES (?, ?), (?, ?)",
+                (
+                    "schema_version", str(SCHEMA_VERSION),
+                    "workspace_id", self._workspace_id,
                 ),
             )
 
@@ -151,10 +186,22 @@ class SQLiteBackend:
                 f"code={self._embedder_id!r}"
             )
 
+    def _validate_raw_meta(self, conn: apsw.Connection) -> None:
+        rows = dict(conn.execute("SELECT k, v FROM raw_log_meta"))
+        stored_version = int(rows.get("schema_version", "-1"))
+        if stored_version != SCHEMA_VERSION:
+            raise SchemaMismatchError(
+                f"Raw-log schema version mismatch: "
+                f"DB={stored_version}, code={SCHEMA_VERSION}"
+            )
+
     async def close(self) -> None:
         if self._conn is not None:
             await self._run(self._conn.close)
             self._conn = None
+        if self._raw_conn is not None:
+            await self._run(self._raw_conn.close)
+            self._raw_conn = None
         # Shut down the worker thread. Subsequent calls will raise.
         self._executor.shutdown(wait=True)
 
@@ -237,7 +284,7 @@ class SQLiteBackend:
             await self._run(self._write_raw_sync, msg)
 
     def _write_raw_sync(self, msg: RawMessage) -> None:
-        conn = self._require_conn()
+        conn = self._require_raw_conn()
         with conn:
             conn.execute(
                 """
@@ -822,6 +869,112 @@ class SQLiteBackend:
             out[src_id].add(dst_id)
         return out
 
+    async def expand_via_relations(
+        self,
+        seed_ids: Iterable[str],
+        *,
+        hops: int,
+        predicates: Iterable[str] | None = None,
+        max_candidates: int | None = None,
+    ) -> set[str]:
+        """BFS over the relation graph from ``seed_ids``, ``hops`` deep.
+
+        Returns every memory id reachable in ``[1, hops]`` steps via the
+        directed ``relation`` table, restricted to ``predicates`` when
+        provided. Seeds themselves are excluded from the result. Used by
+        the auto-expand path on repeated same-topic recalls so we can
+        surface associated memories that wouldn't otherwise clear
+        activation on their own.
+
+        ``max_candidates`` caps the reachable set size. Relation fan-out
+        is roughly geometric in ``hops``, so on a dense workspace this
+        prevents BFS from pulling in thousands of ids — which would then
+        each get a SQL + activation-formula round-trip downstream. BFS
+        stops on the first hop boundary where the cap would be exceeded;
+        any ids already collected are returned.
+        """
+
+        return await self._run(
+            self._expand_via_relations_sync,
+            list(seed_ids),
+            hops,
+            list(predicates) if predicates is not None else None,
+            max_candidates,
+        )
+
+    def _expand_via_relations_sync(
+        self,
+        seed_ids: list[str],
+        hops: int,
+        predicates: list[str] | None,
+        max_candidates: int | None,
+    ) -> set[str]:
+        if not seed_ids or hops <= 0:
+            return set()
+        conn = self._require_conn()
+        seed_set = set(seed_ids)
+        seen: set[str] = set(seed_set)
+        frontier: set[str] = set(seed_set)
+        for _ in range(hops):
+            if not frontier:
+                break
+            ph = ",".join("?" for _ in frontier)
+            params: tuple[str, ...] = tuple(frontier)
+            sql = f"SELECT dst_id FROM relation WHERE src_id IN ({ph})"
+            if predicates:
+                pp = ",".join("?" for _ in predicates)
+                sql += f" AND predicate IN ({pp})"
+                params = params + tuple(predicates)
+            rows = conn.execute(sql, params).fetchall()
+            next_frontier = {r[0] for r in rows} - seen
+            seen.update(next_frontier)
+            # ``seen`` includes seeds; budget compares against the
+            # non-seed reachable set since that's what the caller uses.
+            if (
+                max_candidates is not None
+                and len(seen - seed_set) >= max_candidates
+            ):
+                break
+            frontier = next_frontier
+        return seen - seed_set
+
+    async def pinned_by_agent(
+        self, memory_ids: Iterable[str], agent_id: str | None
+    ) -> set[str]:
+        """Return the subset of ``memory_ids`` pinned *by this agent*.
+
+        Per-agent pin semantics — matches ``is_pinned(id, agent_id)`` but
+        batched. Used by expansion scoring where the candidate list may
+        be in the hundreds and one-SQL-per-memory is wasteful. ``None``
+        selects ambient (agent_id IS NULL) pins only.
+        """
+
+        return await self._run(
+            self._pinned_by_agent_sync, list(memory_ids), agent_id
+        )
+
+    def _pinned_by_agent_sync(
+        self, memory_ids: list[str], agent_id: str | None
+    ) -> set[str]:
+        if not memory_ids:
+            return set()
+        conn = self._require_conn()
+        placeholders = ",".join("?" for _ in memory_ids)
+        if agent_id is None:
+            sql = (
+                f"SELECT DISTINCT memory_id FROM pin "
+                f"WHERE memory_id IN ({placeholders}) AND agent_id IS NULL"
+            )
+            params: tuple = tuple(memory_ids)
+        else:
+            sql = (
+                f"SELECT DISTINCT memory_id FROM pin "
+                f"WHERE memory_id IN ({placeholders}) AND agent_id = ?"
+            )
+            params = tuple(memory_ids) + (agent_id,)
+        rows = conn.execute(sql, params).fetchall()
+        return {r[0] for r in rows}
+
     async def vec_search(
         self,
         query_embedding: np.ndarray,
@@ -956,6 +1109,11 @@ class SQLiteBackend:
         if self._conn is None:
             raise RuntimeError("SQLiteBackend.open() must be called first")
         return self._conn
+
+    def _require_raw_conn(self) -> apsw.Connection:
+        if self._raw_conn is None:
+            raise RuntimeError("SQLiteBackend.open() must be called first")
+        return self._raw_conn
 
     def _filter_by_agent_and_tier(
         self,

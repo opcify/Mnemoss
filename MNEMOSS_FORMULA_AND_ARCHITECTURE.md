@@ -52,10 +52,10 @@ Where:
 
 **Why the grace term.** Without it, a just-encoded memory has 
 $\ln(\sum \ldots) = \ln(1) = 0$ (with the 1-second floor on $t - t_k$), 
-giving $\text{idx\_priority} = \sigma(0) \approx 0.5$ — WARM, not HOT. 
+giving $\text{idx}\_\text{priority} = \sigma(0) \approx 0.5$ — WARM, not HOT. 
 That mismatches human memory, where freshly encoded items are maximally 
 accessible before the encoding-specific trace fades. $\eta(t)$ lifts a 
-brand-new memory to $B_i \approx 1.0$ (so $\text{idx\_priority} \approx 
+brand-new memory to $B_i \approx 1.0$ (so $\text{idx}\_\text{priority} \approx 
 \sigma(1.0) \approx 0.73$, HOT), then decays smoothly:
 
 | Age | $\eta(t)$ | $B_i$ (unused memory) | idx_priority |
@@ -140,11 +140,12 @@ are then normalized so they sum to 1.
 **Raw weights:**
 
 $$
-w_F^{\text{raw}}(m_i, q) = \underbrace{(0.2 + 0.6 \cdot \text{idx\_priority}(m_i))}_{\text{memory state: high for fresh memories}} \cdot \underbrace{b_F(q)}_{\text{query bias toward FTS}}
+w_F^{\text{raw}}(m_i, q) = \underbrace{(0.2 + 0.6 \cdot \text{idx}\_\text{priority}(m_i))}_{\text{memory state: high for fresh memories}} \cdot \underbrace{b_F(q)}_{\text{query bias toward FTS}}
 $$
 
+
 $$
-w_S^{\text{raw}}(m_i, q) = \underbrace{(0.8 - 0.6 \cdot \text{idx\_priority}(m_i))}_{\text{memory state: high for old memories}} \cdot \underbrace{b_F(q)^{-1}}_{\text{inverse query bias}}
+w_S^{\text{raw}}(m_i, q) = \underbrace{(0.8 - 0.6 \cdot \text{idx}\_\text{priority}(m_i))}_{\text{memory state: high for old memories}} \cdot \underbrace{b_F(q)^{-1}}_{\text{inverse query bias}}
 $$
 
 Note the symmetric structure:
@@ -233,7 +234,7 @@ for $s = 0.25$.
 A memory's index tier placement is derived from $B_i$ plus protection signals:
 
 $$
-\text{idx\_priority}(m_i) = \sigma\Big(B_i + \alpha \cdot \text{salience}_i + \beta \cdot \text{emotional\_weight}_i + \gamma \cdot \mathbb{1}[\text{pinned}]\Big)
+\text{idx}\_\text{priority}(m_i) = \sigma\Big(B_i + \alpha \cdot \text{salience}_i + \beta \cdot {\text{emotional}\_\text{weight}}_i + \gamma \cdot \mathbb{1}[\text{pinned}]\Big)
 $$
 
 Where $\sigma$ is the sigmoid function.
@@ -282,7 +283,7 @@ scan DEEP  → only with strong cues
 Confidence thresholds are anchored to $\tau$:
 
 $$
-\text{CONFIDENCE\_HOT} = \tau + 2.0, \quad \text{CONFIDENCE\_WARM} = \tau + 1.0, \quad \text{CONFIDENCE\_COLD} = \tau
+\text{CONFIDENCE}\_\text{HOT} = \tau + 2.0, \quad \text{CONFIDENCE}\_\text{WARM} = \tau + 1.0, \quad \text{CONFIDENCE}\_\text{COLD} = \tau
 $$
 
 With the default $\tau = -1.0$: HOT cuts off at $A = 1.0$, WARM at $A = 0.0$, 
@@ -309,14 +310,14 @@ pick a high quantile rather than a true maximum).
 
 $$
 \text{redundant}(m_i): \begin{cases}
-\text{cluster\_size} \geq 5 \\
-\text{sim\_to\_centroid} > 0.92 \\
-\neg \text{is\_representative}
+\text{cluster}\_\text{size} \geq 5 \\
+\text{sim}\_\text{to}\_\text{centroid} > 0.92 \\
+\neg \text{is}\_\text{representative}
 \end{cases}
 $$
 
 $$
-\text{fact\_covered}(m_i): \cos(\vec{m_i}, \vec{\text{aggregated\_facts}}) > 0.85 \land B_i < -3
+\text{fact}\_\text{covered}(m_i): \cos(\vec{m_i}, \vec{\text{aggregated}\_\text{facts}}) > 0.85 \land B_i < -3
 $$
 
 **Hard protections** (veto any disposal):
@@ -405,7 +406,7 @@ and $\text{MP}$ against benchmarks.
         ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
         │   WARM PATH  │  │   COLD PATH  │  │   READS      │
         │  (event-     │  │  (Dreaming:  │  │              │
-        │   driven)    │  │   6 triggers)│  │   recall()   │
+        │   driven)    │  │   5 triggers)│  │   recall()   │
         └──────────────┘  └──────────────┘  └──────────────┘
                                    │
                                    ▼
@@ -637,11 +638,11 @@ coexistence and the P7 migration step land in Stage 2+.
 
 ---
 
-### 2.5 Dreaming: Six Triggers, Eight Phases
+### 2.5 Dreaming: Five Triggers, Eight Phases
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│             DREAMING: 6 Triggers × 8 Phases                         │
+│             DREAMING: 5 Triggers × 8 Phases                         │
 ├────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   ═══ TRIGGERS ═══                                                  │
@@ -649,7 +650,6 @@ coexistence and the P7 migration step land in Stage 2+.
 │   Light (frequent, cheap):                                          │
 │    ├─ idle            (5min+ user inactivity)                       │
 │    ├─ session_end     (session terminates)                          │
-│    ├─ task_completion (task marked done)                            │
 │    ├─ surprise        (conflict detected)                           │
 │    └─ cognitive_load  (before context compaction)                   │
 │                                                                     │
@@ -696,7 +696,6 @@ coexistence and the P7 migration step land in Stage 2+.
 │                                                                     │
 │   idle:            P1, P2, P3, P5                                   │
 │   session_end:     P1, P2, P3, P4, P5                               │
-│   task_completion: P1, P3, P5                                       │
 │   surprise:        P3, P5                                           │
 │   cognitive_load:  P3, P4                                           │
 │   nightly:         P1–P8 (all phases)                               │
@@ -774,9 +773,9 @@ coexistence and the P7 migration step land in Stage 2+.
 ║  │  ┌──────────────────────────────────────────────────────────┐    │   ║
 ║  │  │   COLD PATH: DREAMING (offline, opportunistic)            │    │   ║
 ║  │  │                                                            │    │   ║
-║  │  │   6 Triggers:                                              │    │   ║
-║  │  │    idle | session_end | task_completion |                 │    │   ║
-║  │  │    surprise | cognitive_load | nightly                    │    │   ║
+║  │  │   5 Triggers:                                              │    │   ║
+║  │  │    idle | session_end | surprise |                        │    │   ║
+║  │  │    cognitive_load | nightly                               │    │   ║
 ║  │  │                                                            │    │   ║
 ║  │  │   8-Phase Pipeline:                                        │    │   ║
 ║  │  │    P1 Replay → P2 Cluster → P3 Extract →                  │    │   ║
@@ -828,7 +827,7 @@ who maintains it, and what does it drive?
 | $W_j$ | Working Memory active set | Retrieval time | Context priming |
 | $S_{ji}$ | `Memory.relations` + graph | Retrieval time | Spreading activation |
 | $\text{fan}_j$ | Relation graph out-degree | Dreaming P5 | Fan effect |
-| $\text{idx\_priority}$ | $\sigma(B + \alpha s + \beta e + \gamma p)$ | Dreaming P7 | Tier assignment |
+| $\text{idx}\_\text{priority}$ | $\sigma(B + \alpha s + \beta e + \gamma p)$ | Dreaming P7 | Tier assignment |
 | $w_F, w_S$ | idx_priority × $b_F(q)$ | Retrieval time | Dynamic weighting |
 | $b_F(q)$ | Query regex analysis | Retrieval time, <1ms | Query bias |
 | $\tilde{s}_F$ | FTS BM25 | Recall stage | Literal matching |
@@ -880,7 +879,7 @@ Successful retrieval
 │                                                                   │
 │     HOT  (<50ms)   Encode + Retrieve                              │
 │     WARM (<1s)     Index maintenance                              │
-│     COLD (offline) Dreaming (6 triggers × 8 phases)               │
+│     COLD (offline) Dreaming (5 triggers × 8 phases)               │
 │                                                                   │
 │   FOUR INDEX TIERS                                                │
 │                                                                   │

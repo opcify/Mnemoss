@@ -59,21 +59,6 @@ async def test_dream_returns_report_with_phase_outcomes(tmp_path: Path) -> None:
         await mem.close()
 
 
-async def test_dream_trigger_task_completion_skips_cluster(tmp_path: Path) -> None:
-    mem = _mnemoss(tmp_path)
-    try:
-        await mem.observe(role="user", content="a task")
-        report = await mem.dream(trigger="task_completion")
-        phases = [o.phase for o in report.outcomes]
-        assert phases == [
-            PhaseName.REPLAY,
-            PhaseName.EXTRACT,
-            PhaseName.RELATIONS,
-        ]
-    finally:
-        await mem.close()
-
-
 async def test_dream_without_llm_records_explicit_skip(tmp_path: Path) -> None:
     mem = _mnemoss(tmp_path)  # no llm configured
     try:
@@ -95,7 +80,9 @@ async def test_dream_skips_extract_for_tiny_replay_sets(tmp_path: Path) -> None:
     mem = _mnemoss(tmp_path, llm=mock)
     try:
         await mem.observe(role="user", content="just one")
-        report = await mem.dream(trigger="task_completion")
+        # idle skips REFINE, so the only LLM-touching phase is EXTRACT —
+        # which itself short-circuits on a singleton cluster.
+        report = await mem.dream(trigger="idle")
         extract = report.outcome(PhaseName.EXTRACT)
         assert extract is not None
         assert extract.status == "ok"

@@ -146,12 +146,11 @@ async def test_nightly_diary_records_all_phases(tmp_path: Path) -> None:
         await mem.close()
 
 
-async def test_trigger_type_enum_has_all_six_values() -> None:
+async def test_trigger_type_enum_has_all_five_values() -> None:
     values = {t.value for t in TriggerType}
     assert values == {
         "idle",
         "session_end",
-        "task_completion",
         "surprise",
         "cognitive_load",
         "nightly",
@@ -160,7 +159,7 @@ async def test_trigger_type_enum_has_all_six_values() -> None:
 
 @pytest.mark.parametrize(
     "trigger",
-    ["idle", "session_end", "task_completion", "surprise", "cognitive_load", "nightly"],
+    ["idle", "session_end", "surprise", "cognitive_load", "nightly"],
 )
 async def test_all_triggers_dispatch_without_error(
     tmp_path: Path, trigger: str

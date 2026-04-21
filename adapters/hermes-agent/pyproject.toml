@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mnemoss-hermes"
+version = "0.1.0"
+description = "Mnemoss memory plugin for Hermes Agent — ACT-R-based persistent recall with cross-session learning."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Guangyang Qi", email = "yang.qi@opcify.ai" }]
+keywords = ["mnemoss", "hermes", "hermes-agent", "memory", "agents", "llm"]
+
+# We import the MemoryProvider base class from hermes-agent's in-tree
+# ``agent.memory_provider`` module. When installed as a Hermes plugin at
+# ``plugins/memory/mnemoss/``, that import resolves through hermes-agent's
+# own sys.path; no pin is needed. For standalone development and this
+# package's own CI, ``tests/conftest.py`` supplies a stub base class.
+dependencies = [
+    "mnemoss>=0.1.0",
+]
+
+[project.optional-dependencies]
+# Hermes deployments can run Mnemoss two ways — embedded (in-process,
+# low-latency) or against a shared REST server (cross-process, shared
+# across agents). Pick whichever fits the deployment.
+embedded = []                     # embedded mnemoss (default)
+remote = ["mnemoss[sdk]>=0.1.0"]  # + httpx-based HTTP SDK
+
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.urls]
+Homepage = "https://github.com/opcify/mnemoss"
+Repository = "https://github.com/opcify/mnemoss"
+Documentation = "https://github.com/opcify/mnemoss/tree/main/adapters/hermes-agent"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mnemoss_hermes"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

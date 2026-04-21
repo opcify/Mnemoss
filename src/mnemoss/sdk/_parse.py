@@ -101,6 +101,7 @@ def parse_recall_result(dto: dict[str, Any]) -> RecallResult:
         memory=parse_memory(dto["memory"]),
         score=dto["score"],
         breakdown=parse_breakdown(dto["breakdown"]),
+        source=dto.get("source", "direct"),
     )
 
 

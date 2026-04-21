@@ -48,6 +48,7 @@ def recall_summary(r: RecallResult) -> dict[str, Any]:
     return {
         "memory": memory_summary(r.memory),
         "score": r.score,
+        "source": r.source,
     }
 
 
@@ -139,9 +140,33 @@ async def tool_recall(
     k: int = 5,
     agent_id: str | None = None,
     include_deep: bool = False,
+    auto_expand: bool = True,
 ) -> list[dict[str, Any]]:
     results = await backend.recall(
-        query, k=k, agent_id=agent_id, include_deep=include_deep
+        query,
+        k=k,
+        agent_id=agent_id,
+        include_deep=include_deep,
+        auto_expand=auto_expand,
+    )
+    return [recall_summary(r) for r in results]
+
+
+async def tool_expand(
+    backend: Any,
+    *,
+    memory_id: str,
+    query: str | None = None,
+    hops: int = 1,
+    k: int = 5,
+    agent_id: str | None = None,
+) -> list[dict[str, Any]]:
+    results = await backend.expand(
+        memory_id,
+        agent_id=agent_id,
+        query=query,
+        hops=hops,
+        k=k,
     )
     return [recall_summary(r) for r in results]
 

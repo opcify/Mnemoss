@@ -42,12 +42,12 @@ needed to be productive without reading 75KB of design material first.
   Log, updates Working Memory, does rule-based event segmentation, writes 
   a Memory row, updates indices.
 - **Warm Path** (index maintenance, <1s, event-driven) — incremental 
-  index updates on turn-end/session-end/task-done/idle.
-- **Cold Path** (dreaming, opportunistic, offline) — six triggers 
-  (`idle`, `session_end`, `task_completion`, `surprise`, `cognitive_load`, 
-  `nightly`) drive an 8-phase pipeline: Replay → Cluster → Extract → 
-  Refine → Relations → Generalize → Rebalance → Dispose. LLM is used 
-  only for content generation here, never for system decisions.
+  index updates on turn-end/session-end/idle.
+- **Cold Path** (dreaming, opportunistic, offline) — five triggers 
+  (`idle`, `session_end`, `surprise`, `cognitive_load`, `nightly`) 
+  drive an 8-phase pipeline: Replay → Cluster → Extract → Refine → 
+  Relations → Generalize → Rebalance → Dispose. LLM is used only for 
+  content generation here, never for system decisions.
 
 **The formula (the heart):** a single ACT-R activation equation 
 `A_i = B_i + Σ W_j·S_ji + MP·[w_F·s̃_F + w_S·s̃_S] + ε` drives 
@@ -92,7 +92,7 @@ The eight, in brief:
 3. **Raw Log and Memory Store are separate layers.**
 4. **Hot Path is minimal** — zero LLM calls, <50ms.
 5. **Everything lazy** — fields fill on demand.
-6. **Dreaming is opportunistic** — six triggers, not just nightly.
+6. **Dreaming is opportunistic** — five triggers, not just nightly.
 7. **Multi-tier index, unified data** — tier migration = metadata only.
 8. **Disposal is formula-derived** — `max_A_i < τ − δ`, zero LLM.
 

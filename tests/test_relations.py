@@ -35,6 +35,7 @@ def _memory(id: str, content: str, session_id: str = "s1") -> Memory:
 async def _backend(tmp_path: Path) -> SQLiteBackend:
     b = SQLiteBackend(
         db_path=tmp_path / "mem.sqlite",
+        raw_log_path=tmp_path / "raw_log.sqlite",
         workspace_id="ws",
         embedding_dim=4,
         embedder_id="fake:4",

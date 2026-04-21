@@ -12,7 +12,6 @@ export type IndexTier = "hot" | "warm" | "cold" | "deep";
 export type TriggerType =
   | "idle"
   | "session_end"
-  | "task_completion"
   | "surprise"
   | "cognitive_load"
   | "nightly";
@@ -76,6 +75,7 @@ export interface RecallResult {
   memory: Memory;
   score: number;
   breakdown: ActivationBreakdown;
+  source: "direct" | "expanded";
 }
 
 export interface Tombstone {
@@ -154,6 +154,14 @@ export interface RecallOptions {
   k?: number;
   agentId?: string;
   includeDeep?: boolean;
+  autoExpand?: boolean;
+}
+
+export interface ExpandOptions {
+  agentId?: string;
+  query?: string;
+  hops?: number;
+  k?: number;
 }
 
 export interface DreamOptions {

@@ -111,11 +111,11 @@ async def test_dream_writes_diary_entry(tmp_path: Path) -> None:
     mem = _mnemoss(tmp_path, llm=mock)
     try:
         await mem.observe(role="user", content="sample")
-        report = await mem.dream(trigger="task_completion")
+        report = await mem.dream(trigger="session_end")
         assert report.diary_path is not None
         assert report.diary_path.exists()
         content = report.diary_path.read_text()
         assert "## Dream run" in content
-        assert "task_completion" in content
+        assert "session_end" in content
     finally:
         await mem.close()

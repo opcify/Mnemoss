@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 @dataclass
@@ -37,6 +37,28 @@ class FormulaParams:
     confidence_hot_offset: float = 2.0
     confidence_warm_offset: float = 1.0
     confidence_cold_offset: float = 0.0
+    # Same-topic auto-expand (§recall/expand.py). Detection is purely
+    # semantic: a follow-up recall is "same topic" when it either shares
+    # at least one returned memory with the previous recall, or its query
+    # embedding has cosine >= ``same_topic_cosine`` with the previous
+    # query. Time does not gate detection — the user coming back to a
+    # thread hours later still benefits from expansion.
+    #
+    # ``streak_reset_seconds`` only controls hop-count escalation: while
+    # a same-topic streak continues within this window, the hop count
+    # grows (capped at ``expand_hops_max``). After a gap longer than
+    # this, the streak resets to 1 — the user is restarting the thread,
+    # so expansion starts shallow again.
+    same_topic_cosine: float = 0.7
+    streak_reset_seconds: float = 600.0
+    expand_hops_max: int = 3
+    # Hard cap on how many memories the relation-graph BFS will pull in.
+    # A densely co-occurring workspace can reach thousands of candidates
+    # at 3 hops; each additional candidate is one activation-formula
+    # evaluation downstream. The cap short-circuits BFS once we've
+    # collected this many reachable ids, keeping worst-case expansion
+    # latency bounded.
+    expand_candidates_max: int = 200
 
 
 @dataclass

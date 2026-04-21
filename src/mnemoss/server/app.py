@@ -11,6 +11,7 @@ Stage-6 endpoints:
 - ``POST /workspaces/{id}/recall``              — cascade retrieval
 - ``POST /workspaces/{id}/pin``                 — pin a memory
 - ``POST /workspaces/{id}/explain``             — ActivationBreakdown for one memory
+- ``POST /workspaces/{id}/expand``              — explicit relation-graph expansion
 - ``POST /workspaces/{id}/dream``               — run a dream cycle
 - ``POST /workspaces/{id}/rebalance``           — P7 rebalance (standalone)
 - ``POST /workspaces/{id}/dispose``             — P8 dispose (standalone)
@@ -43,6 +44,7 @@ from mnemoss.server.schemas import (
     DisposeResponse,
     DreamRequest,
     DreamResponse,
+    ExpandRequest,
     ExplainRequest,
     ExplainResponse,
     ExportMarkdownRequest,
@@ -146,6 +148,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             k=body.k,
             agent_id=agent_id,
             include_deep=body.include_deep,
+            auto_expand=body.auto_expand,
         )
         metrics.record_recall(
             workspace_id, duration=time.perf_counter() - start
@@ -189,6 +192,31 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             body.query, body.memory_id, agent_id=agent_id
         )
         return ExplainResponse(breakdown=breakdown_to_dto(breakdown))
+
+    # ─── expand (explicit) ──────────────────────────────────────
+
+    @app.post(
+        "/workspaces/{workspace_id}/expand",
+        response_model=RecallResponse,
+        dependencies=[Depends(verify_api_key)],
+    )
+    async def expand(
+        workspace_id: str,
+        body: ExpandRequest,
+        request: Request,
+        agent_id: str | None = None,
+    ) -> RecallResponse:
+        mem = await _resolve(request, workspace_id)
+        results = await mem.expand(
+            body.memory_id,
+            agent_id=agent_id,
+            query=body.query,
+            hops=body.hops,
+            k=body.k,
+        )
+        return RecallResponse(
+            results=[recall_result_to_dto(r) for r in results],
+        )
 
     # ─── dream ──────────────────────────────────────────────────
 

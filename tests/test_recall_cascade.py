@@ -26,6 +26,7 @@ async def _setup(tmp_path: Path, dim: int = 16):
     embedder = FakeEmbedder(dim=dim)
     store = SQLiteBackend(
         db_path=tmp_path / "mem.sqlite",
+        raw_log_path=tmp_path / "raw_log.sqlite",
         workspace_id="ws",
         embedding_dim=dim,
         embedder_id=embedder.embedder_id,
@@ -208,6 +209,7 @@ async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
     # (Use a fresh engine bound to the fresh store.)
     store2 = SQLiteBackend(
         db_path=tmp_path / "mem2.sqlite",
+        raw_log_path=tmp_path / "raw_log2.sqlite",
         workspace_id="ws",
         embedding_dim=embedder.dim,
         embedder_id=embedder.embedder_id,

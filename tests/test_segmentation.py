@@ -339,10 +339,11 @@ async def test_raw_log_receives_every_message_even_when_buffered(tmp_path: Path)
 
 async def _raw_message_count(mem: Mnemoss) -> int:
     """Test helper: count rows in raw_message. Reaches into the store
-    intentionally — there's no public counter yet."""
+    intentionally — there's no public counter yet. Raw-log lives on its
+    own SQLite file (schema v6+), so query the raw connection."""
 
     assert mem._store is not None
-    conn = mem._store._conn
+    conn = mem._store._raw_conn
     assert conn is not None
 
     def _count() -> int:

@@ -10,16 +10,15 @@ from typing import Any
 
 
 class TriggerType(str, Enum):
-    """All six triggers from §2.5.
+    """The five triggers from §2.5.
 
-    The three "light" triggers (idle / session_end / task_completion)
-    fire often and cheap; the deeper ones (surprise / cognitive_load /
-    nightly) run the LLM-heavy phases or, for nightly, everything.
+    The two "light" triggers (idle / session_end) fire often and cheap;
+    the deeper ones (surprise / cognitive_load / nightly) run the
+    LLM-heavy phases or, for nightly, everything.
     """
 
     IDLE = "idle"
     SESSION_END = "session_end"
-    TASK_COMPLETION = "task_completion"
     SURPRISE = "surprise"
     COGNITIVE_LOAD = "cognitive_load"
     NIGHTLY = "nightly"

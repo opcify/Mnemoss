@@ -21,6 +21,7 @@ import type {
   DisposalStats,
   DreamOptions,
   DreamReport,
+  ExpandOptions,
   ExportOptions,
   FlushOptions,
   IndexTier,
@@ -191,6 +192,7 @@ export class WorkspaceHandle {
       query,
       k: options.k ?? 5,
       include_deep: options.includeDeep ?? false,
+      auto_expand: options.autoExpand ?? true,
     };
     const resp = await this.client.post<{ results: any[] }>(
       this.path("recall"),
@@ -219,6 +221,24 @@ export class WorkspaceHandle {
       { agent_id: options.agentId },
     );
     return parseBreakdown(resp.breakdown);
+  }
+
+  async expand(
+    memoryId: string,
+    options: ExpandOptions = {},
+  ): Promise<RecallResult[]> {
+    const body = {
+      memory_id: memoryId,
+      query: options.query ?? null,
+      hops: options.hops ?? 1,
+      k: options.k ?? 5,
+    };
+    const resp = await this.client.post<{ results: any[] }>(
+      this.path("expand"),
+      body,
+      { agent_id: options.agentId },
+    );
+    return resp.results.map(parseRecallResult);
   }
 
   // ─── dream / housekeeping ─────────────────────────────────────
@@ -320,6 +340,16 @@ export class AgentHandle {
     memoryId: string,
   ): Promise<ActivationBreakdown> {
     return this.workspace.explainRecall(query, memoryId, {
+      agentId: this.agentId,
+    });
+  }
+
+  async expand(
+    memoryId: string,
+    options: Omit<ExpandOptions, "agentId"> = {},
+  ): Promise<RecallResult[]> {
+    return this.workspace.expand(memoryId, {
+      ...options,
       agentId: this.agentId,
     });
   }

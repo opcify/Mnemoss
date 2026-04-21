@@ -48,6 +48,7 @@ def _memory(
 async def _backend(tmp_path: Path, dim: int = 4) -> SQLiteBackend:
     b = SQLiteBackend(
         db_path=tmp_path / "memory.sqlite",
+        raw_log_path=tmp_path / "raw_log.sqlite",
         workspace_id="ws",
         embedding_dim=dim,
         embedder_id="fake:dim4",
