@@ -1,7 +1,9 @@
 """Mnemoss Quick Start.
 
-Runs the Stage 1 success criterion plus a per-agent usage example.
-First run downloads ~470MB (sentence-transformers multilingual model).
+Runs the Stage 1 success criterion, the per-agent usage example, and
+shows the Stage 2 additions — tier counts, rebalancing, and DEEP-cue
+cascade recall. First run downloads ~470MB (sentence-transformers
+multilingual model).
 
     python examples/basic.py
 """
@@ -14,8 +16,10 @@ from mnemoss import FormulaParams, Mnemoss
 
 
 async def main() -> None:
+    # Uses a Stage-2 workspace name; Stage-1 workspaces are schema-v1 and
+    # can't be opened by Stage-2 code (by design — see CLAUDE.md D2).
     mem = Mnemoss(
-        workspace="quickstart",
+        workspace="quickstart_stage2",
         # Noise off so example output is reproducible.
         formula=FormulaParams(noise_scale=0.0),
     )
@@ -44,6 +48,27 @@ async def main() -> None:
         print()
         print("Bob can't see Alice's private memories:")
         for r in await bob.recall("secret plan", k=3):
+            print(f"  [{r.score:.3f}] {r.memory.content}")
+
+        print()
+        print("─── Stage 2: tiers + rebalance ───")
+        counts = await mem.tier_counts()
+        print(f"Tier counts before rebalance: {counts}")
+
+        stats = await mem.rebalance()
+        print(
+            f"Rebalance: scanned {stats.scanned}, migrated {stats.migrated} "
+            f"(fresh memories stay HOT)."
+        )
+        after = {t.value: c for t, c in stats.tier_after.items()}
+        print(f"Tier counts after rebalance:  {after}")
+
+        print()
+        print("DEEP auto-include on temporal cue ('long ago'):")
+        # In a real session, rebalance over time would land ancient memories in
+        # DEEP. Here we just demonstrate that the cascade scans DEEP for queries
+        # like "what was the original plan" without needing include_deep=True.
+        for r in await mem.recall("what did we decide long ago about Alice", k=3):
             print(f"  [{r.score:.3f}] {r.memory.content}")
     finally:
         await mem.close()

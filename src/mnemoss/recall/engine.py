@@ -111,7 +111,7 @@ class RecallEngine:
         pool_size: int,
         include_deep: bool,
     ) -> tuple[list[RecallResult], CascadeStats]:
-        query_vec = self._embedder.embed([query])[0]
+        query_vec = (await asyncio.to_thread(self._embedder.embed, [query]))[0]
         now = datetime.now(UTC)
         active_set = self._working.active_set(agent_id)
         tau = self._params.tau
@@ -250,7 +250,7 @@ class RecallEngine:
         memory = await self._store.get_memory(memory_id)
         if memory is None:
             return None
-        query_vec = self._embedder.embed([query])[0]
+        query_vec = (await asyncio.to_thread(self._embedder.embed, [query]))[0]
         cos_hits = await self._store.vec_search(query_vec, k=200, agent_id=agent_id)
         fts_hits = await self._store.fts_search(query, k=200, agent_id=agent_id)
         cos_by_id = dict(cos_hits)

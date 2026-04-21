@@ -112,7 +112,7 @@ class Mnemoss:
             return None
 
         memory = encode_message(msg, now=now, formula=self._config.formula)
-        embedding = self._embedder.embed([content])[0]
+        embedding = (await asyncio.to_thread(self._embedder.embed, [content]))[0]
         await self._store.write_memory(memory, embedding)
         await write_cooccurrence_edges(
             self._store, memory.id, effective_session, self._config.encoder

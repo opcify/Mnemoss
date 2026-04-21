@@ -12,7 +12,9 @@ Stage 2+.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import contextlib
+import functools
 import json
 import re
 import struct
@@ -63,11 +65,23 @@ class SQLiteBackend:
         self._conn: apsw.Connection | None = None
         self._write_lock = asyncio.Lock()
         self._memory_columns: list[str] = []
+        # apsw connections are pinned to the thread that created them, so we
+        # funnel every DB call through a single dedicated worker. This makes
+        # concurrent callers safe without paying for per-thread connections.
+        self._executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="mnemoss-db"
+        )
+
+    async def _run(self, fn, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            self._executor, functools.partial(fn, *args, **kwargs)
+        )
 
     # ─── open / close ─────────────────────────────────────────────────
 
     async def open(self) -> None:
-        await asyncio.to_thread(self._open_sync)
+        await self._run(self._open_sync)
 
     def _open_sync(self) -> None:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -139,14 +153,16 @@ class SQLiteBackend:
 
     async def close(self) -> None:
         if self._conn is not None:
-            await asyncio.to_thread(self._conn.close)
+            await self._run(self._conn.close)
             self._conn = None
+        # Shut down the worker thread. Subsequent calls will raise.
+        self._executor.shutdown(wait=True)
 
     # ─── writes ───────────────────────────────────────────────────────
 
     async def write_memory(self, memory: Memory, embedding: np.ndarray) -> None:
         async with self._write_lock:
-            await asyncio.to_thread(self._write_memory_sync, memory, embedding)
+            await self._run(self._write_memory_sync, memory, embedding)
 
     def _write_memory_sync(self, memory: Memory, embedding: np.ndarray) -> None:
         conn = self._require_conn()
@@ -199,7 +215,7 @@ class SQLiteBackend:
 
     async def write_raw_message(self, msg: RawMessage) -> None:
         async with self._write_lock:
-            await asyncio.to_thread(self._write_raw_sync, msg)
+            await self._run(self._write_raw_sync, msg)
 
     def _write_raw_sync(self, msg: RawMessage) -> None:
         conn = self._require_conn()
@@ -229,7 +245,7 @@ class SQLiteBackend:
         self, src_id: str, dst_id: str, predicate: str, confidence: float = 1.0
     ) -> None:
         async with self._write_lock:
-            await asyncio.to_thread(
+            await self._run(
                 self._write_relation_sync, src_id, dst_id, predicate, confidence
             )
 
@@ -245,7 +261,7 @@ class SQLiteBackend:
 
     async def pin(self, memory_id: str, agent_id: str | None) -> None:
         async with self._write_lock:
-            await asyncio.to_thread(self._pin_sync, memory_id, agent_id)
+            await self._run(self._pin_sync, memory_id, agent_id)
 
     def _pin_sync(self, memory_id: str, agent_id: str | None) -> None:
         conn = self._require_conn()
@@ -257,7 +273,7 @@ class SQLiteBackend:
 
     async def reconsolidate(self, memory_id: str, now: datetime) -> None:
         async with self._write_lock:
-            await asyncio.to_thread(self._reconsolidate_sync, memory_id, now)
+            await self._run(self._reconsolidate_sync, memory_id, now)
 
     def _reconsolidate_sync(self, memory_id: str, now: datetime) -> None:
         conn = self._require_conn()
@@ -282,7 +298,7 @@ class SQLiteBackend:
         """P7 Rebalance entry point: persist a fresh priority + tier for one memory."""
 
         async with self._write_lock:
-            await asyncio.to_thread(
+            await self._run(
                 self._update_idx_priority_sync, memory_id, idx_priority, tier
             )
 
@@ -307,7 +323,7 @@ class SQLiteBackend:
         """
 
         async with self._write_lock:
-            await asyncio.to_thread(self._reminisce_sync, memory_id)
+            await self._run(self._reminisce_sync, memory_id)
 
     def _reminisce_sync(self, memory_id: str) -> None:
         conn = self._require_conn()
@@ -321,7 +337,7 @@ class SQLiteBackend:
     async def tier_counts(self) -> dict[IndexTier, int]:
         """Return ``{tier: count}`` across every tier, including empty ones."""
 
-        return await asyncio.to_thread(self._tier_counts_sync)
+        return await self._run(self._tier_counts_sync)
 
     def _tier_counts_sync(self) -> dict[IndexTier, int]:
         conn = self._require_conn()
@@ -337,7 +353,7 @@ class SQLiteBackend:
     async def iter_memory_ids(self, batch_size: int = 500) -> list[str]:
         """Return every memory id in the workspace, for batch rebalance passes."""
 
-        return await asyncio.to_thread(self._iter_memory_ids_sync)
+        return await self._run(self._iter_memory_ids_sync)
 
     def _iter_memory_ids_sync(self) -> list[str]:
         conn = self._require_conn()
@@ -347,7 +363,7 @@ class SQLiteBackend:
     # ─── reads ────────────────────────────────────────────────────────
 
     async def get_memory(self, memory_id: str) -> Memory | None:
-        return await asyncio.to_thread(self._get_memory_sync, memory_id)
+        return await self._run(self._get_memory_sync, memory_id)
 
     def _get_memory_sync(self, memory_id: str) -> Memory | None:
         conn = self._require_conn()
@@ -359,7 +375,7 @@ class SQLiteBackend:
         return _row_to_memory(dict(zip(self._memory_columns, row, strict=True)))
 
     async def is_pinned(self, memory_id: str, agent_id: str | None) -> bool:
-        return await asyncio.to_thread(self._is_pinned_sync, memory_id, agent_id)
+        return await self._run(self._is_pinned_sync, memory_id, agent_id)
 
     async def pinned_any(self, memory_ids: Iterable[str]) -> set[str]:
         """Return the subset of ``memory_ids`` pinned by *any* agent.
@@ -368,7 +384,7 @@ class SQLiteBackend:
         so a per-agent pin counts for the memory's tier decision.
         """
 
-        return await asyncio.to_thread(self._pinned_any_sync, list(memory_ids))
+        return await self._run(self._pinned_any_sync, list(memory_ids))
 
     def _pinned_any_sync(self, memory_ids: list[str]) -> set[str]:
         if not memory_ids:
@@ -396,7 +412,7 @@ class SQLiteBackend:
         return row is not None
 
     async def fan_out(self, memory_ids: Iterable[str]) -> dict[str, int]:
-        return await asyncio.to_thread(self._fan_out_sync, list(memory_ids))
+        return await self._run(self._fan_out_sync, list(memory_ids))
 
     def _fan_out_sync(self, memory_ids: list[str]) -> dict[str, int]:
         conn = self._require_conn()
@@ -414,7 +430,7 @@ class SQLiteBackend:
         return out
 
     async def relations_from(self, memory_ids: Iterable[str]) -> dict[str, set[str]]:
-        return await asyncio.to_thread(self._relations_from_sync, list(memory_ids))
+        return await self._run(self._relations_from_sync, list(memory_ids))
 
     def _relations_from_sync(self, memory_ids: list[str]) -> dict[str, set[str]]:
         conn = self._require_conn()
@@ -446,7 +462,7 @@ class SQLiteBackend:
         a time).
         """
 
-        return await asyncio.to_thread(
+        return await self._run(
             self._vec_search_sync, query_embedding, k, agent_id, tier_filter
         )
 
@@ -494,7 +510,7 @@ class SQLiteBackend:
     ) -> list[tuple[str, float]]:
         """Return ``[(memory_id, bm25_raw)]`` — SQLite BM25 (negative)."""
 
-        return await asyncio.to_thread(
+        return await self._run(
             self._fts_search_sync, query, k, agent_id, tier_filter
         )
 
@@ -524,7 +540,7 @@ class SQLiteBackend:
         return [(mid, float(score)) for mid, score in rows if mid in allowed][:k]
 
     async def materialize_memories(self, ids: Iterable[str]) -> list[Memory]:
-        return await asyncio.to_thread(self._materialize_sync, list(ids))
+        return await self._run(self._materialize_sync, list(ids))
 
     def _materialize_sync(self, ids: list[str]) -> list[Memory]:
         conn = self._require_conn()
@@ -547,7 +563,7 @@ class SQLiteBackend:
     ) -> list[str]:
         """Return recent memory IDs in a session, newest first."""
 
-        return await asyncio.to_thread(self._recent_session_sync, session_id, limit)
+        return await self._run(self._recent_session_sync, session_id, limit)
 
     def _recent_session_sync(self, session_id: str, limit: int) -> list[str]:
         conn = self._require_conn()
