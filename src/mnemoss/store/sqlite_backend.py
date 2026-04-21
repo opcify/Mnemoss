@@ -389,18 +389,31 @@ class SQLiteBackend:
         return out
 
     async def vec_search(
-        self, query_embedding: np.ndarray, k: int, agent_id: str | None
+        self,
+        query_embedding: np.ndarray,
+        k: int,
+        agent_id: str | None,
+        tier_filter: set[IndexTier] | None = None,
     ) -> list[tuple[str, float]]:
         """Return ``[(memory_id, cosine_similarity)]`` sorted by similarity desc.
 
         Filters by agent scope: ``agent_id`` means ``WHERE memory.agent_id = id
-        OR memory.agent_id IS NULL``; ``None`` means ambient-only.
+        OR memory.agent_id IS NULL``; ``None`` means ambient-only. If
+        ``tier_filter`` is provided, candidates whose ``index_tier`` is not in
+        the set are dropped (cascade retrieval uses this to scan one tier at
+        a time).
         """
 
-        return await asyncio.to_thread(self._vec_search_sync, query_embedding, k, agent_id)
+        return await asyncio.to_thread(
+            self._vec_search_sync, query_embedding, k, agent_id, tier_filter
+        )
 
     def _vec_search_sync(
-        self, query_embedding: np.ndarray, k: int, agent_id: str | None
+        self,
+        query_embedding: np.ndarray,
+        k: int,
+        agent_id: str | None,
+        tier_filter: set[IndexTier] | None,
     ) -> list[tuple[str, float]]:
         conn = self._require_conn()
         emb = np.asarray(query_embedding, dtype=np.float32)
@@ -408,18 +421,19 @@ class SQLiteBackend:
             raise ValueError(
                 f"Query embedding shape {emb.shape} != ({self._embedding_dim},)"
             )
-        # Pull more than k from vec0, then filter by agent scope in Python.
-        # sqlite-vec MATCH doesn't compose cleanly with agent filters in one
-        # statement.
+        # Pull more than k from vec0, then filter by agent / tier in Python.
+        # sqlite-vec MATCH doesn't compose cleanly with SQL filters in one
+        # statement. We over-scan so the tier filter still yields ~k hits.
+        over_scan = max(k * 8, 64) if tier_filter is not None else max(k * 4, 32)
         rows = conn.execute(
             "SELECT memory_id, distance FROM memory_vec "
             "WHERE embedding MATCH ? AND k = ?",
-            (_pack_vec(emb), max(k * 4, 32)),
+            (_pack_vec(emb), over_scan),
         ).fetchall()
         ids = [r[0] for r in rows]
         if not ids:
             return []
-        allowed = self._filter_by_agent(conn, ids, agent_id)
+        allowed = self._filter_by_agent_and_tier(conn, ids, agent_id, tier_filter)
         results: list[tuple[str, float]] = []
         for mid, dist in rows:
             if mid in allowed:
@@ -430,30 +444,41 @@ class SQLiteBackend:
         return results
 
     async def fts_search(
-        self, query: str, k: int, agent_id: str | None
+        self,
+        query: str,
+        k: int,
+        agent_id: str | None,
+        tier_filter: set[IndexTier] | None = None,
     ) -> list[tuple[str, float]]:
         """Return ``[(memory_id, bm25_raw)]`` — SQLite BM25 (negative)."""
 
-        return await asyncio.to_thread(self._fts_search_sync, query, k, agent_id)
+        return await asyncio.to_thread(
+            self._fts_search_sync, query, k, agent_id, tier_filter
+        )
 
     def _fts_search_sync(
-        self, query: str, k: int, agent_id: str | None
+        self,
+        query: str,
+        k: int,
+        agent_id: str | None,
+        tier_filter: set[IndexTier] | None,
     ) -> list[tuple[str, float]]:
         conn = self._require_conn()
         fts_query = build_trigram_query(query)
         if fts_query is None:
             return []
+        over_scan = max(k * 8, 64) if tier_filter is not None else max(k * 4, 32)
         rows = conn.execute(
             "SELECT memory_id, bm25(memory_fts) FROM memory_fts "
             "WHERE memory_fts MATCH ? "
             "ORDER BY bm25(memory_fts) "
             "LIMIT ?",
-            (fts_query, max(k * 4, 32)),
+            (fts_query, over_scan),
         ).fetchall()
         ids = [r[0] for r in rows]
         if not ids:
             return []
-        allowed = self._filter_by_agent(conn, ids, agent_id)
+        allowed = self._filter_by_agent_and_tier(conn, ids, agent_id, tier_filter)
         return [(mid, float(score)) for mid, score in rows if mid in allowed][:k]
 
     async def materialize_memories(self, ids: Iterable[str]) -> list[Memory]:
@@ -498,22 +523,32 @@ class SQLiteBackend:
             raise RuntimeError("SQLiteBackend.open() must be called first")
         return self._conn
 
-    def _filter_by_agent(
-        self, conn: apsw.Connection, ids: list[str], agent_id: str | None
+    def _filter_by_agent_and_tier(
+        self,
+        conn: apsw.Connection,
+        ids: list[str],
+        agent_id: str | None,
+        tier_filter: set[IndexTier] | None,
     ) -> set[str]:
         placeholders = ",".join("?" for _ in ids)
+        clauses = [f"id IN ({placeholders})"]
+        params: list[Any] = list(ids)
+
         if agent_id is None:
-            rows = conn.execute(
-                f"SELECT id FROM memory WHERE id IN ({placeholders}) "
-                "AND agent_id IS NULL",
-                tuple(ids),
-            ).fetchall()
+            clauses.append("agent_id IS NULL")
         else:
-            rows = conn.execute(
-                f"SELECT id FROM memory WHERE id IN ({placeholders}) "
-                "AND (agent_id = ? OR agent_id IS NULL)",
-                (*ids, agent_id),
-            ).fetchall()
+            clauses.append("(agent_id = ? OR agent_id IS NULL)")
+            params.append(agent_id)
+
+        if tier_filter is not None:
+            if not tier_filter:
+                return set()
+            tier_placeholders = ",".join("?" for _ in tier_filter)
+            clauses.append(f"index_tier IN ({tier_placeholders})")
+            params.extend(t.value for t in tier_filter)
+
+        sql = f"SELECT id FROM memory WHERE {' AND '.join(clauses)}"
+        rows = conn.execute(sql, tuple(params)).fetchall()
         return {r[0] for r in rows}
 
 

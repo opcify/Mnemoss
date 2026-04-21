@@ -1,3 +1,3 @@
-from mnemoss.recall.engine import RecallEngine, RecallResult
+from mnemoss.recall.engine import CascadeStats, RecallEngine, RecallResult
 
-__all__ = ["RecallEngine", "RecallResult"]
+__all__ = ["CascadeStats", "RecallEngine", "RecallResult"]

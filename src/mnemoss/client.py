@@ -124,10 +124,13 @@ class Mnemoss:
         *,
         k: int = 5,
         agent_id: str | None = None,
+        include_deep: bool = False,
     ) -> list[RecallResult]:
         await self._ensure_open()
         assert self._engine is not None
-        return await self._engine.recall(query, agent_id=agent_id, k=k)
+        return await self._engine.recall(
+            query, agent_id=agent_id, k=k, include_deep=include_deep
+        )
 
     async def pin(self, memory_id: str, *, agent_id: str | None = None) -> None:
         await self._ensure_open()
@@ -230,8 +233,12 @@ class AgentHandle:
             metadata=metadata,
         )
 
-    async def recall(self, query: str, *, k: int = 5) -> list[RecallResult]:
-        return await self._mem.recall(query, k=k, agent_id=self._agent_id)
+    async def recall(
+        self, query: str, *, k: int = 5, include_deep: bool = False
+    ) -> list[RecallResult]:
+        return await self._mem.recall(
+            query, k=k, agent_id=self._agent_id, include_deep=include_deep
+        )
 
     async def pin(self, memory_id: str) -> None:
         await self._mem.pin(memory_id, agent_id=self._agent_id)

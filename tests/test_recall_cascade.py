@@ -1,0 +1,242 @@
+"""Cascade-retrieval tests (Checkpoint F).
+
+Exercises the tier-by-tier scan with early stopping and the DEEP gating
+rules. Uses a real SQLite backend + FakeEmbedder so the cascade logic is
+verified end-to-end without model I/O.
+"""
+
+from __future__ import annotations
+
+import random
+from datetime import datetime, timezone
+from pathlib import Path
+
+from mnemoss.core.config import FormulaParams
+from mnemoss.core.types import IndexTier, Memory, RawMessage
+from mnemoss.encoder import FakeEmbedder
+from mnemoss.encoder.event_encoder import encode_message
+from mnemoss.recall import RecallEngine
+from mnemoss.store.sqlite_backend import SQLiteBackend
+from mnemoss.working import WorkingMemory
+
+UTC = timezone.utc
+
+
+async def _setup(tmp_path: Path, dim: int = 16):
+    embedder = FakeEmbedder(dim=dim)
+    store = SQLiteBackend(
+        db_path=tmp_path / "mem.sqlite",
+        workspace_id="ws",
+        embedding_dim=dim,
+        embedder_id=embedder.embedder_id,
+    )
+    await store.open()
+    wm = WorkingMemory(capacity=10)
+    engine = RecallEngine(
+        store=store,
+        embedder=embedder,
+        working=wm,
+        params=FormulaParams(noise_scale=0.0),  # deterministic tests
+        rng=random.Random(0),
+    )
+    return store, engine, embedder
+
+
+async def _observe_at_tier(
+    store: SQLiteBackend,
+    embedder: FakeEmbedder,
+    content: str,
+    tier: IndexTier,
+    *,
+    agent_id: str | None = None,
+) -> Memory:
+    msg = RawMessage(
+        id=f"raw-{content[:20]}-{tier.value}",
+        workspace_id="ws",
+        agent_id=agent_id,
+        session_id="s1",
+        turn_id="t",
+        parent_id=None,
+        timestamp=datetime.now(UTC),
+        role="user",
+        content=content,
+    )
+    memory = encode_message(msg)
+    memory.index_tier = tier
+    memory.idx_priority = {
+        IndexTier.HOT: 0.9,
+        IndexTier.WARM: 0.5,
+        IndexTier.COLD: 0.2,
+        IndexTier.DEEP: 0.05,
+    }[tier]
+    emb = embedder.embed([content])[0]
+    await store.write_memory(memory, emb)
+    return memory
+
+
+async def test_cascade_stops_at_hot_when_fresh_hit(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    # Only HOT memory present, fresh enough to exceed CONFIDENCE_HOT=1.0.
+    await _observe_at_tier(store, embedder, "Alice meeting 4:20", IndexTier.HOT)
+
+    _, stats = await engine.recall_with_stats(
+        "Alice meeting", agent_id=None, k=3
+    )
+    assert stats.stopped_at is IndexTier.HOT
+    assert stats.tiers_scanned == [IndexTier.HOT]
+    await store.close()
+
+
+async def test_cascade_falls_through_when_hot_empty(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    # Stash the content only in COLD; HOT and WARM are empty.
+    m = await _observe_at_tier(
+        store, embedder, "ancient record about Alice", IndexTier.COLD
+    )
+
+    results, stats = await engine.recall_with_stats(
+        "Alice", agent_id=None, k=3
+    )
+    # Cold hit gets returned because it clears tau even if no early-stop.
+    assert m.id in {r.memory.id for r in results}
+    # All three default tiers scanned; no early stop.
+    assert stats.tiers_scanned == [IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]
+    await store.close()
+
+
+async def test_deep_excluded_from_default_recall(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    deep = await _observe_at_tier(
+        store, embedder, "lost memory about Alice", IndexTier.DEEP
+    )
+
+    results, stats = await engine.recall_with_stats(
+        "Alice", agent_id=None, k=3
+    )
+    assert deep.id not in {r.memory.id for r in results}
+    # DEEP never scanned without opt-in.
+    assert IndexTier.DEEP not in stats.tiers_scanned
+    await store.close()
+
+
+async def test_deep_included_with_opt_in(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    deep = await _observe_at_tier(
+        store, embedder, "lost memory about Alice", IndexTier.DEEP
+    )
+
+    results, stats = await engine.recall_with_stats(
+        "Alice", agent_id=None, k=3, include_deep=True
+    )
+    assert deep.id in {r.memory.id for r in results}
+    assert IndexTier.DEEP in stats.tiers_scanned
+    await store.close()
+
+
+async def test_stats_are_well_formed(tmp_path: Path) -> None:
+    store, engine, embedder = await _setup(tmp_path)
+    await _observe_at_tier(store, embedder, "Alice HOT", IndexTier.HOT)
+    await _observe_at_tier(store, embedder, "Alice WARM", IndexTier.WARM)
+    await _observe_at_tier(store, embedder, "Alice COLD", IndexTier.COLD)
+
+    _, stats = await engine.recall_with_stats(
+        "Alice", agent_id=None, k=10, include_deep=True
+    )
+    assert stats.candidates_scored >= 1
+    assert stats.tiers_scanned
+    # Whatever cascade did, stopped_at (if set) must be one of the scanned tiers.
+    if stats.stopped_at is not None:
+        assert stats.stopped_at in stats.tiers_scanned
+    await store.close()
+
+
+async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
+    """No memory is scored twice even when it is surfaced by both FTS and
+    vec search in the same tier."""
+
+    store, embedder = (await _setup(tmp_path))[0], (await _setup(tmp_path))[2]
+    # Wrap compute_activation so we can count how many times any given
+    # memory_id is scored within one cascade.
+    # (Use a fresh engine bound to the fresh store.)
+    store2 = SQLiteBackend(
+        db_path=tmp_path / "mem2.sqlite",
+        workspace_id="ws",
+        embedding_dim=embedder.dim,
+        embedder_id=embedder.embedder_id,
+    )
+    await store2.open()
+    engine = RecallEngine(
+        store=store2,
+        embedder=embedder,
+        working=WorkingMemory(capacity=10),
+        params=FormulaParams(noise_scale=0.0),
+        rng=random.Random(0),
+    )
+
+    # Write a batch of memories across three tiers so the cascade fall-through
+    # is exercised.
+    ids: list[str] = []
+    for tier in (IndexTier.HOT, IndexTier.WARM, IndexTier.COLD):
+        for i in range(3):
+            m = await _observe_at_tier(
+                store2, embedder, f"alice note {tier.value}-{i}", tier
+            )
+            ids.append(m.id)
+
+    import mnemoss.recall.engine as engine_mod
+
+    call_counter: dict[str, int] = {}
+    original = engine_mod.compute_activation
+
+    def counting(**kwargs):
+        mid = kwargs["memory"].id
+        call_counter[mid] = call_counter.get(mid, 0) + 1
+        return original(**kwargs)
+
+    engine_mod.compute_activation = counting
+    try:
+        _, _stats = await engine.recall_with_stats(
+            "alice note", agent_id=None, k=10, include_deep=True
+        )
+    finally:
+        engine_mod.compute_activation = original
+
+    # Every memory scored exactly once.
+    assert all(c == 1 for c in call_counter.values())
+    await store.close()
+    await store2.close()
+
+
+# A tier-aware vec/fts search is exercised end-to-end in the cascade tests
+# above, but we also verify the tier_filter parameter in isolation.
+async def test_vec_and_fts_respect_tier_filter(tmp_path: Path) -> None:
+    store, _, embedder = await _setup(tmp_path)
+    m_hot = await _observe_at_tier(store, embedder, "alice HOT story", IndexTier.HOT)
+    m_warm = await _observe_at_tier(
+        store, embedder, "alice WARM story", IndexTier.WARM
+    )
+
+    hot_only = await store.vec_search(
+        embedder.embed(["alice"])[0], k=10, agent_id=None,
+        tier_filter={IndexTier.HOT},
+    )
+    warm_only = await store.vec_search(
+        embedder.embed(["alice"])[0], k=10, agent_id=None,
+        tier_filter={IndexTier.WARM},
+    )
+    hot_ids = {mid for mid, _ in hot_only}
+    warm_ids = {mid for mid, _ in warm_only}
+    assert m_hot.id in hot_ids
+    assert m_hot.id not in warm_ids
+    assert m_warm.id in warm_ids
+    assert m_warm.id not in hot_ids
+
+    fts_hot = await store.fts_search(
+        "alice HOT story", k=10, agent_id=None, tier_filter={IndexTier.HOT}
+    )
+    fts_warm = await store.fts_search(
+        "alice HOT story", k=10, agent_id=None, tier_filter={IndexTier.WARM}
+    )
+    assert any(mid == m_hot.id for mid, _ in fts_hot)
+    assert all(mid != m_hot.id for mid, _ in fts_warm)
+    await store.close()
