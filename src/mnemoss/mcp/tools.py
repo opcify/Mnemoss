@@ -221,7 +221,8 @@ async def tool_tombstones(
 
 
 async def tool_tier_counts(backend: Any) -> dict[str, int]:
-    return await backend.tier_counts()
+    counts: dict[str, int] = await backend.tier_counts()
+    return counts
 
 
 async def tool_export_markdown(
@@ -245,4 +246,5 @@ async def tool_flush_session(
 
 
 async def tool_status(backend: Any) -> dict[str, Any]:
-    return await backend.status()
+    status: dict[str, Any] = await backend.status()
+    return status

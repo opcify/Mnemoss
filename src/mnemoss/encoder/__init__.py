@@ -8,6 +8,7 @@ from mnemoss.encoder.embedder import (
     OpenAIEmbedder,
     make_embedder,
 )
+from mnemoss.encoder.retrying import RetryingEmbedder
 
 __all__ = [
     "Embedder",
@@ -15,5 +16,6 @@ __all__ = [
     "GeminiEmbedder",
     "LocalEmbedder",
     "OpenAIEmbedder",
+    "RetryingEmbedder",
     "make_embedder",
 ]

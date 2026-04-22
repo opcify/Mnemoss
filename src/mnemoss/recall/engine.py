@@ -23,7 +23,7 @@ from typing import Literal
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
 from mnemoss.encoder import Embedder
-from mnemoss.encoder.extraction import extract_heuristic
+from mnemoss.encoder.extraction import ExtractionFields, extract_heuristic
 from mnemoss.formula.activation import ActivationBreakdown, compute_activation
 from mnemoss.formula.query_bias import has_deep_cue
 from mnemoss.recall.expand import expand_from_seeds, hops_for_streak
@@ -498,7 +498,7 @@ class RecallEngine:
         return results
 
 
-def _batch_extract(contents: list[str]):
+def _batch_extract(contents: list[str]) -> list[ExtractionFields]:
     """Module-level helper so asyncio.to_thread has something picklable-ish
     to call without reaching into the engine."""
 

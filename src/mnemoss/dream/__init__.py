@@ -12,6 +12,8 @@ from mnemoss.dream.consolidate import (
     build_consolidate_prompt,
     consolidate_cluster,
 )
+from mnemoss.dream.cost import CostLedger, CostLimits
+from mnemoss.dream.dispose import DisposalStats
 from mnemoss.dream.runner import DreamRunner
 from mnemoss.dream.types import (
     DreamReport,
@@ -22,6 +24,9 @@ from mnemoss.dream.types import (
 
 __all__ = [
     "ConsolidationResult",
+    "CostLedger",
+    "CostLimits",
+    "DisposalStats",
     "DreamReport",
     "DreamRunner",
     "PhaseName",

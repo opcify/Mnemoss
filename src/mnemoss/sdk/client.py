@@ -102,7 +102,8 @@ class MnemossClient:
     ) -> dict[str, Any]:
         resp = await self._http.get(path, params=_clean_params(params))
         resp.raise_for_status()
-        return resp.json()
+        data: dict[str, Any] = resp.json()
+        return data
 
 
 class WorkspaceHandle:
@@ -145,7 +146,8 @@ class WorkspaceHandle:
             json=body,
             params={"agent_id": agent_id},
         )
-        return resp["memory_id"]
+        memory_id: str | None = resp["memory_id"]
+        return memory_id
 
     async def recall(
         self,

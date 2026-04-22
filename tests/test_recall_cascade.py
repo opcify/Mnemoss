@@ -181,13 +181,15 @@ async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
     """No memory is scored twice even when it is surfaced by both FTS and
     vec search in the same tier."""
 
-    store, embedder = (await _setup(tmp_path))[0], (await _setup(tmp_path))[2]
-    # Wrap compute_activation so we can count how many times any given
-    # memory_id is scored within one cascade.
-    # (Use a fresh engine bound to the fresh store.)
+    # We only need the embedder from _setup; the engine is rebuilt below
+    # against a dedicated store so we can instrument scoring without
+    # the default engine's working-memory state in the picture.
+    embedder = FakeEmbedder(dim=16)
+    sub = tmp_path / "scoring_test"
+    sub.mkdir()
     store2 = SQLiteBackend(
-        db_path=tmp_path / "mem2.sqlite",
-        raw_log_path=tmp_path / "raw_log2.sqlite",
+        db_path=sub / "mem2.sqlite",
+        raw_log_path=sub / "raw_log2.sqlite",
         workspace_id="ws",
         embedding_dim=embedder.dim,
         embedder_id=embedder.embedder_id,
@@ -229,7 +231,6 @@ async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
 
     # Every memory scored exactly once.
     assert all(c == 1 for c in call_counter.values())
-    await store.close()
     await store2.close()
 
 

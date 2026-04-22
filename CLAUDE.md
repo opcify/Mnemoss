@@ -13,11 +13,18 @@ that any agent stack can integrate.
 
 ## Repository State
 
-The MVP is **shipped**. All six stages in `MNEMOSS_PROJECT_KNOWLEDGE.md` §9 
-landed; the codebase is at `v0.1.0` on PyPI track. Active work is 
-post-Stage-6: benchmarks, whitepaper, adapter polish, new capabilities.
-NER is intentionally **not implemented** at any stage (query, encode,
-Dream) and is not on the roadmap — see §9.7 in the project knowledge
+The MVP is **shipped** (all six stages in `MNEMOSS_PROJECT_KNOWLEDGE.md` 
+§9). The codebase is at `v0.1.0` on PyPI track. A production-readiness 
+pass then landed on top — cross-process workspace lock, schema 
+migration framework, Dream cost governor, partial-failure recovery, 
+retrying embedder wrapper, per-dataclass config validators, input 
+hardening at REST/MCP boundaries, auto-split for long observes, plus 
+operational tooling (`mnemoss-inspect` CLI and a `bench/` harness for 
+recall latency + formula-parameter calibration). See §14 in the 
+project knowledge doc for the resolved-open-questions trail.
+
+NER is intentionally **not implemented** at any stage (query, encode, 
+Dream) and is not on the roadmap — see §9.7 in the project knowledge 
 doc for rationale and DIY hooks.
 
 Concretely, the repo ships:
@@ -28,8 +35,26 @@ Concretely, the repo ships:
   TypeScript SDK (`sdks/typescript/`).
 - MCP wrapper (`src/mnemoss/mcp/`) for MCP-compatible agents.
 - Scheduler (`src/mnemoss/scheduler/`) — nightly + idle dream automation.
-- Observability (`status()`, structured logging, Prometheus metrics under 
-  the `[observability]` extra).
+- `mnemoss-inspect` CLI (`src/mnemoss/cli/inspect.py`) — operator snapshot 
+  of a live workspace (`mnemoss-inspect <workspace> [--json] [--tombstones]`).
+- Cost governor (`src/mnemoss/dream/cost.py`) — `CostLimits` + 
+  `CostLedger`, configurable ceilings on LLM calls per run / day / 
+  month; counts persist in `workspace_meta`.
+- Retry wrapper (`src/mnemoss/encoder/retrying.py`) — `RetryingEmbedder` 
+  around any `Embedder` with bounded exponential backoff + jitter on 
+  transient errors.
+- Schema migration framework (`src/mnemoss/store/migrations.py`) — 
+  registered per-version steps, applied automatically on open.
+- Cross-process workspace lock (`src/mnemoss/store/_workspace_lock.py`) — 
+  OS-level `fcntl` / `msvcrt` advisory lock so a second process can't 
+  corrupt a live workspace.
+- Long-content auto-split (`src/mnemoss/encoder/chunking.py`) — opt-in 
+  via `EncoderParams.max_memory_chars`; splits at paragraph → line → 
+  sentence → hard-cut boundaries.
+- Observability (`status()` with cost + recent-dream summary, structured 
+  logging, Prometheus metrics under the `[observability]` extra).
+- Benchmark harness (`bench/bench_recall.py`, `bench/calibrate.py`) — 
+  standalone scripts for recall-latency and formula-parameter sweeps.
 - Framework adapters: `adapters/hermes-agent/` (Python Hermes 
   `MemoryProvider`) and `adapters/openclaw/` (TypeScript OpenClaw plugin).
 
@@ -52,8 +77,17 @@ ruff format src tests
 mypy --strict src/mnemoss
 
 # Run the REST server / MCP wrapper
-mnemoss-server --host 0.0.0.0 --port 8000
-mnemoss-mcp
+mnemoss-server                             # reads MNEMOSS_* env vars
+mnemoss-mcp                                # MCP stdio transport
+
+# Inspect a live workspace
+mnemoss-inspect <workspace>                # human-readable table
+mnemoss-inspect <workspace> --json         # JSON for scripting
+mnemoss-inspect <workspace> --tombstones   # include disposal audit trail
+
+# Benchmarks (standalone, outside pytest)
+python -m bench.bench_recall --sizes 100 1000 5000 --queries 50
+python -m bench.calibrate --demo           # or: python -m bench.calibrate corpus.json
 
 # TypeScript SDK + OpenClaw adapter
 cd sdks/typescript && npm install && npm test && npm run typecheck
@@ -116,26 +150,48 @@ Memories are event-level derivations, not raw messages.
 ```
 src/mnemoss/
   client.py          public Mnemoss class (+ AgentHandle via for_agent)
-  core/              types.py, config.py (incl. SCHEMA_VERSION)
-  formula/           activation, base_level, spreading, matching,
-                     query_bias, noise, idx_priority — pure functions
-  store/             sqlite_backend.py (memory.sqlite + raw_log.sqlite),
-                     schema.py, paths.py
+  core/              types.py, config.py (incl. SCHEMA_VERSION + param
+                     dataclasses w/ __post_init__ validators),
+                     config_file.py (TOML loader)
+  formula/           activation (w/ ActivationBreakdown.to_dict),
+                     base_level, spreading, matching, query_bias,
+                     noise, idx_priority — pure functions
+  store/             sqlite_backend.py (façade) + _memory_ops.py /
+                     _graph_ops.py / _raw_log_ops.py / _sql_helpers.py
+                     (sync SQL split), schema.py, paths.py,
+                     migrations.py (versioned chain),
+                     _workspace_lock.py (cross-process advisory lock)
   encoder/           embedder.py (LocalEmbedder / OpenAIEmbedder /
-                     GeminiEmbedder / FakeEmbedder), event_encoder.py
+                     GeminiEmbedder / FakeEmbedder),
+                     retrying.py (RetryingEmbedder wrapper),
+                     chunking.py (long-content splitter),
+                     event_encoder.py, event_segmentation.py,
+                     extraction.py (gist + time only),
+                     salience.py (encoder-side signal mixing)
   working/           working_memory.py (per-agent FIFO active set)
   relations/         graph.py (co_occurs_in_session + dream-populated)
   recall/            engine.py (parallel vec+FTS → ACT-R scoring →
                      reconsolidation), history.py, expand.py, cascade.py
-  dream/             runner.py (6-phase pipeline), consolidate.py
-                     (merged P3 LLM phase), types.py (triggers)
+  dream/             runner.py (6-phase pipeline + try/except per
+                     phase), consolidate.py (merged P3 LLM phase),
+                     cost.py (CostLimits + CostLedger), dispose.py,
+                     replay.py, cluster.py, relations.py, diary.py,
+                     types.py (trigger / phase enums, DreamReport)
   scheduler/         nightly + idle trigger automation
-  index/             tier management (HOT/WARM/COLD/DEEP)
+  index/             tier management (HOT/WARM/COLD/DEEP) + rebalance
   export/            memory.md generator
-  llm/               LLM client abstraction (Anthropic/OpenAI/Gemini)
-  server/            FastAPI REST + Pydantic schemas
+  llm/               client.py (LLMClient Protocol + OpenAI / Anthropic
+                     / Gemini implementations), mock.py
+  server/            FastAPI REST app (w/ input hardening caps),
+                     auth, pool, schemas, metrics, config, cli
   sdk/               Python client for the REST server
-  mcp/               MCP tool wrapper
+  mcp/               MCP tool wrapper (server, backend, tools, cli)
+  cli/               inspect.py (mnemoss-inspect operator CLI)
+
+bench/               Standalone benchmark harnesses — run with
+                     python -m bench.<name>. bench_recall.py sweeps
+                     recall latency; calibrate.py sweeps FormulaParams
+                     against a labeled corpus.
 
 sdks/typescript/     TypeScript SDK (@mnemoss/sdk)
 adapters/
@@ -145,8 +201,30 @@ adapters/
 
 **Public API** is three core methods — `observe()`, `recall()`, `pin()` — 
 plus extras: `expand()`, `dream()`, `export_markdown()`, `status()`, 
-`explain_recall()`. Everything is `async`. `mem.for_agent(id)` returns 
+`explain_recall()`, `rebalance()`, `dispose()`, `tombstones()`, 
+`flush_session()`. Everything is `async`. `mem.for_agent(id)` returns 
 a handle that binds `agent_id` on all calls.
+
+Construction knobs worth knowing:
+- `Mnemoss(cost_limits=CostLimits(max_llm_calls_per_run=50, ...))` — 
+  caps dreaming LLM spend; counts persist via `CostLedger` in 
+  `workspace_meta` and surface through `status().llm_cost`.
+- `Mnemoss(embedding_model=RetryingEmbedder(OpenAIEmbedder(), max_retries=3))` — 
+  composition pattern for flaky providers. The wrapper passes `dim` 
+  / `embedder_id` through transparently so the workspace schema pin 
+  still matches.
+- `EncoderParams(max_memory_chars=2000)` — opt-in long-observe 
+  auto-split (see invariant below).
+
+Errors to catch at boundaries: `SchemaMismatchError`, 
+`WorkspaceLockError`, `MigrationError`, `CostExceededError` (all from 
+`mnemoss.store` / `mnemoss.dream`). `ValueError` comes out of param 
+dataclass validators at construction time.
+
+`explain_recall(query, memory_id)` returns `ActivationBreakdown | None` 
+with a `.to_dict()` for wire-safe export. `dream(...)` returns a 
+`DreamReport` with `degraded_mode: bool` + `errors(): list[PhaseOutcome]` 
+so callers can distinguish "worked" from "partially crashed."
 
 ## Non-Negotiable Principles
 
@@ -212,17 +290,90 @@ these is a schema-or-semantics change, not a refactor — bump
 - **Encoder role filter** — `EncoderParams.encoded_roles` defaults to all 
   four roles (`user`, `assistant`, `tool_call`, `tool_result`); 
   user-configurable. Raw Log is still unfiltered (Principle 3).
+- **Auto-split on long observes** — `EncoderParams.max_memory_chars` 
+  (default `None`, meaning no split — backward compatible) caps the 
+  `content` length of any single Memory row. When an `observe()` 
+  produces a Memory whose content exceeds the cap, the encoder splits 
+  at the nearest natural boundary — paragraph (`\n\n`) → line (`\n`) → 
+  sentence (CJK-aware: `.!?…。！？`) → hard char cut — and emits **N 
+  Memory rows** for one Raw Log row. The Raw Log is still 1-to-1 with 
+  the `observe()` call (Principle 3 preserved); only the Memory table 
+  fans out. Every chunk carries 
+  `source_context.split_part = {"index": i, "total": n, "group_id": <first_chunk_id>}` 
+  so callers can de-duplicate in recall if they want. Recommended 
+  values: `2000` for `LocalEmbedder` (MiniLM truncates past ~512 
+  tokens); `30000` for OpenAI `text-embedding-3-small`. Rationale: 
+  without a cap, embedders silently drop tokens past their max and 
+  semantic recall degrades invisibly; see `encoder/chunking.py`.
 - **Auto-expand on same-topic recall** — same-topic detection is purely 
   semantic (cosine ≥ `same_topic_cosine`, default 0.7); streak reset is 
   time-bound (`streak_reset_seconds`, default 600). Streak counter 
   escalates BFS hops `1 → 2 → 3` (`expand_hops_max`). The explicit 
   `mem.expand()` call exposes the same BFS.
 - **Concurrent writes within one workspace** → serialized via 
-  `asyncio.Lock` + SQLite WAL. Cross-process coordination is not 
-  implemented; one writer process per workspace.
+  `asyncio.Lock` + SQLite WAL **within a process**, and by an OS-level 
+  advisory lock (`fcntl.flock` on unix, `msvcrt.locking` on windows) 
+  on `{workspace_dir}/.mnemoss.lock` **across processes**. A second 
+  process opening the same workspace raises `WorkspaceLockError`. The 
+  lock file is created on first open and released on `close()` or 
+  process exit. Also `PRAGMA busy_timeout=5000` on both DBs so intra-
+  process WAL contention retries instead of raising SQLITE_BUSY.
+- **Schema migrations** — `src/mnemoss/store/migrations.py` owns a 
+  registered chain of single-version-step migrations. On open, if the 
+  stored `schema_version` is older than code, the chain applies inside 
+  one transaction. Newer-than-code raises `MigrationError`. Each 
+  migration bumps by exactly one version and its closure takes an 
+  `apsw.Connection`; the framework owns the version-marker update. 
+  Adding a schema change: bump `SCHEMA_VERSION`, append a 
+  `Migration(from_version=N, to_version=N+1, description=…, fn=…)` 
+  to `MIGRATIONS`, and cover in `tests/test_migrations.py`.
+- **Dream cost governor** — `dream/cost.py` ships `CostLimits` 
+  (`max_llm_calls_per_run` / `_per_day` / `_per_month`, `None` = 
+  unlimited) and `CostLedger` (persists per-day + all-time counts in 
+  `workspace_meta`). `Mnemoss(cost_limits=...)` plumbs them through 
+  `dream()` → `DreamRunner._phase_consolidate` which checks budget 
+  before each cluster's LLM call and records skip reasons in 
+  `PhaseOutcome.details.budget_skips`. Ledger counts survive close/
+  reopen; they're visible in `status().llm_cost`.
+- **Partial-failure recovery** — `PhaseOutcome.status` ∈ `{"ok", 
+  "skipped", "error"}`, with typed `skip_reason` and `error` fields. 
+  The runner wraps every phase in try/except; a raise never kills 
+  the dream run, it's recorded as `status="error"` and downstream 
+  phases still attempt. `DreamReport.degraded_mode` is `True` iff any 
+  phase errored. The last N dream runs (bounded in-memory at 10) 
+  show up in `status().dreams.recent` as lightweight summaries.
 - **Schema version** — pinned constant in `src/mnemoss/core/config.py` 
-  (`SCHEMA_VERSION`). Mismatch raises. No migration logic lives in the 
-  library yet; bump when you break the format.
+  (`SCHEMA_VERSION`, currently 8). On version drift, the migration 
+  framework upgrades the DB; on a newer DB than code, it raises. In 
+  the old no-migration world bumps required manual workspace rebuilds; 
+  now the chain handles older DBs automatically.
+- **Config parameters validated at construction** — `FormulaParams`, 
+  `EncoderParams`, `SegmentationParams`, `MnemossConfig`, and 
+  `CostLimits` all run `__post_init__` validators. Negative scalars, 
+  zero where forbidden, out-of-order tier offsets, empty workspace 
+  strings, and bool-as-int for cost caps raise `ValueError` at 
+  construction rather than at first recall. See `tests/test_config_validation.py` 
+  for the rejection surface.
+- **Retry wrapper for flaky embedders** — `RetryingEmbedder` wraps 
+  any `Embedder` with bounded exponential-backoff + jitter retries 
+  on `ConnectionError` / `TimeoutError` / `OSError` + any extra types 
+  passed via `retry_on=`. `ValueError` is never retried. `dim` and 
+  `embedder_id` pass through transparently so the schema pin matches 
+  the underlying embedder. Opt-in; users compose:
+  `RetryingEmbedder(OpenAIEmbedder(...), max_retries=3)`.
+- **`status()` shape** — returns a `json.dumps`-able dict with 
+  `workspace`, `schema_version`, `embedder`, `memory_count`, 
+  `tier_counts`, `tombstone_count`, `last_observe_at` / `last_dream_at` 
+  / `last_rebalance_at` / `last_dispose_at`, `last_dream_trigger`, and 
+  two new blocks: `llm_cost` (today/month/total calls + configured 
+  limits) and `dreams` (bounded list of recent run summaries + 
+  degraded count). Every value is primitive / list / dict — no 
+  datetimes or dataclasses leak in.
+- **`ActivationBreakdown.to_dict()`** — JSON-safe view of the ACT-R 
+  scoring decomposition. `explain_recall` returns 
+  `ActivationBreakdown | None`; callers can ship the decomposition 
+  over REST / MCP / logs via `breakdown.to_dict()` without custom 
+  encoders.
 - **IDs are ULIDs** (time-ordered, lexicographically sortable). Datetimes 
   are timezone-aware.
 - **Privacy is cooperative, not adversarial.** `for_agent` scopes queries 

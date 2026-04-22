@@ -27,7 +27,7 @@ try:  # pragma: no cover — tested via HAS_PROMETHEUS toggling
     HAS_PROMETHEUS = True
 except ImportError:  # pragma: no cover
     HAS_PROMETHEUS = False
-    CONTENT_TYPE_LATEST = "text/plain"  # type: ignore[assignment]
+    CONTENT_TYPE_LATEST = "text/plain"
 
 
 if HAS_PROMETHEUS:

@@ -384,7 +384,7 @@ def _parse_time(value: Any) -> datetime | None:
     if not value:
         return None
     try:
-        dt = dateutil_parser.isoparse(str(value))
+        dt: datetime = dateutil_parser.isoparse(str(value))
     except (ValueError, TypeError):
         return None
     if dt.tzinfo is None:

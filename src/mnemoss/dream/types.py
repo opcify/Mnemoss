@@ -42,11 +42,28 @@ class PhaseName(str, Enum):
 
 @dataclass
 class PhaseOutcome:
-    """What one phase produced in a single dream run."""
+    """What one phase produced in a single dream run.
+
+    ``status`` is one of:
+
+    - ``"ok"``      — phase ran to completion.
+    - ``"skipped"`` — phase chose not to run (missing LLM, empty
+                     replay set, upstream-empty, budget exhausted).
+                     ``skip_reason`` names the cause.
+    - ``"error"``   — phase raised an unhandled exception. ``error``
+                     holds the exception class + message. Downstream
+                     phases still try to run on whatever state survives.
+
+    The runner never re-raises phase exceptions — a dream can finish
+    in a degraded state (some phases ``ok``, some ``error``), and the
+    report names everything that went wrong so the caller can decide.
+    """
 
     phase: PhaseName
-    status: str  # "ok" | "skipped" | "error"
+    status: str
     details: dict[str, Any] = field(default_factory=dict)
+    skip_reason: str | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -68,3 +85,16 @@ class DreamReport:
             if outcome.phase is phase:
                 return outcome
         return None
+
+    @property
+    def degraded_mode(self) -> bool:
+        """True when at least one phase errored.
+
+        ``skipped`` outcomes don't count as degraded — skipping is a
+        first-class "correct under this trigger/state" answer.
+        """
+
+        return any(o.status == "error" for o in self.outcomes)
+
+    def errors(self) -> list[PhaseOutcome]:
+        return [o for o in self.outcomes if o.status == "error"]

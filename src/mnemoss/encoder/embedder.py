@@ -49,7 +49,10 @@ class LocalEmbedder:
 
     def __init__(self, model_name: str = DEFAULT_LOCAL_MODEL) -> None:
         self._model_name = model_name
-        self._model = None
+        # Kept untyped to avoid an import-time dependency on
+        # sentence_transformers (which is heavy). Resolved to a real
+        # SentenceTransformer instance inside ``_ensure_model``.
+        self._model: Any = None
         # Dim pinned for the shipped default. Other models would need a
         # one-off ``encode(["x"]).shape[1]`` probe.
         if model_name == DEFAULT_LOCAL_MODEL:
@@ -63,9 +66,10 @@ class LocalEmbedder:
             return
         from sentence_transformers import SentenceTransformer
 
-        self._model = SentenceTransformer(self._model_name)
+        model = SentenceTransformer(self._model_name)
+        self._model = model
         if self.dim < 0:
-            self.dim = int(self._model.get_sentence_embedding_dimension() or 0)
+            self.dim = int(model.get_sentence_embedding_dimension() or 0)
 
     def embed(self, texts: list[str]) -> np.ndarray:
         if not texts:

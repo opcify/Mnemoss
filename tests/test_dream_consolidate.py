@@ -536,7 +536,7 @@ async def test_runner_consolidate_skipped_without_llm(tmp_path: Path) -> None:
         consolidate = report.outcome(PhaseName.CONSOLIDATE)
         assert consolidate is not None
         assert consolidate.status == "skipped"
-        assert "llm" in consolidate.details.get("reason", "").lower()
+        assert "llm" in (consolidate.skip_reason or "").lower()
     finally:
         await mem.close()
 

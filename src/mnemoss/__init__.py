@@ -24,6 +24,7 @@ from mnemoss.core.types import (
     Tombstone,
 )
 from mnemoss.dream import DreamReport, DreamRunner, PhaseName, PhaseOutcome, TriggerType
+from mnemoss.dream.cost import CostLedger, CostLimits
 from mnemoss.dream.dispose import DisposalStats
 from mnemoss.encoder import (
     Embedder,
@@ -31,6 +32,7 @@ from mnemoss.encoder import (
     GeminiEmbedder,
     LocalEmbedder,
     OpenAIEmbedder,
+    RetryingEmbedder,
 )
 from mnemoss.index import RebalanceStats
 from mnemoss.llm import (
@@ -49,6 +51,8 @@ __all__ = [
     "AgentHandle",
     "AnthropicClient",
     "CascadeStats",
+    "CostLedger",
+    "CostLimits",
     "DisposalStats",
     "DreamReport",
     "DreamRunner",
@@ -79,6 +83,7 @@ __all__ = [
     "RebalanceStats",
     "RecallResult",
     "Relation",
+    "RetryingEmbedder",
     "SchedulerConfig",
     "SegmentationParams",
     "StorageParams",

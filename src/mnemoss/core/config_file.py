@@ -38,7 +38,7 @@ from typing import Any
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - exercised on 3.10 only
-    import tomli as tomllib  # type: ignore[no-redef,import-not-found]
+    import tomli as tomllib  # noqa: F401 — 3.10 fallback
 
 from mnemoss.encoder import (
     Embedder,

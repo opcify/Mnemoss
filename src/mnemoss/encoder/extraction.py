@@ -101,7 +101,8 @@ def _extract_time(text: str) -> datetime | None:
     # source substring must contain at least one digit. "no date" /
     # "the plan" / other English phrases that dateparser sometimes maps
     # to dates would otherwise leak through.
-    for original, dt in results:
+    for original, dt_untyped in results:
+        dt: datetime = dt_untyped
         if not any(c.isdigit() for c in original):
             continue
         if dt.tzinfo is None:

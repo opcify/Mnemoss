@@ -66,7 +66,7 @@ async def test_dream_without_llm_records_explicit_skip(tmp_path: Path) -> None:
         consolidate = report.outcome(PhaseName.CONSOLIDATE)
         assert consolidate is not None
         assert consolidate.status == "skipped"
-        assert "llm" in consolidate.details.get("reason", "").lower()
+        assert "llm" in (consolidate.skip_reason or "").lower()
     finally:
         await mem.close()
 

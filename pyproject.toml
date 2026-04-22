@@ -57,6 +57,7 @@ dev = [
 [project.scripts]
 mnemoss-server = "mnemoss.server.cli:main"
 mnemoss-mcp = "mnemoss.mcp.cli:main"
+mnemoss-inspect = "mnemoss.cli.inspect:main"
 
 [project.urls]
 Homepage = "https://github.com/opcify/mnemoss"
@@ -76,6 +77,48 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "SIM"]
 python_version = "3.10"
 strict = true
 packages = ["mnemoss"]
+
+# Optional extras + a handful of untyped third-party libs we import
+# lazily. Missing stubs here are expected — either the dep is
+# intentionally optional (openai / anthropic / google-genai) or the
+# upstream package doesn't ship py.typed yet (sentence_transformers,
+# sklearn, sqlite_vec, dateparser, dateutil).
+[[tool.mypy.overrides]]
+module = [
+    "apsw",
+    "openai",
+    "openai.*",
+    "anthropic",
+    "anthropic.*",
+    "google.genai",
+    "google.genai.*",
+    "sentence_transformers",
+    "sentence_transformers.*",
+    "sklearn",
+    "sklearn.*",
+    "sqlite_vec",
+    "dateparser",
+    "dateparser.*",
+    "dateutil",
+    "dateutil.*",
+    "tomllib",
+    "tomli",
+    "prometheus_client",
+    "prometheus_client.*",
+    "mcp",
+    "mcp.*",
+]
+ignore_missing_imports = true
+
+# The ``store`` package wraps an untyped C extension (apsw). Its
+# ``execute().fetchone()`` returns ``Any`` by design, so propagating
+# strict ``no-any-return`` checks through every SQL helper would add
+# noise without catching real bugs. Scope the relaxation tightly to
+# this package — everywhere else stays strict.
+[[tool.mypy.overrides]]
+module = "mnemoss.store.*"
+warn_return_any = false
+disallow_any_generics = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
