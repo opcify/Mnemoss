@@ -304,10 +304,103 @@ async def test_nightly_pipeline_runs_all_six_phases(tmp_path: Path) -> None:
         # No phase errored.
         assert not report.degraded_mode
 
+        # Inspect what Consolidate produced. For FakeEmbedder +
+        # `cluster_min_size=3`, HDBSCAN typically labels everything
+        # as noise (clusters=0), so these counts are usually 0. The
+        # point of this snippet is to show the shape of the data
+        # callers get from ``PhaseOutcome.details`` — the
+        # deterministic invariant is exercised by
+        # ``test_consolidate_inserts_new_memory_rows`` below.
+        consolidate = report.outcome(PhaseName.CONSOLIDATE)
+        assert consolidate is not None
+        summaries_written = consolidate.details["summaries"]
+        patterns_written = consolidate.details["patterns"]
+        assert isinstance(summaries_written, int)
+        assert isinstance(patterns_written, int)
+        # summary_ids / pattern_ids name the new Memory rows if any
+        # clusters produced output.
+        assert isinstance(consolidate.details["summary_ids"], list)
+        assert isinstance(consolidate.details["pattern_ids"], list)
+        assert len(consolidate.details["summary_ids"]) == summaries_written
+        assert len(consolidate.details["pattern_ids"]) == patterns_written
+
         # status() now reflects the dream having run.
         status = await mem.status()
         assert status["last_dream_at"] is not None
         assert status["last_dream_trigger"] == "nightly"
+    finally:
+        await mem.close()
+
+
+async def test_consolidate_inserts_new_memory_rows(tmp_path: Path) -> None:
+    """Deterministic proof that P3 Consolidate actually inserts new
+    Memory rows for summaries and patterns.
+
+    We bypass HDBSCAN by hand-building ``_DreamState`` with known
+    cluster assignments so the test doesn't depend on embedder
+    geometry. This pins the core invariant: **one cluster with a
+    non-empty LLM response → one summary Memory (and possibly N
+    patterns) written to the store inside P3, before P4 runs.**
+    """
+
+    from datetime import datetime, timezone
+
+    from mnemoss.dream.cluster import ClusterAssignment
+    from mnemoss.dream.runner import DreamRunner, _DreamState
+
+    # Pre-seed Memory rows so the consolidate path has real members
+    # to derive from (the summary's ``derived_from`` points at
+    # cluster-member ids that must already exist in the store).
+    mem = _make_mem(tmp_path, llm=MockLLMClient(responses=[_consolidate_response(2)]))
+    try:
+        await mem.observe(role="user", content="note one in the cluster")
+        await mem.observe(role="user", content="note two in the cluster")
+        baseline = (await mem.status())["memory_count"]
+        assert baseline == 2
+
+        # Hand-build a single cluster covering both memories and
+        # drive _phase_consolidate directly.
+        await mem._ensure_open()
+        assert mem._store is not None
+        all_ids = await mem._store.iter_memory_ids()
+        members = await mem._store.materialize_memories(all_ids)
+
+        runner = DreamRunner(
+            store=mem._store,
+            params=mem._config.formula,
+            llm=mem._llm,
+            embedder=mem._embedder,
+            cluster_min_size=2,
+        )
+        state = _DreamState()
+        state.replay_set = members
+        state.cluster_assignments = {
+            m.id: ClusterAssignment(
+                cluster_id="c0", similarity=0.9, is_representative=False
+            )
+            for m in members
+        }
+        outcome = await runner._phase_consolidate(state, datetime.now(timezone.utc))
+
+        # User's snippet shape: ``PhaseOutcome.details`` is the
+        # canonical read-back surface for what Consolidate produced.
+        summaries_written = outcome.details["summaries"]
+        patterns_written = outcome.details["patterns"]
+        assert summaries_written == 1  # one cluster → one summary
+        assert patterns_written == 0  # canned response has no patterns
+        assert len(outcome.details["summary_ids"]) == 1
+        new_summary_id = outcome.details["summary_ids"][0]
+
+        # The new summary row is persisted in the Memory store with
+        # the expected derivation edges back to its source cluster.
+        summary = await mem._store.get_memory(new_summary_id)
+        assert summary is not None
+        assert summary.content == "summary of the cluster"  # from canned response
+        assert set(summary.derived_from) == {m.id for m in members}
+
+        # status() memory_count reflects the baseline + new summary.
+        status = await mem.status()
+        assert status["memory_count"] == baseline + summaries_written + patterns_written
     finally:
         await mem.close()
 
