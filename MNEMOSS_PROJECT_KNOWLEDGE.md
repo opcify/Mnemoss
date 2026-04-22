@@ -190,7 +190,10 @@ class Memory:
     extracted_time: datetime | None
     extracted_location: str | None
     extracted_participants: list[str] | None
-    extraction_level: int                # 0=raw, 1=heuristic, 2=LLM
+    extraction_level: int                # 0=raw, 1=heuristic (gist+time),
+                                         # 2=Dream P3 LLM (gist+time only;
+                                         # NER is intentionally not wired —
+                                         # see §9.7)
     
     # Type-specific (entity only)
     aliases: list[str] | None
@@ -551,7 +554,10 @@ architecture around it.
 
 - Proper event segmentation (rule-based)
 - Multi-dimensional salience scoring
-- Lazy extraction (heuristic tools: dateparser, NER, gazetteer)
+- Lazy extraction, level-1 heuristics only (dateparser for time;
+  gist via first-sentence split). Entities / location / participants
+  are never auto-populated in any level — NER is intentionally not
+  wired into Mnemoss. See §9.7 for the rationale.
 - Complete Working Memory
 
 ### Stage 4 — Light Dreaming ✅
@@ -582,10 +588,90 @@ Shipped:
 - Hermes `MemoryProvider` adapter (`adapters/hermes-agent/`)
 - OpenClaw plugin (`adapters/openclaw/`, TypeScript)
 
-Post-ship (tracked separately):
+### Post-MVP — Production readiness ✅
+
+Landed after Stage 6, before anyone declared the MVP "done":
+
+- **Structural refactor.** `sqlite_backend.py` split into a thin
+  async façade plus `_memory_ops.py` / `_graph_ops.py` /
+  `_raw_log_ops.py` / `_sql_helpers.py` for sync SQL, each
+  unit-testable against a plain `apsw.Connection`.
+- **Schema migration framework** (`store/migrations.py`). Registered
+  chain applies on open; newer-DB-than-code raises. Answers §14 Q8.
+- **Cross-process workspace lock** (`store/_workspace_lock.py`).
+  `fcntl`/`msvcrt` advisory lock on `{workspace}/.mnemoss.lock` so a
+  second opener fails fast with `WorkspaceLockError`. Answers §14 Q6.
+- **Dream cost governor** (`dream/cost.py`). `CostLimits` ceilings on
+  LLM calls per run / day / month, `CostLedger` persisted in
+  `workspace_meta`. Counts surface via `status().llm_cost`. Answers §14 Q4.
+- **Partial-failure recovery** in the Dream runner. Per-phase
+  try/except; `DreamReport.degraded_mode` flag; phase errors don't
+  kill the run. Answers §14 Q9.
+- **Retry wrapper for flaky embedders** (`encoder/retrying.py`).
+  Opt-in `RetryingEmbedder` with bounded exponential backoff. Answers §14 Q7.
+- **Param validators**. `FormulaParams`, `EncoderParams`,
+  `SegmentationParams`, `MnemossConfig`, `CostLimits` all reject
+  invalid values at construction with clear error messages.
+- **Input hardening at REST/MCP**. Configurable caps on observe
+  content size, recall k, and metadata size (`ServerConfig.*`).
+- **Auto-split for long observes** (`encoder/chunking.py`). Opt-in
+  `EncoderParams.max_memory_chars` produces N Memory rows for one
+  Raw Log row when content exceeds the cap. Answers §14 Q10.
+- **Operator CLI**: `mnemoss-inspect <workspace>` prints a snapshot
+  of `status()` + tombstones.
+- **Benchmark harnesses**: `bench/bench_recall.py` (latency sweep),
+  `bench/calibrate.py` (FormulaParams sweep vs labeled corpus).
+- **Code quality**: mypy strict clean across 78 source files; 667+
+  tests passing at ~93% coverage.
+
+Post-ship backlog (tracked separately):
 - Whitepaper
-- Benchmarks vs mem0 / Zep / Letta
+- Comparative benchmarks vs mem0 / Zep / Letta
 - Adapter polish as host frameworks evolve
+
+### 9.7  NER is intentionally not implemented
+
+NER has been removed from Mnemoss end-to-end and is **not on the
+roadmap**. No automatic entity extraction runs anywhere — not at
+encode time, not in Dream P3, not at query time. `b_F(q)` is
+structural-only (quotes / URL / digits / acronyms); Dream P3 refines
+only `gist` and `time`. The `extracted_entities`, `extracted_location`,
+and `extracted_participants` fields stay in the data model but are
+never populated by the library — they exist as a generic surface a
+caller can write to manually if they already have entity information.
+
+**Why no NER:**
+
+- Any cheap extractor (Title-Case regex, gazetteer) is structurally
+  language-biased — silent on CJK, Arabic, Thai — and Mnemoss is
+  multilingual-first.
+- LLM-driven NER in Dream P3 is expensive per cluster for a feature
+  whose end value (marginal recall lift over the embedding +
+  trigram-FTS hybrid) is unproven.
+- Query-side NER contradicts the "memory system is query-agnostic"
+  principle.
+- Structural `b_F` cues (quotes, digits, URLs, code identifiers,
+  acronyms) already handle the literal-query case.
+
+**If you want NER in your workspace, DIY surfaces:**
+
+- `Memory.extracted_entities` — set directly on memories you write
+  via `observe()` (extend with a wrapper, or post-process after).
+- `memory_type=entity` — the enum still exists; nothing prevents you
+  from writing entity-typed Memory rows yourself.
+- `relation` table — write custom predicates (`shares_entity`,
+  `mentions`, whatever) with `store.write_relation()`; spreading
+  activation is predicate-agnostic and will pick them up.
+- `memory_fts` is single-column (`content`) in v8 — if you want
+  BM25 over a secondary entity column, fork `store/schema.py` and
+  bump your own local schema version.
+
+A prior draft of this section proposed a full NER feature (phases
+α–η: canonical cross-run identity, entity Memory-row promotion,
+typed kinds, scoped recall API, disambiguation). It was removed
+deliberately. If we ever revisit the decision, start from the git
+history before commit `e2f8654` was reverted — the design thinking
+is preserved there.
 
 ---
 
@@ -728,7 +814,11 @@ These are known unknowns. Document answers here as they're settled.
    in typical use? How to enforce it?
    → *Partially resolved. Stage 4 shipped per-phase token budgeting + 
    retry caps in the LLM client abstraction. A full cost-governor 
-   (across runs, across phases) remains open.*
+   across runs landed in the production-readiness pass — see 
+   `dream/cost.py` (`CostLimits` + `CostLedger`). Per-run / per-day 
+   / per-month ceilings are configurable on `Mnemoss(cost_limits=…)`; 
+   the persisted ledger survives restarts and is surfaced through 
+   `status().llm_cost`.*
 
 5. **memory.md size ceiling**: What happens when pinned + auto-promoted 
    memories exceed comfortable system prompt size?
@@ -738,9 +828,76 @@ These are known unknowns. Document answers here as they're settled.
 
 6. **Concurrent access**: How should Mnemoss handle multiple processes 
    writing to the same workspace?
-   → *Still open. Within-process writes serialize via `asyncio.Lock` + 
-   SQLite WAL (single writer process per workspace). Cross-process 
-   coordination is not implemented.*
+   → *Answered in the production-readiness pass. Within-process writes 
+   still serialize via `asyncio.Lock` + SQLite WAL. Cross-process 
+   coordination is a stdlib advisory lock on `{workspace_dir}/.mnemoss.lock` 
+   (`fcntl.flock` on unix, `msvcrt.locking` on windows) acquired during 
+   `SQLiteBackend.open()`. A second process attempting to open the same 
+   workspace raises `WorkspaceLockError` fast; the lock releases on 
+   `close()` or process exit. See `store/_workspace_lock.py`.*
+
+7. **Flaky embedder providers**: OpenAI / Gemini embedding endpoints 
+   return transient 429 / 5xx / timeout errors; `observe()` shouldn't 
+   die on them.
+   → *Resolved. `RetryingEmbedder` wraps any `Embedder` with bounded 
+   exponential-backoff + jitter retries on transient exception classes 
+   (`ConnectionError`, `TimeoutError`, `OSError`, plus caller-provided 
+   `retry_on=` for provider-specific errors like 
+   `openai.RateLimitError`). Opt-in composition; `dim` / `embedder_id` 
+   pass through transparently so the schema pin matches.*
+
+8. **Schema evolution without workspace rebuild**: Users can't afford to 
+   rebuild their workspace every time a `SCHEMA_VERSION` bump ships.
+   → *Resolved. `store/migrations.py` owns a registered chain; on 
+   open, any DB older than code runs the chain in one transaction. 
+   Newer-than-code raises. Adding a migration = bump `SCHEMA_VERSION`, 
+   append a `Migration(from_version=N, to_version=N+1, …)` with a 
+   closure that takes an `apsw.Connection`, cover in 
+   `tests/test_migrations.py`.*
+
+9. **Dream partial failures**: If one phase crashes, should the whole 
+   run abort or should downstream phases continue on partial state?
+   → *Resolved. `DreamRunner` wraps every phase in try/except; an 
+   exception becomes `PhaseOutcome(status="error", error=…)` and 
+   downstream phases still attempt on whatever state survived. 
+   `DreamReport.degraded_mode` / `errors()` expose the failure surface. 
+   Integration test: `tests/test_dream_failure_recovery.py`.*
+
+10. **Long-content observes**: What happens when a caller passes a 
+    super-long message to `observe()` — a 32KB tool output, a 
+    multi-paragraph agent memo, a minified JSON blob?
+    → *Resolved. Opt-in auto-split via `EncoderParams.max_memory_chars` 
+    (default `None`, backward compatible). When set and the encoded 
+    content exceeds the cap, the encoder produces **N Memory rows** 
+    for one `observe()` — the Raw Log still writes exactly one 
+    `raw_message` row, preserving Principle 3. Split boundaries, in 
+    order of preference:*
+    
+    1. *paragraph (`\n\n`)*
+    2. *line (`\n`)*
+    3. *sentence — CJK-aware, matches `.!?…。！？` followed by whitespace*
+    4. *hard char cut (last-resort fallback for e.g. minified JSON with 
+       no whitespace or terminators)*
+    
+    *Each chunk carries `source_context.split_part = {"index": i, 
+    "total": n, "group_id": <first_chunk_id>}`. Chunks share their 
+    `source_message_ids` so any chunk can trace back to the original 
+    RawMessage. Recommended caps: `2000` for LocalEmbedder (MiniLM 
+    tokenizer truncates past ~512 tokens), `30000` for OpenAI's 
+    text-embedding-3-small. Without a cap, embedders silently drop 
+    tokens past their context window and semantic recall on the 
+    dropped tail is broken without any warning. See 
+    `src/mnemoss/encoder/chunking.py` and 
+    `tests/test_observe_chunking.py`.*
+    
+    *Note: this is distinct from `SegmentationParams.max_event_characters` 
+    (default 8000), which caps how many sibling messages accumulate 
+    in a per-`(agent, session, turn)` buffer before the segmenter 
+    closes it. That rule fires on the buffer's cumulative length, 
+    not on one message's length. Both limits coexist: a segmenter 
+    buffer closes at 8000 cumulative chars across N messages; if the 
+    resulting Memory still exceeds `max_memory_chars`, the encoder 
+    then splits it into chunks.*
 
 ---
 

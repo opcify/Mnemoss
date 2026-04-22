@@ -168,9 +168,7 @@ def test_workspace_lifespan_closes_instances(tmp_path: Path) -> None:
     """After the TestClient context manager exits, the pool should be
     empty — no leaked SQLite connections."""
 
-    config = ServerConfig(
-        embedder_override=FakeEmbedder(dim=16), storage_root=tmp_path
-    )
+    config = ServerConfig(embedder_override=FakeEmbedder(dim=16), storage_root=tmp_path)
     app = create_app(config)
     with TestClient(app) as c:
         c.post(

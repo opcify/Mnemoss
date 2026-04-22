@@ -1,7 +1,9 @@
 """SQL DDL for Mnemoss workspaces.
 
-Schema v6 split the Raw Log into its own SQLite file. Two DBs per
-workspace:
+Schema v8 drops the short-lived ``entities`` FTS column — NER was
+removed from the system entirely; see MNEMOSS_PROJECT_KNOWLEDGE.md
+§9.7 for the rationale. Schema v6 split the Raw Log into its own
+SQLite file. Two DBs per workspace:
 
 - ``memory.sqlite`` — ``MEMORY_DDL_STATEMENTS`` below (memory, relations,
   pins, tombstones, workspace_meta) plus the ``vec0`` and FTS5

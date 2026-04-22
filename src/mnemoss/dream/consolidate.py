@@ -88,15 +88,16 @@ class ConsolidationResult:
 
     @property
     def is_empty(self) -> bool:
-        return (
-            self.summary is None
-            and not self.refinements
-            and not self.patterns
-        )
+        return self.summary is None and not self.refinements and not self.patterns
 
 
 def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
-    """Render the one-call consolidation prompt."""
+    """Render the one-call consolidation prompt.
+
+    Refinements cover ``gist`` and ``time`` only — NER (entities,
+    location, participants) is intentionally not requested. See
+    MNEMOSS_PROJECT_KNOWLEDGE.md §9.7 for the rationale.
+    """
 
     lines = [
         "The following memories have been clustered together as part of "
@@ -108,16 +109,9 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
         lines.append(f"{i}. [{role}] {m.content}")
         existing = {
             "gist": m.extracted_gist,
-            "entities": m.extracted_entities,
-            "time": (
-                m.extracted_time.isoformat() if m.extracted_time else None
-            ),
-            "location": m.extracted_location,
-            "participants": m.extracted_participants,
+            "time": (m.extracted_time.isoformat() if m.extracted_time else None),
         }
-        lines.append(
-            f"   current extraction: {json.dumps(existing, default=str)}"
-        )
+        lines.append(f"   current extraction: {json.dumps(existing, default=str)}")
 
     lines.extend(
         [
@@ -125,12 +119,13 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "Do three things in one pass:",
             "",
             "(A) SUMMARY — distil the cluster into ONE higher-abstraction "
-            "memory (a fact, entity, or pattern). Keep the content in the "
-            "same language as the input.",
+            "memory (a fact or pattern). Keep the content in the same "
+            "language as the input.",
             "",
             "(B) REFINEMENTS — for EACH memory above, improve or correct "
-            "its extraction fields (gist, entities, time, location, "
-            "participants). Do not invent facts not implied by content.",
+            "its gist (concise one-sentence summary) and time (ISO-8601 "
+            "timestamp if the content implies one). Do not invent facts "
+            "not implied by content.",
             "",
             "(C) PATTERNS — identify any recurring patterns WITHIN this "
             "cluster (behaviours, preferences, regularities spanning ≥2 "
@@ -139,19 +134,15 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "Respond with a single JSON object of this exact shape:",
             "{",
             '  "summary": {',
-            '    "memory_type": "fact" | "entity" | "pattern",',
+            '    "memory_type": "fact" | "pattern",',
             '    "content": "one short sentence",',
-            '    "abstraction_level": 0.6,',
-            '    "aliases": []',
+            '    "abstraction_level": 0.6',
             "  },",
             '  "refinements": [',
             "    {",
             '      "index": 1,',
             '      "gist": "concise one-sentence summary",',
-            '      "entities": ["named entities"],',
-            '      "time": "ISO-8601 timestamp or null",',
-            '      "location": "place name or null",',
-            '      "participants": ["people"]',
+            '      "time": "ISO-8601 timestamp or null"',
             "    }",
             "  ],",
             '  "patterns": [',
@@ -164,11 +155,9 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "",
             "Rules:",
             "- 'fact' is propositional ('user prefers dark mode').",
-            "- 'entity' is a person/place/thing ('Alice: the user's manager').",
             "- 'pattern' is a recurring behaviour ('user commits on Fridays').",
             "- summary.abstraction_level ∈ [0.5, 0.9]: 0.5 concrete, 0.9 abstract.",
-            "- refinements: use [] for empty lists, never null. Preserve "
-            "null on fields not implied by the content.",
+            "- refinements: preserve null on fields not implied by the content.",
             "- patterns: each must reference ≥2 members via 'derived_from'.",
             "- All indices are 1-indexed references to the numbered list above.",
         ]
@@ -217,6 +206,7 @@ async def consolidate_cluster(
 
 # ─── summary parse (P3 Extract equivalent) ─────────────────────────
 
+
 def _parse_summary(
     response: dict[str, Any],
     members: list[Memory],
@@ -255,9 +245,6 @@ def _parse_summary(
         "extracted_by": "dream_consolidate",
         "cluster_size": len(members),
     }
-    aliases = raw.get("aliases")
-    if isinstance(aliases, list) and aliases:
-        source_ctx["aliases"] = [str(a) for a in aliases]
 
     return Memory(
         id=str(ulid.new()),
@@ -286,6 +273,7 @@ def _parse_summary(
 
 # ─── refinements parse (P4 Refine equivalent) ──────────────────────
 
+
 def _parse_refinements(
     response: dict[str, Any],
     members: list[Memory],
@@ -307,10 +295,10 @@ def _parse_refinements(
 
         fields = ExtractionFields(
             gist=_norm_str(entry.get("gist")),
-            entities=_norm_list(entry.get("entities")),
+            entities=None,
             time=_parse_time(entry.get("time")),
-            location=_norm_str(entry.get("location")),
-            participants=_norm_list(entry.get("participants")),
+            location=None,
+            participants=None,
             level=2,
         )
         out.append(Refinement(member_index=idx0, fields=fields))
@@ -318,6 +306,7 @@ def _parse_refinements(
 
 
 # ─── patterns parse (P6 Generalize equivalent, intra-cluster) ──────
+
 
 def _parse_patterns(
     response: dict[str, Any],
@@ -383,6 +372,7 @@ def _parse_patterns(
 
 # ─── small parsers (mirror refine.py's originals) ──────────────────
 
+
 def _norm_str(value: Any) -> str | None:
     if value is None:
         return None
@@ -390,19 +380,11 @@ def _norm_str(value: Any) -> str | None:
     return text or None
 
 
-def _norm_list(value: Any) -> list[str] | None:
-    if not isinstance(value, list):
-        return None
-    out = [str(v).strip() for v in value if v is not None]
-    out = [v for v in out if v]
-    return out or None
-
-
 def _parse_time(value: Any) -> datetime | None:
     if not value:
         return None
     try:
-        dt = dateutil_parser.isoparse(str(value))
+        dt: datetime = dateutil_parser.isoparse(str(value))
     except (ValueError, TypeError):
         return None
     if dt.tzinfo is None:

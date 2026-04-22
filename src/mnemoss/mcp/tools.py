@@ -84,9 +84,7 @@ def dream_summary(r: DreamReport) -> dict[str, Any]:
         "finished_at": r.finished_at.isoformat(),
         "duration_seconds": r.duration_seconds(),
         "agent_id": r.agent_id,
-        "outcomes": [
-            {"phase": o.phase.value, "status": o.status} for o in r.outcomes
-        ],
+        "outcomes": [{"phase": o.phase.value, "status": o.status} for o in r.outcomes],
         "diary_path": str(r.diary_path) if r.diary_path is not None else None,
     }
 
@@ -188,9 +186,7 @@ async def tool_explain_recall(
     memory_id: str,
     agent_id: str | None = None,
 ) -> dict[str, float]:
-    breakdown = await backend.explain_recall(
-        query, memory_id, agent_id=agent_id
-    )
+    breakdown = await backend.explain_recall(query, memory_id, agent_id=agent_id)
     return breakdown_summary(breakdown)
 
 
@@ -225,7 +221,8 @@ async def tool_tombstones(
 
 
 async def tool_tier_counts(backend: Any) -> dict[str, int]:
-    return await backend.tier_counts()
+    counts: dict[str, int] = await backend.tier_counts()
+    return counts
 
 
 async def tool_export_markdown(
@@ -234,9 +231,7 @@ async def tool_export_markdown(
     agent_id: str | None = None,
     min_idx_priority: float = 0.5,
 ) -> dict[str, str]:
-    md = await backend.export_markdown(
-        agent_id=agent_id, min_idx_priority=min_idx_priority
-    )
+    md = await backend.export_markdown(agent_id=agent_id, min_idx_priority=min_idx_priority)
     return {"markdown": md}
 
 
@@ -251,4 +246,5 @@ async def tool_flush_session(
 
 
 async def tool_status(backend: Any) -> dict[str, Any]:
-    return await backend.status()
+    status: dict[str, Any] = await backend.status()
+    return status

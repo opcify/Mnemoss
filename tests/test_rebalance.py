@@ -82,9 +82,7 @@ async def test_aged_unused_memory_drifts_down(tmp_path: Path) -> None:
     await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
 
     # Simulate one day passing without any reconsolidation.
-    stats = await rebalance(
-        b, FormulaParams(), now=creation + timedelta(days=1)
-    )
+    stats = await rebalance(b, FormulaParams(), now=creation + timedelta(days=1))
     assert stats.scanned == 1
     got = await b.get_memory("old")
     assert got is not None
@@ -185,16 +183,12 @@ async def test_tier_distribution_changes(tmp_path: Path) -> None:
     for i in range(5):
         m = _memory(f"m{i}", f"content {i}", creation)
         # Everyone starts HOT.
-        await b.write_memory(
-            m, np.array([i == k for k in range(4)], dtype=np.float32)
-        )
+        await b.write_memory(m, np.array([i == k for k in range(4)], dtype=np.float32))
 
     counts_before = await b.tier_counts()
     assert counts_before[IndexTier.HOT] == 5
 
-    stats = await rebalance(
-        b, FormulaParams(), now=creation + timedelta(days=14)
-    )
+    stats = await rebalance(b, FormulaParams(), now=creation + timedelta(days=14))
     assert stats.migrated == 5  # all 5 leave HOT at 2-week age
     counts_after = await b.tier_counts()
     assert counts_after[IndexTier.HOT] == 0

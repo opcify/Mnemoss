@@ -26,6 +26,7 @@ from mnemoss.dream.consolidate import (
     ConsolidationResult,
     consolidate_cluster,
 )
+from mnemoss.dream.cost import CostLedger, CostLimits
 from mnemoss.dream.dispose import dispose_pass
 from mnemoss.dream.relations import (
     write_derived_from_edges,
@@ -106,6 +107,8 @@ class DreamRunner:
         replay_limit: int = 100,
         replay_min_base_level: float | None = None,
         cluster_min_size: int = 3,
+        cost_limits: CostLimits | None = None,
+        cost_ledger: CostLedger | None = None,
     ) -> None:
         self._store = store
         self._params = params
@@ -114,6 +117,12 @@ class DreamRunner:
         self._replay_limit = replay_limit
         self._replay_min_base_level = replay_min_base_level
         self._cluster_min_size = cluster_min_size
+        # Cost governance on LLM calls in Consolidate. When both are
+        # ``None`` the runner makes unlimited calls (historical
+        # behaviour); when provided, the ledger enforces the limits
+        # and persists counts across runs.
+        self._cost_limits = cost_limits or CostLimits()
+        self._cost_ledger = cost_ledger
 
     async def run(
         self,
@@ -145,19 +154,32 @@ class DreamRunner:
         agent_id: str | None,
         now: datetime,
     ) -> PhaseOutcome:
-        if phase is PhaseName.REPLAY:
-            return await self._phase_replay(state, agent_id, now)
-        if phase is PhaseName.CLUSTER:
-            return await self._phase_cluster(state)
-        if phase is PhaseName.CONSOLIDATE:
-            return await self._phase_consolidate(state, now)
-        if phase is PhaseName.RELATIONS:
-            return await self._phase_relations(state)
-        if phase is PhaseName.REBALANCE:
-            return await self._phase_rebalance(now)
-        if phase is PhaseName.DISPOSE:
-            return await self._phase_dispose(state, now)
-        raise RuntimeError(f"unknown phase {phase}")
+        try:
+            if phase is PhaseName.REPLAY:
+                return await self._phase_replay(state, agent_id, now)
+            if phase is PhaseName.CLUSTER:
+                return await self._phase_cluster(state)
+            if phase is PhaseName.CONSOLIDATE:
+                return await self._phase_consolidate(state, now)
+            if phase is PhaseName.RELATIONS:
+                return await self._phase_relations(state)
+            if phase is PhaseName.REBALANCE:
+                return await self._phase_rebalance(now)
+            if phase is PhaseName.DISPOSE:
+                return await self._phase_dispose(state, now)
+            raise RuntimeError(f"unknown phase {phase}")
+        except Exception as e:
+            # Never let a phase crash the whole dream. Record the
+            # failure and let downstream phases run on whatever partial
+            # state exists — most phases already tolerate empty inputs
+            # (see the ``state.replay_set`` / ``state.cluster_assignments``
+            # guards below).
+            return PhaseOutcome(
+                phase=phase,
+                status="error",
+                error=f"{type(e).__name__}: {e}",
+                details={"error_type": type(e).__name__},
+            )
 
     # ─── P1 Replay ─────────────────────────────────────────────────
 
@@ -190,19 +212,21 @@ class DreamRunner:
 
     async def _phase_cluster(self, state: _DreamState) -> PhaseOutcome:
         if not state.replay_set:
+            # Empty replay set isn't an error — nightly runs on fresh
+            # workspaces hit this legitimately. Skip with a reason so
+            # the report makes it obvious.
             return PhaseOutcome(
                 phase=PhaseName.CLUSTER,
-                status="ok",
-                details={"clusters": 0, "reason": "empty replay"},
+                status="skipped",
+                skip_reason="empty replay set",
+                details={"clusters": 0},
             )
 
         ids = [m.id for m in state.replay_set]
         embeddings = await self._store.get_embeddings(ids)
         state.embeddings = embeddings
 
-        assignments = cluster_embeddings(
-            embeddings, min_cluster_size=self._cluster_min_size
-        )
+        assignments = cluster_embeddings(embeddings, min_cluster_size=self._cluster_min_size)
         state.cluster_assignments = assignments
 
         for mid, a in assignments.items():
@@ -224,20 +248,26 @@ class DreamRunner:
 
     # ─── P3 Consolidate (merged Extract + Refine + Generalize) ─────
 
-    async def _phase_consolidate(
-        self, state: _DreamState, now: datetime
-    ) -> PhaseOutcome:
+    async def _phase_consolidate(self, state: _DreamState, now: datetime) -> PhaseOutcome:
         if self._llm is None:
             return PhaseOutcome(
                 phase=PhaseName.CONSOLIDATE,
                 status="skipped",
-                details={"reason": "no llm configured"},
+                skip_reason="no llm configured",
             )
         if self._embedder is None:
             return PhaseOutcome(
                 phase=PhaseName.CONSOLIDATE,
                 status="skipped",
-                details={"reason": "no embedder configured"},
+                skip_reason="no embedder configured",
+            )
+        if not state.replay_set and not state.cluster_assignments:
+            # Upstream REPLAY/CLUSTER failed or produced nothing — no
+            # point asking the LLM about empty state.
+            return PhaseOutcome(
+                phase=PhaseName.CONSOLIDATE,
+                status="skipped",
+                skip_reason="no replay set or clusters from upstream",
             )
 
         # Without clustering (surprise/cognitive_load triggers), fall back
@@ -249,13 +279,30 @@ class DreamRunner:
         patterns: list[Memory] = []
         refined_ids: list[str] = []
         llm_failures = 0
+        llm_calls_made = 0
+        budget_skips: list[str] = []
 
         for cluster_members in clusters:
             if len(cluster_members) < 2:
                 continue  # Singletons have nothing to consolidate.
-            result = await consolidate_cluster(
-                cluster_members, self._llm, self._params, now=now
-            )
+
+            # Budget gate — check before the call so we don't pay for
+            # clusters we won't persist.
+            if self._cost_ledger is not None:
+                reason = self._cost_ledger.check_budget(
+                    self._cost_limits,
+                    run_calls=llm_calls_made,
+                    now=now,
+                )
+                if reason is not None:
+                    budget_skips.append(reason)
+                    break
+
+            result = await consolidate_cluster(cluster_members, self._llm, self._params, now=now)
+            llm_calls_made += 1
+            if self._cost_ledger is not None:
+                self._cost_ledger.record_call(now=now)
+
             if result.is_empty:
                 llm_failures += 1
                 continue
@@ -298,13 +345,13 @@ class DreamRunner:
             phase=PhaseName.CONSOLIDATE,
             status="ok",
             details={
-                "clusters_processed": sum(
-                    1 for c in clusters if len(c) >= 2
-                ),
+                "clusters_processed": sum(1 for c in clusters if len(c) >= 2),
                 "summaries": len(summaries),
                 "patterns": len(patterns),
                 "refined": len(refined_ids),
                 "llm_failures": llm_failures,
+                "llm_calls_made": llm_calls_made,
+                "budget_skips": budget_skips,
                 "summary_ids": [m.id for m in summaries],
                 "pattern_ids": [m.id for m in patterns],
                 "refined_ids": refined_ids,
@@ -314,18 +361,13 @@ class DreamRunner:
             },
         )
 
-    def _clusters_for_consolidation(
-        self, state: _DreamState
-    ) -> list[list[Memory]]:
+    def _clusters_for_consolidation(self, state: _DreamState) -> list[list[Memory]]:
         """Resolve the flat clusters list the phase iterates over."""
 
         if state.cluster_assignments:
             groups = group_by_cluster(state.cluster_assignments)
             by_id = {m.id: m for m in state.replay_set}
-            return [
-                [by_id[mid] for mid in members if mid in by_id]
-                for members in groups.values()
-            ]
+            return [[by_id[mid] for mid in members if mid in by_id] for members in groups.values()]
         if state.replay_set:
             return [state.replay_set]
         return []
@@ -334,21 +376,15 @@ class DreamRunner:
         """Embed + write a derived memory, link its derived_from edges."""
 
         assert self._embedder is not None  # guarded by phase entry
-        embedding = await asyncio.to_thread(
-            self._embedder.embed, [memory.content]
-        )
+        embedding = await asyncio.to_thread(self._embedder.embed, [memory.content])
         await self._store.write_memory(memory, embedding[0])
         await self._store.link_derived(memory.derived_from, memory.id)
 
     # ─── P5 Relations ──────────────────────────────────────────────
 
     async def _phase_relations(self, state: _DreamState) -> PhaseOutcome:
-        similar_edges = await write_similar_to_edges(
-            self._store, state.cluster_assignments
-        )
-        derived_edges = await write_derived_from_edges(
-            self._store, state.consolidated
-        )
+        similar_edges = await write_similar_to_edges(self._store, state.cluster_assignments)
+        derived_edges = await write_derived_from_edges(self._store, state.consolidated)
         return PhaseOutcome(
             phase=PhaseName.RELATIONS,
             status="ok",
@@ -369,22 +405,16 @@ class DreamRunner:
             details={
                 "scanned": stats.scanned,
                 "migrated": stats.migrated,
-                "tier_after": {
-                    tier.value: count for tier, count in stats.tier_after.items()
-                },
+                "tier_after": {tier.value: count for tier, count in stats.tier_after.items()},
             },
         )
 
     # ─── P8 Dispose ────────────────────────────────────────────────
 
-    async def _phase_dispose(
-        self, state: _DreamState, now: datetime
-    ) -> PhaseOutcome:
+    async def _phase_dispose(self, state: _DreamState, now: datetime) -> PhaseOutcome:
         # Dispose scans the replay set when P1 ran, else the full table.
         candidates = state.replay_set if state.replay_set else None
-        stats = await dispose_pass(
-            self._store, self._params, now=now, candidates=candidates
-        )
+        stats = await dispose_pass(self._store, self._params, now=now, candidates=candidates)
         return PhaseOutcome(
             phase=PhaseName.DISPOSE,
             status="ok",

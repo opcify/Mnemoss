@@ -53,8 +53,6 @@ async def write_derived_from_edges(
     count = 0
     for new_mem in extracted:
         for parent_id in new_mem.derived_from:
-            await store.write_relation(
-                new_mem.id, parent_id, "derived_from", 1.0
-            )
+            await store.write_relation(new_mem.id, parent_id, "derived_from", 1.0)
             count += 1
     return count

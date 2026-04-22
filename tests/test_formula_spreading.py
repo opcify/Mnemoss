@@ -16,35 +16,25 @@ def test_empty_active_set_returns_zero() -> None:
 
 def test_no_connection_returns_zero() -> None:
     # j is active but doesn't point at target.
-    assert compute_spreading(
-        "target", ["j"], {"j": {"other"}}, {"j": 1}, PARAMS
-    ) == 0.0
+    assert compute_spreading("target", ["j"], {"j": {"other"}}, {"j": 1}, PARAMS) == 0.0
 
 
 def test_single_connection_uniform_weight() -> None:
     # One active memory with fan=1 → S = S_max - ln(1) = S_max; W = 1.
-    result = compute_spreading(
-        "target", ["j"], {"j": {"target"}}, {"j": 1}, PARAMS
-    )
+    result = compute_spreading("target", ["j"], {"j": {"target"}}, {"j": 1}, PARAMS)
     assert math.isclose(result, PARAMS.s_max, rel_tol=1e-9)
 
 
 def test_fan_effect_reduces_signal() -> None:
     """Higher fan → weaker per-relation signal."""
-    low_fan = compute_spreading(
-        "target", ["j"], {"j": {"target"}}, {"j": 1}, PARAMS
-    )
-    high_fan = compute_spreading(
-        "target", ["j"], {"j": {"target"}}, {"j": 100}, PARAMS
-    )
+    low_fan = compute_spreading("target", ["j"], {"j": {"target"}}, {"j": 1}, PARAMS)
+    high_fan = compute_spreading("target", ["j"], {"j": {"target"}}, {"j": 100}, PARAMS)
     assert high_fan < low_fan
 
 
 def test_fan_zero_treated_as_one() -> None:
     """Stage 1 convention: missing/zero fan → 1 (avoids ln(0) = -inf)."""
-    result = compute_spreading(
-        "target", ["j"], {"j": {"target"}}, {}, PARAMS
-    )
+    result = compute_spreading("target", ["j"], {"j": {"target"}}, {}, PARAMS)
     assert math.isfinite(result)
     assert math.isclose(result, PARAMS.s_max, rel_tol=1e-9)
 

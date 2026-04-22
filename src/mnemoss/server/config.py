@@ -55,6 +55,27 @@ class ServerConfig:
     # should not be able to probe other customers' workspace names.
     allowed_workspaces: set[str] | None = field(default=None)
 
+    # Per-request hardening. These are deliberately cheap: they reject
+    # an oversized or abusive request at the HTTP layer before it
+    # reaches the memory pipeline, which both protects the server
+    # and gives callers a clean 4xx instead of a hang.
+    #
+    # ``max_content_length_bytes`` is the UTF-8 byte length of the
+    # observe content (``RawMessage.content``). Oversized requests
+    # get a 413 Payload Too Large.
+    #
+    # ``max_recall_k`` caps the ``k`` argument on recall so a caller
+    # can't ask for 100,000 results and tie up the scoring pipeline.
+    #
+    # ``max_metadata_bytes`` limits the JSON-serialized size of the
+    # metadata blob on observe — no key-by-key schema validation, just
+    # a total-size ceiling to prevent accidental megabyte dumps.
+    #
+    # ``None`` on any field disables that specific check.
+    max_content_length_bytes: int | None = 64 * 1024  # 64 KiB
+    max_recall_k: int | None = 100
+    max_metadata_bytes: int | None = 16 * 1024  # 16 KiB
+
     # Background dream scheduler. ``None`` means no scheduler — dreams
     # only run when the caller invokes ``dream()`` explicitly. Setting
     # a ``SchedulerConfig`` starts one DreamScheduler per opened
@@ -81,11 +102,7 @@ class ServerConfig:
         storage_root_raw = os.environ.get("MNEMOSS_STORAGE_ROOT")
         storage_root = Path(storage_root_raw) if storage_root_raw else None
         allowed_raw = os.environ.get("MNEMOSS_ALLOWED_WORKSPACES")
-        allowed = (
-            {s.strip() for s in allowed_raw.split(",") if s.strip()}
-            if allowed_raw
-            else None
-        )
+        allowed = {s.strip() for s in allowed_raw.split(",") if s.strip()} if allowed_raw else None
         scheduler_enabled = os.environ.get("MNEMOSS_SCHEDULER", "").lower() in (
             "1",
             "true",

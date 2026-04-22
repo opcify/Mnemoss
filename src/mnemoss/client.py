@@ -27,14 +27,17 @@ from mnemoss.core.config import (
     StorageParams,
 )
 from mnemoss.core.types import RawMessage, Tombstone
+from mnemoss.dream.cost import CostLedger, CostLimits
 from mnemoss.dream.diary import append_entry, dream_diary_path
 from mnemoss.dream.dispose import DisposalStats, dispose_pass
 from mnemoss.dream.runner import DreamRunner
 from mnemoss.dream.types import DreamReport, TriggerType
 from mnemoss.encoder import Embedder, make_embedder
+from mnemoss.encoder.chunking import split_content
 from mnemoss.encoder.event_encoder import encode_event, should_encode
 from mnemoss.encoder.event_segmentation import ClosedEvent, EventSegmenter
 from mnemoss.export import render_memory_md
+from mnemoss.formula.activation import ActivationBreakdown
 from mnemoss.index import RebalanceStats
 from mnemoss.index import rebalance as _rebalance
 from mnemoss.llm.client import LLMClient
@@ -66,6 +69,7 @@ class Mnemoss:
         storage: StorageParams | None = None,
         segmentation: SegmentationParams | None = None,
         llm: LLMClient | None = None,
+        cost_limits: CostLimits | None = None,
         rng: random.Random | None = None,
     ) -> None:
         self._config = MnemossConfig(
@@ -77,6 +81,12 @@ class Mnemoss:
         )
         self._embedder = make_embedder(embedding_model)
         self._llm = llm
+        # Cost governance — ``cost_limits=None`` means unlimited
+        # (historical behavior). The ledger is lazily bound to the
+        # store on ``_ensure_open`` so its persistence lives in the
+        # same workspace DB as the memories it's counting calls for.
+        self._cost_limits = cost_limits or CostLimits()
+        self._cost_ledger: CostLedger | None = None
         self._store: SQLiteBackend | None = None
         self._working = WorkingMemory(capacity=self._config.encoder.working_memory_capacity)
         self._engine: RecallEngine | None = None
@@ -92,6 +102,41 @@ class Mnemoss:
         self._last_dream_trigger: str | None = None
         self._last_rebalance_at: datetime | None = None
         self._last_dispose_at: datetime | None = None
+        # Bounded in-memory history of recent dream runs surfaced via
+        # ``status()``. Holds lightweight summaries, not full
+        # ``DreamReport``s, to keep the dashboard payload small.
+        self._dream_history: list[dict[str, Any]] = []
+        self._dream_history_cap = 10
+
+    @classmethod
+    def from_config_file(
+        cls,
+        workspace: str,
+        *,
+        path: str | None = None,
+        **overrides: Any,
+    ) -> Mnemoss:
+        """Construct a ``Mnemoss`` from a ``mnemoss.toml``.
+
+        The file supplies ``embedding_model`` and ``llm``; other keyword
+        arguments can be passed through ``**overrides`` to override or
+        complement it. Raises if no config file is found.
+        """
+
+        from mnemoss.core.config_file import load_config_file
+
+        cfg = load_config_file(path)
+        if cfg is None:
+            raise FileNotFoundError(
+                "No mnemoss config file found. Set MNEMOSS_CONFIG, create "
+                "./mnemoss.toml, or ~/.mnemoss/config.toml, or pass path=."
+            )
+        kwargs: dict[str, Any] = {
+            "embedding_model": cfg.build_embedder(),
+            "llm": cfg.build_llm(),
+        }
+        kwargs.update(overrides)
+        return cls(workspace=workspace, **kwargs)
 
     # ─── public API ───────────────────────────────────────────────────
 
@@ -208,7 +253,7 @@ class Mnemoss:
         memory_id: str,
         *,
         agent_id: str | None = None,
-    ):
+    ) -> ActivationBreakdown | None:
         """Return the ``ActivationBreakdown`` for a specific memory (no reconsolidation)."""
 
         await self._ensure_open()
@@ -325,9 +370,7 @@ class Mnemoss:
         )
         return stats
 
-    async def tombstones(
-        self, *, agent_id: str | None = None, limit: int = 100
-    ) -> list[Tombstone]:
+    async def tombstones(self, *, agent_id: str | None = None, limit: int = 100) -> list[Tombstone]:
         """Return recent tombstones, newest first, scoped the same way as
         recall (agent + ambient, or ambient only)."""
 
@@ -394,17 +437,22 @@ class Mnemoss:
             self._config.formula,
             llm=self._llm,
             embedder=self._embedder,
+            cost_limits=self._cost_limits,
+            cost_ledger=self._cost_ledger,
         )
         report = await runner.run(TriggerType(trigger), agent_id=agent_id)
 
         # Dream Diary (§2.5) — append a Markdown audit entry for this run.
-        diary_path = dream_diary_path(
-            self._config.storage.resolve_root(), self._config.workspace
-        )
+        diary_path = dream_diary_path(self._config.storage.resolve_root(), self._config.workspace)
         append_entry(diary_path, report)
         report.diary_path = diary_path
         self._last_dream_at = report.finished_at
         self._last_dream_trigger = report.trigger.value
+        # Bounded history surfaced via status() so operators see recent
+        # pipeline health without cracking open the dream diary.
+        self._dream_history.append(_summarize_dream(report))
+        if len(self._dream_history) > self._dream_history_cap:
+            self._dream_history = self._dream_history[-self._dream_history_cap :]
         _log.info(
             "dream",
             extra={
@@ -430,9 +478,7 @@ class Mnemoss:
 
         await self._ensure_open()
         assert self._store is not None
-        memories = await self._store.list_memories_for_export(
-            agent_id, min_idx_priority=0.0
-        )
+        memories = await self._store.list_memories_for_export(agent_id, min_idx_priority=0.0)
         pinned = await self._store.pinned_ids_in_scope(agent_id)
         return render_memory_md(
             memories,
@@ -445,7 +491,8 @@ class Mnemoss:
         """Return a snapshot of the workspace's operational state.
 
         Provides everything an observability dashboard needs without
-        a full scan: counts, timestamps, embedder info, schema version.
+        a full scan: counts, timestamps, embedder info, schema version,
+        recent dream activity, and the LLM cost ledger.
         """
 
         await self._ensure_open()
@@ -454,6 +501,29 @@ class Mnemoss:
         tier_counts = {tier.value: count for tier, count in tier_counts_raw.items()}
         memory_count = sum(tier_counts.values())
         tombstone_count = await self._store.count_tombstones()
+
+        # Cost + dream-health summary. Both are cheap reads:
+        # - Cost ledger is three workspace_meta rows.
+        # - Dream history is in-memory, bounded at 10 entries.
+        cost_block: dict[str, Any] = {
+            "today_calls": 0,
+            "month_calls": 0,
+            "total_calls": 0,
+            "limits": _cost_limits_to_dict(self._cost_limits),
+        }
+        if self._cost_ledger is not None:
+            snap = self._cost_ledger.snapshot()
+            cost_block["today_calls"] = snap.today_calls
+            cost_block["month_calls"] = snap.month_calls
+            cost_block["total_calls"] = snap.total_calls
+
+        recent_dreams = list(self._dream_history)
+        dream_block: dict[str, Any] = {
+            "recent": recent_dreams,
+            "recent_count": len(recent_dreams),
+            "recent_degraded_count": sum(1 for d in recent_dreams if d["degraded"]),
+        }
+
         return {
             "workspace": self._config.workspace,
             "schema_version": SCHEMA_VERSION,
@@ -465,32 +535,37 @@ class Mnemoss:
             "tier_counts": tier_counts,
             "tombstone_count": tombstone_count,
             "last_observe_at": (
-                self._last_observe_at.isoformat()
-                if self._last_observe_at is not None
-                else None
+                self._last_observe_at.isoformat() if self._last_observe_at is not None else None
             ),
             "last_dream_at": (
-                self._last_dream_at.isoformat()
-                if self._last_dream_at is not None
-                else None
+                self._last_dream_at.isoformat() if self._last_dream_at is not None else None
             ),
             "last_dream_trigger": self._last_dream_trigger,
             "last_rebalance_at": (
-                self._last_rebalance_at.isoformat()
-                if self._last_rebalance_at is not None
-                else None
+                self._last_rebalance_at.isoformat() if self._last_rebalance_at is not None else None
             ),
             "last_dispose_at": (
-                self._last_dispose_at.isoformat()
-                if self._last_dispose_at is not None
-                else None
+                self._last_dispose_at.isoformat() if self._last_dispose_at is not None else None
             ),
+            "llm_cost": cost_block,
+            "dreams": dream_block,
         }
 
     # ─── internal ─────────────────────────────────────────────────────
 
     async def _persist_event(self, event: ClosedEvent) -> None:
-        """Write one closed event as a Memory + embedding + edges."""
+        """Write one closed event as Memory row(s) + embeddings + edges.
+
+        Normal path: one Memory row per event. Long-content path:
+        when ``encoder.max_memory_chars`` is set and the event's
+        encoded content exceeds it, the content is split at the
+        nearest natural boundary and each chunk becomes its own
+        Memory row. Raw Log stays 1-to-1 with ``observe()``; chunks
+        share ``source_message_ids`` and carry a
+        ``source_context.split_part = {"index": i, "total": n,
+        "group_id": <first_chunk_id>}`` marker so callers can
+        de-duplicate in recall if they want.
+        """
 
         assert self._store is not None
         memory = encode_event(
@@ -499,14 +574,90 @@ class Mnemoss:
             now=event.closed_at,
             formula=self._config.formula,
         )
-        embedding = (
-            await asyncio.to_thread(self._embedder.embed, [memory.content])
-        )[0]
-        await self._store.write_memory(memory, embedding)
-        await write_cooccurrence_edges(
-            self._store, memory.id, memory.session_id or "default", self._config.encoder
+
+        cap = self._config.encoder.max_memory_chars
+        if cap is None or len(memory.content) <= cap:
+            # Happy path — one event, one Memory.
+            embedding = (
+                await asyncio.to_thread(self._embedder.embed, [memory.content])
+            )[0]
+            await self._store.write_memory(memory, embedding)
+            await write_cooccurrence_edges(
+                self._store,
+                memory.id,
+                memory.session_id or "default",
+                self._config.encoder,
+            )
+            self._working.append(memory.agent_id, memory.id)
+            return
+
+        # Long-content path: split + emit N memories.
+        chunks = split_content(memory.content, cap)
+        if len(chunks) == 1:
+            # ``split_content`` returned the content unchanged (fits
+            # the cap after all). Fall back to the single-row path.
+            embedding = (
+                await asyncio.to_thread(self._embedder.embed, [memory.content])
+            )[0]
+            await self._store.write_memory(memory, embedding)
+            await write_cooccurrence_edges(
+                self._store,
+                memory.id,
+                memory.session_id or "default",
+                self._config.encoder,
+            )
+            self._working.append(memory.agent_id, memory.id)
+            return
+
+        # Batch-embed all chunks so the embedder can amortize setup
+        # over the whole list (materially faster for LocalEmbedder).
+        embeddings = await asyncio.to_thread(self._embedder.embed, chunks)
+        total = len(chunks)
+        group_id = memory.id  # first chunk keeps the original event id
+        for i, (chunk, emb) in enumerate(zip(chunks, embeddings, strict=True)):
+            chunk_memory = self._chunk_memory(memory, chunk, i, total, group_id)
+            await self._store.write_memory(chunk_memory, emb)
+            await write_cooccurrence_edges(
+                self._store,
+                chunk_memory.id,
+                chunk_memory.session_id or "default",
+                self._config.encoder,
+            )
+            self._working.append(chunk_memory.agent_id, chunk_memory.id)
+
+    def _chunk_memory(
+        self,
+        template: Any,
+        chunk_content: str,
+        index: int,
+        total: int,
+        group_id: str,
+    ) -> Any:
+        """Derive a chunk Memory from a template.
+
+        The first chunk reuses the template's id so any Raw Log
+        ``source_message_ids`` cross-references that the segmenter
+        emitted stay valid. Subsequent chunks get fresh ULIDs but
+        share the group id in ``source_context`` so callers can
+        recognize the relationship on recall.
+        """
+
+        from dataclasses import replace
+
+        chunk_id = template.id if index == 0 else str(ulid.new())
+        return replace(
+            template,
+            id=chunk_id,
+            content=chunk_content,
+            source_context={
+                **template.source_context,
+                "split_part": {
+                    "index": index,
+                    "total": total,
+                    "group_id": group_id,
+                },
+            },
         )
-        self._working.append(memory.agent_id, memory.id)
 
     async def _ensure_open(self) -> None:
         if self._store is not None:
@@ -514,12 +665,8 @@ class Mnemoss:
         async with self._open_lock:
             if self._store is not None:
                 return
-            db_path = workspace_db_path(
-                self._config.storage.root, self._config.workspace
-            )
-            raw_path = raw_log_db_path(
-                self._config.storage.root, self._config.workspace
-            )
+            db_path = workspace_db_path(self._config.storage.root, self._config.workspace)
+            raw_path = raw_log_db_path(self._config.storage.root, self._config.workspace)
             store = SQLiteBackend(
                 db_path=db_path,
                 raw_log_path=raw_path,
@@ -542,6 +689,9 @@ class Mnemoss:
                 rng=self._rng,
             )
             self._store = store
+            # Bind the cost ledger to the open connection — persistence
+            # lives in workspace_meta so call counts survive restarts.
+            self._cost_ledger = CostLedger(store._require_conn())
 
 
 class AgentHandle:
@@ -590,10 +740,10 @@ class AgentHandle:
     async def pin(self, memory_id: str) -> None:
         await self._mem.pin(memory_id, agent_id=self._agent_id)
 
-    async def explain_recall(self, query: str, memory_id: str):
-        return await self._mem.explain_recall(
-            query, memory_id, agent_id=self._agent_id
-        )
+    async def explain_recall(
+        self, query: str, memory_id: str
+    ) -> ActivationBreakdown | None:
+        return await self._mem.explain_recall(query, memory_id, agent_id=self._agent_id)
 
     async def expand(
         self,
@@ -613,3 +763,43 @@ class AgentHandle:
 
     async def export_markdown(self) -> str:
         return await self._mem.export_markdown(agent_id=self._agent_id)
+
+
+# ─── status() helpers ────────────────────────────────────────────
+
+
+def _summarize_dream(report: DreamReport) -> dict[str, Any]:
+    """Lightweight summary of a ``DreamReport`` for ``status()``.
+
+    Keeps only the fields an operator dashboard actually renders —
+    the full report lives in the dream diary for deep inspection.
+    """
+
+    return {
+        "trigger": report.trigger.value,
+        "started_at": report.started_at.isoformat(),
+        "finished_at": report.finished_at.isoformat(),
+        "duration_seconds": report.duration_seconds(),
+        "degraded": report.degraded_mode,
+        "phase_statuses": {
+            o.phase.value: o.status for o in report.outcomes
+        },
+        "errors": [
+            {"phase": o.phase.value, "error": o.error}
+            for o in report.errors()
+        ],
+    }
+
+
+def _cost_limits_to_dict(limits: CostLimits) -> dict[str, int | None]:
+    """Serialize ``CostLimits`` for ``status()``.
+
+    ``None`` fields are kept as-is to signal "no cap for this
+    dimension" — clearer than omitting the key entirely.
+    """
+
+    return {
+        "max_llm_calls_per_run": limits.max_llm_calls_per_run,
+        "max_llm_calls_per_day": limits.max_llm_calls_per_day,
+        "max_llm_calls_per_month": limits.max_llm_calls_per_month,
+    }

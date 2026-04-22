@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from mnemoss.dream.types import DreamReport, PhaseName
 
@@ -24,13 +25,7 @@ log = logging.getLogger(__name__)
 def dream_diary_path(storage_root: Path, workspace: str) -> Path:
     """Return the per-workspace, per-day diary path (doesn't create dirs)."""
 
-    return (
-        storage_root
-        / "workspaces"
-        / workspace
-        / "dreams"
-        / "diary.md"
-    )
+    return storage_root / "workspaces" / workspace / "dreams" / "diary.md"
 
 
 def render_dream_entry(report: DreamReport) -> str:
@@ -57,7 +52,7 @@ def render_dream_entry(report: DreamReport) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_details(phase: PhaseName, details: dict) -> list[str]:
+def _render_details(phase: PhaseName, details: dict[str, Any]) -> list[str]:
     """Format phase-specific details as a Markdown list.
 
     The replay phase's ``memories`` list is noisy — emit only the count

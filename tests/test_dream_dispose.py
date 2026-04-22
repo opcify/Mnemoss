@@ -74,9 +74,7 @@ async def test_activation_dead_memory_disposed(tmp_path: Path) -> None:
     )
     await b.write_memory(ancient, np.array([1, 0, 0, 0], dtype=np.float32))
 
-    stats = await dispose_pass(
-        b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC)
-    )
+    stats = await dispose_pass(b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC))
     assert stats.disposed == 1
     assert stats.activation_dead == 1
     assert "ancient" in stats.disposed_ids
@@ -120,9 +118,7 @@ async def test_high_salience_memory_protected(tmp_path: Path) -> None:
     )
     await b.write_memory(old, np.array([1, 0, 0, 0], dtype=np.float32))
 
-    stats = await dispose_pass(
-        b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC)
-    )
+    stats = await dispose_pass(b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC))
     assert stats.disposed == 0
     assert stats.protected == 1
     await b.close()
@@ -138,9 +134,7 @@ async def test_pinned_memory_protected(tmp_path: Path) -> None:
     await b.write_memory(old, np.array([1, 0, 0, 0], dtype=np.float32))
     await b.pin("pinned", agent_id=None)
 
-    stats = await dispose_pass(
-        b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC)
-    )
+    stats = await dispose_pass(b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC))
     assert stats.disposed == 0
     assert stats.protected == 1
     await b.close()
@@ -189,9 +183,7 @@ async def test_dispose_writes_gist_snapshot(tmp_path: Path) -> None:
     m.extracted_gist = "a short gist"
     await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
 
-    await dispose_pass(
-        b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC)
-    )
+    await dispose_pass(b, FormulaParams(), now=datetime(2026, 4, 21, tzinfo=UTC))
     tomb = await b.list_tombstones(limit=5)
     assert len(tomb) == 1
     # Prefers extracted_gist over raw content snapshot.

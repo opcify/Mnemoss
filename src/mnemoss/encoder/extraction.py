@@ -1,24 +1,26 @@
-"""Heuristic lazy extraction (Stage 3).
+"""Heuristic lazy extraction (level=1).
 
 Fills ``extracted_*`` fields on a Memory using rule-based tools, not
-LLMs. Stage 4's Dreaming P4 (Refine) will later replace these values
-with LLM output and bump ``extraction_level`` to 2.
+LLMs. Dream P3 Consolidate also refines ``gist`` and ``time`` at
+level=2 using the LLM.
 
-Current heuristics:
+What level-1 heuristics fill:
 
 - ``gist``: first sentence (split on .!?…。！？), capped at 100 chars.
-- ``entities``: de-duplicated Latin-script Title-Case tokens that aren't
-  common stopwords.
 - ``time``: first parseable date/time found anywhere in the content,
   via ``dateparser.search.search_dates``. Handles 200+ languages.
-- ``location`` / ``participants``: Stage 3 leaves these ``None`` —
-  distinguishing a person from a place or finding locations without NER
-  is the kind of thing Stage 5's multilingual NER pass will do
-  properly.
 
-All signals are pure and cheap; the whole extraction finishes in a
-millisecond or two on typical content. Heuristic failures stay silent
-(return ``None``) so a partial fill still counts as ``level=1``.
+What stays ``None`` everywhere:
+
+- ``entities`` / ``location`` / ``participants``. NER is intentionally
+  not wired into Mnemoss at any stage (see
+  MNEMOSS_PROJECT_KNOWLEDGE.md §9.7 for rationale). The fields exist
+  on the Memory dataclass so callers can populate them manually if
+  they already have entity information.
+
+All heuristic signals are pure and cheap; the whole extraction
+finishes in a millisecond or two on typical content. Failures stay
+silent (return ``None``) so a partial fill still counts as ``level=1``.
 
 If ``dateparser`` isn't installed (e.g. lightweight test env), time
 extraction degrades to ``None`` without raising.
@@ -29,8 +31,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-
-from mnemoss.formula.query_bias import _EN_TITLECASE_STOPWORDS, _WORD_RE
 
 UTC = timezone.utc
 
@@ -49,10 +49,10 @@ class ExtractionFields:
 
 
 def extract_heuristic(content: str) -> ExtractionFields:
-    """Run every heuristic signal; return a partial-fill ExtractionFields.
+    """Run the level-1 heuristic signals and return a partial fill.
 
-    level is always 1 for this function (heuristic); Stage 4's LLM
-    refinement sets level=2.
+    level is always 1 for this function; Dream P3 Consolidate sets
+    level=2 with LLM-grade entities / location / participants.
     """
 
     text = content.strip()
@@ -61,7 +61,7 @@ def extract_heuristic(content: str) -> ExtractionFields:
 
     return ExtractionFields(
         gist=_extract_gist(text),
-        entities=_extract_entities(text) or None,
+        entities=None,
         time=_extract_time(text),
         location=None,
         participants=None,
@@ -75,23 +75,6 @@ def _extract_gist(text: str) -> str | None:
     parts = _SENTENCE_SPLIT_RE.split(text, maxsplit=1)
     first = parts[0].strip() if parts and parts[0].strip() else text
     return first[:100]
-
-
-def _extract_entities(text: str) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for token in _WORD_RE.findall(text):
-        if token.isupper():
-            continue
-        if not token[0].isupper():
-            continue
-        if token.lower() in _EN_TITLECASE_STOPWORDS:
-            continue
-        if token in seen:
-            continue
-        seen.add(token)
-        out.append(token)
-    return out
 
 
 def _extract_time(text: str) -> datetime | None:
@@ -118,7 +101,8 @@ def _extract_time(text: str) -> datetime | None:
     # source substring must contain at least one digit. "no date" /
     # "the plan" / other English phrases that dateparser sometimes maps
     # to dates would otherwise leak through.
-    for original, dt in results:
+    for original, dt_untyped in results:
+        dt: datetime = dt_untyped
         if not any(c.isdigit() for c in original):
             continue
         if dt.tzinfo is None:

@@ -1,5 +1,5 @@
 """Embedder tests: FakeEmbedder deterministic, LocalEmbedder integration-marked,
-OpenAIEmbedder mocked via the openai SDK.
+OpenAIEmbedder / GeminiEmbedder mocked via their respective SDKs.
 """
 
 from __future__ import annotations
@@ -10,9 +10,12 @@ import numpy as np
 import pytest
 
 from mnemoss.encoder.embedder import (
+    DEFAULT_GEMINI_DIM,
+    DEFAULT_GEMINI_MODEL,
     DEFAULT_LOCAL_DIM,
     DEFAULT_OPENAI_DIM,
     FakeEmbedder,
+    GeminiEmbedder,
     LocalEmbedder,
     OpenAIEmbedder,
     make_embedder,
@@ -59,6 +62,29 @@ def test_make_embedder_openai_requires_key(monkeypatch: pytest.MonkeyPatch) -> N
         make_embedder("openai")
 
 
+def test_make_embedder_gemini_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+        make_embedder("gemini")
+
+
+def test_make_embedder_gemini_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    e = make_embedder("gemini")
+    assert isinstance(e, GeminiEmbedder)
+    assert e.dim == DEFAULT_GEMINI_DIM
+    assert e.embedder_id == f"gemini:{DEFAULT_GEMINI_MODEL}:{DEFAULT_GEMINI_DIM}"
+
+
+def test_make_embedder_gemini_explicit_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    e = make_embedder("gemini:text-embedding-004")
+    assert isinstance(e, GeminiEmbedder)
+    # Unknown model → dim resolved at first embed.
+    assert e.dim == -1
+
+
 def test_make_embedder_passthrough_instance() -> None:
     e = FakeEmbedder()
     assert make_embedder(e) is e
@@ -85,6 +111,57 @@ def test_openai_embedder_mocked(monkeypatch: pytest.MonkeyPatch) -> None:
     assert vectors.shape == (2, DEFAULT_OPENAI_DIM)
     assert vectors.dtype == np.float32
     mock_client.embeddings.create.assert_called_once()
+
+
+def test_gemini_embedder_mocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "gk-test")
+    embedder = GeminiEmbedder()
+    assert embedder.dim == DEFAULT_GEMINI_DIM
+
+    mock_client = MagicMock()
+    mock_embeddings = [MagicMock(values=[0.1] * DEFAULT_GEMINI_DIM) for _ in range(2)]
+    mock_client.models.embed_content.return_value = MagicMock(embeddings=mock_embeddings)
+
+    with patch.object(embedder, "_client", mock_client):
+        vectors = embedder.embed(["hello", "world"])
+
+    assert vectors.shape == (2, DEFAULT_GEMINI_DIM)
+    assert vectors.dtype == np.float32
+    call_kwargs = mock_client.models.embed_content.call_args.kwargs
+    assert call_kwargs["model"] == DEFAULT_GEMINI_MODEL
+    assert call_kwargs["contents"] == ["hello", "world"]
+    # Native-dim calls skip the config (no MRL truncation).
+    assert "config" not in call_kwargs
+
+
+def test_gemini_embedder_mrl_renormalizes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Truncated-MRL outputs come back un-normalized; embedder must renormalize."""
+    monkeypatch.setenv("GEMINI_API_KEY", "gk-test")
+    embedder = GeminiEmbedder(dim=768)
+    assert embedder.dim == 768
+
+    # Simulate the API returning raw (un-normalized) 768-d vectors.
+    raw = [[3.0] + [0.0] * 767, [0.0, 4.0] + [0.0] * 766]
+    mock_client = MagicMock()
+    mock_embeddings = [MagicMock(values=v) for v in raw]
+    mock_client.models.embed_content.return_value = MagicMock(embeddings=mock_embeddings)
+
+    with patch.object(embedder, "_client", mock_client):
+        vectors = embedder.embed(["a", "b"])
+
+    assert vectors.shape == (2, 768)
+    norms = np.linalg.norm(vectors, axis=1)
+    assert np.allclose(norms, 1.0, atol=1e-5)
+    # Truncated-dim call must pass an EmbedContentConfig via `config`.
+    assert "config" in mock_client.models.embed_content.call_args.kwargs
+
+
+def test_gemini_embedder_handles_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "gk-test")
+    embedder = GeminiEmbedder()
+    v = embedder.embed([])
+    assert v.shape == (0, DEFAULT_GEMINI_DIM)
+    assert v.dtype == np.float32
 
 
 @pytest.mark.integration

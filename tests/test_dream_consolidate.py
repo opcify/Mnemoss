@@ -78,6 +78,7 @@ def _mem(
 
 # ─── prompt shape ──────────────────────────────────────────────────
 
+
 def test_prompt_includes_members_roles_and_existing_extractions() -> None:
     members = [
         _mem("m1", "Alice likes coffee", gist="existing gist"),
@@ -97,6 +98,7 @@ def test_prompt_includes_members_roles_and_existing_extractions() -> None:
 
 
 # ─── happy-path consolidation ─────────────────────────────────────
+
 
 async def test_consolidate_returns_summary_refinements_and_patterns() -> None:
     llm = MockLLMClient(
@@ -148,18 +150,22 @@ async def test_consolidate_returns_summary_refinements_and_patterns() -> None:
     assert result.summary.abstraction_level == 0.65
     assert result.summary.derived_from == ["m1", "m2"]
     assert result.summary.source_context["extracted_by"] == "dream_consolidate"
-    assert result.summary.source_context["aliases"] == ["coffee fact"]
 
     assert len(result.refinements) == 2
     r0 = result.refinements[0]
     assert r0.member_index == 0
     assert r0.fields.level == 2
     assert r0.fields.gist == "Alice liked coffee"
+    # NER is intentionally not populated — entities/location/participants
+    # stay None even at level=2 (see MNEMOSS_PROJECT_KNOWLEDGE.md §9.7).
+    assert r0.fields.entities is None
+    assert r0.fields.location is None
+    assert r0.fields.participants is None
     r1 = result.refinements[1]
     assert r1.member_index == 1
     assert r1.fields.time is not None
     assert r1.fields.time.year == 2026
-    assert r1.fields.location == "cafe"
+    assert r1.fields.location is None
 
     assert len(result.patterns) == 1
     p = result.patterns[0]
@@ -171,11 +177,10 @@ async def test_consolidate_returns_summary_refinements_and_patterns() -> None:
 
 # ─── edge cases ────────────────────────────────────────────────────
 
+
 async def test_consolidate_singleton_cluster_returns_empty_without_calling_llm() -> None:
     llm = MockLLMClient()
-    result = await consolidate_cluster(
-        [_mem("m1", "solo")], llm, FormulaParams()
-    )
+    result = await consolidate_cluster([_mem("m1", "solo")], llm, FormulaParams())
     assert result.is_empty
     assert llm.calls == []
 
@@ -428,6 +433,7 @@ async def test_consolidate_salience_summary_takes_max_of_members() -> None:
 
 # ─── end-to-end via the runner ─────────────────────────────────────
 
+
 def _mnemoss(tmp_path: Path, **kwargs) -> Mnemoss:
     return Mnemoss(
         workspace="consolidate",
@@ -530,7 +536,7 @@ async def test_runner_consolidate_skipped_without_llm(tmp_path: Path) -> None:
         consolidate = report.outcome(PhaseName.CONSOLIDATE)
         assert consolidate is not None
         assert consolidate.status == "skipped"
-        assert "llm" in consolidate.details.get("reason", "").lower()
+        assert "llm" in (consolidate.skip_reason or "").lower()
     finally:
         await mem.close()
 

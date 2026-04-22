@@ -244,9 +244,7 @@ async def test_auth_flows_end_to_end(tmp_path: Path) -> None:
             await bad.close()
 
         # Correct key → ok.
-        good = MnemossClient(
-            "http://testserver", api_key="s3cret", transport=transport
-        )
+        good = MnemossClient("http://testserver", api_key="s3cret", transport=transport)
         try:
             mid = await good.workspace("ws").observe(role="user", content="ok")
             assert mid is not None

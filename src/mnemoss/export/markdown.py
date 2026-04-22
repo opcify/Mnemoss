@@ -56,11 +56,7 @@ def render_memory_md(
     pinned = pinned_ids or set()
 
     def _keep(m: Memory) -> bool:
-        return (
-            m.idx_priority >= min_idx_priority
-            or m.id in pinned
-            or m.salience > salience_floor
-        )
+        return m.idx_priority >= min_idx_priority or m.id in pinned or m.salience > salience_floor
 
     kept = [m for m in memories if _keep(m)]
     kept.sort(

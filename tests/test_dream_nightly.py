@@ -180,9 +180,7 @@ async def test_phase_name_enum_has_the_six_post_merge_phases() -> None:
     "trigger",
     ["idle", "session_end", "surprise", "cognitive_load", "nightly"],
 )
-async def test_all_triggers_dispatch_without_error(
-    tmp_path: Path, trigger: str
-) -> None:
+async def test_all_triggers_dispatch_without_error(tmp_path: Path, trigger: str) -> None:
     mock = MockLLMClient(callback=_canned)
     mem = _mnemoss(tmp_path, llm=mock)
     try:

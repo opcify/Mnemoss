@@ -1,4 +1,4 @@
-"""Heuristic salience scoring (Stage 3).
+"""Heuristic salience scoring.
 
 A rule-based multi-signal score in ``[0, 1]`` that fills
 ``Memory.salience`` at encode time. The formula uses salience via
@@ -9,7 +9,11 @@ Signals (each normalized to ``[0, 1]``):
 
 - **punctuation**: ``?``, ``!``, ``…``, ``...`` indicate question
   density or emphasis.
-- **proper_nouns**: 0, 1, or 2+ Latin-script Title-Case tokens.
+- **proper_nouns**: 0, 1, or 2+ Latin-script Title-Case tokens. This
+  signal is structurally Latin-only — non-Latin scripts score 0 here
+  and rely on the other four. The proper-noun rule lives inside
+  salience rather than the query-bias module because salience is the
+  only consumer; the query-bias path stays fully language-neutral.
 - **numeric_temporal**: any time/date/multi-digit number present.
 - **length_band**: short messages ("ok") are low-info; medium messages
   are peak; very long messages get a slight rambling penalty.
@@ -19,22 +23,91 @@ Signals (each normalized to ``[0, 1]``):
 Signals are averaged (equal weights) and clamped. Each signal is pure
 and deterministic; no language model, no stateful vocabulary. The whole
 function runs in microseconds.
-
-Non-Latin-script content (Chinese, Japanese, Arabic) currently scores
-zero on the proper-nouns signal — it relies on the other four. A
-proper multilingual NER pass is Stage 5+.
 """
 
 from __future__ import annotations
 
 import re
 
-from mnemoss.formula.query_bias import (
-    _DATE_RE,
-    _EN_TITLECASE_STOPWORDS,
-    _NUMBER_RE,
-    _TIME_RE,
-    _WORD_RE,
+from mnemoss.formula.query_bias import _DATE_RE, _NUMBER_RE, _TIME_RE
+
+# Latin-script word: ≥ 3 characters, allows accented letters so French /
+# Spanish / German proper nouns (Élise, Señor, Müller) still match.
+_WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ][a-zà-öø-ÿ]{2,}")
+
+# Common English stopwords that are often Title-Cased at sentence start;
+# excluded from proper-noun counting so "The plan" doesn't register.
+_EN_TITLECASE_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "being",
+        "but",
+        "by",
+        "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "his",
+        "how",
+        "i",
+        "if",
+        "in",
+        "is",
+        "it",
+        "its",
+        "may",
+        "might",
+        "must",
+        "my",
+        "no",
+        "not",
+        "of",
+        "on",
+        "or",
+        "our",
+        "should",
+        "so",
+        "such",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "these",
+        "they",
+        "this",
+        "those",
+        "to",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "why",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your",
+    }
 )
 
 _EMPHASIS_CHARS = ("?", "!", "…")
@@ -85,11 +158,7 @@ def _proper_noun_signal(text: str) -> float:
 
 
 def _numeric_signal(text: str) -> float:
-    if (
-        _TIME_RE.search(text)
-        or _DATE_RE.search(text)
-        or _NUMBER_RE.search(text)
-    ):
+    if _TIME_RE.search(text) or _DATE_RE.search(text) or _NUMBER_RE.search(text):
         return 1.0
     return 0.0
 

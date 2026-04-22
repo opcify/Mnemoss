@@ -35,7 +35,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
-from mnemoss import __version__
+from mnemoss import Mnemoss, __version__
 from mnemoss.server import metrics
 from mnemoss.server.auth import verify_api_key
 from mnemoss.server.config import ServerConfig
@@ -110,6 +110,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         request: Request,
         agent_id: str | None = None,
     ) -> ObserveResponse:
+        _enforce_observe_limits(request, body)
         mem = await _resolve(request, workspace_id)
         start = time.perf_counter()
         memory_id = await mem.observe(
@@ -141,6 +142,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         request: Request,
         agent_id: str | None = None,
     ) -> RecallResponse:
+        _enforce_recall_limits(request, body)
         mem = await _resolve(request, workspace_id)
         start = time.perf_counter()
         results = await mem.recall(
@@ -150,9 +152,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             include_deep=body.include_deep,
             auto_expand=body.auto_expand,
         )
-        metrics.record_recall(
-            workspace_id, duration=time.perf_counter() - start
-        )
+        metrics.record_recall(workspace_id, duration=time.perf_counter() - start)
         return RecallResponse(
             results=[recall_result_to_dto(r) for r in results],
         )
@@ -188,9 +188,12 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> ExplainResponse:
         mem = await _resolve(request, workspace_id)
-        breakdown = await mem.explain_recall(
-            body.query, body.memory_id, agent_id=agent_id
-        )
+        breakdown = await mem.explain_recall(body.query, body.memory_id, agent_id=agent_id)
+        if breakdown is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Memory not found: {body.memory_id}",
+            )
         return ExplainResponse(breakdown=breakdown_to_dto(breakdown))
 
     # ─── expand (explicit) ──────────────────────────────────────
@@ -326,9 +329,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> ExportMarkdownResponse:
         mem = await _resolve(request, workspace_id)
-        md = await mem.export_markdown(
-            agent_id=agent_id, min_idx_priority=body.min_idx_priority
-        )
+        md = await mem.export_markdown(agent_id=agent_id, min_idx_priority=body.min_idx_priority)
         return ExportMarkdownResponse(markdown=md)
 
     # ─── flush_session ──────────────────────────────────────────
@@ -380,7 +381,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
 # ─── helpers ─────────────────────────────────────────────────────
 
 
-async def _resolve(request: Request, workspace_id: str):
+async def _resolve(request: Request, workspace_id: str) -> Mnemoss:
     """Pull the workspace instance out of the pool, mapping allow-list
     violations to a 403."""
 
@@ -392,3 +393,53 @@ async def _resolve(request: Request, workspace_id: str):
             status_code=403,
             detail=f"Workspace not allowed: {exc}",
         ) from exc
+
+
+def _enforce_observe_limits(request: Request, body: ObserveRequest) -> None:
+    """Reject oversized observe payloads with a clean 413 / 422.
+
+    Runs before ``Mnemoss.observe`` so the caller sees a clear HTTP
+    error rather than a hung request or a useless 500.
+    """
+
+    config: ServerConfig = request.app.state.config
+    if config.max_content_length_bytes is not None:
+        content_bytes = len(body.content.encode("utf-8"))
+        if content_bytes > config.max_content_length_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"content exceeds max size: {content_bytes} > "
+                    f"{config.max_content_length_bytes} bytes"
+                ),
+            )
+    if config.max_metadata_bytes is not None and body.metadata:
+        import json
+
+        metadata_bytes = len(json.dumps(body.metadata).encode("utf-8"))
+        if metadata_bytes > config.max_metadata_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"metadata exceeds max size: {metadata_bytes} > "
+                    f"{config.max_metadata_bytes} bytes"
+                ),
+            )
+
+
+def _enforce_recall_limits(request: Request, body: RecallRequest) -> None:
+    """Reject oversized ``k`` on recall with a 422.
+
+    A caller asking for ``k=100_000`` would tie up scoring for no
+    practical reason. Capping here is cheaper and clearer than letting
+    the request tunnel through and return slowly.
+    """
+
+    config: ServerConfig = request.app.state.config
+    if config.max_recall_k is not None and body.k > config.max_recall_k:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"k={body.k} exceeds max allowed: {config.max_recall_k}"
+            ),
+        )

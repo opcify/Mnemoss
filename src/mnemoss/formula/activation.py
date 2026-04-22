@@ -44,6 +44,27 @@ class ActivationBreakdown:
     w_s: float
     query_bias: float
 
+    def to_dict(self) -> dict[str, float]:
+        """JSON-safe view of the breakdown.
+
+        Useful for ``explain_recall`` callers who want to ship the
+        decomposition over the wire (REST response, MCP tool result,
+        structured log field) without reaching for ``dataclasses.asdict``
+        and its surprising behavior on nested dataclasses.
+        """
+
+        return {
+            "base_level": self.base_level,
+            "spreading": self.spreading,
+            "matching": self.matching,
+            "noise": self.noise,
+            "total": self.total,
+            "idx_priority": self.idx_priority,
+            "w_f": self.w_f,
+            "w_s": self.w_s,
+            "query_bias": self.query_bias,
+        }
+
 
 def compute_activation(
     memory: Memory,
@@ -65,9 +86,7 @@ def compute_activation(
     """
 
     b = compute_base_level(memory.access_history, now, memory.created_at, params)
-    idx_priority = compute_idx_priority(
-        b, memory.salience, memory.emotional_weight, pinned, params
-    )
+    idx_priority = compute_idx_priority(b, memory.salience, memory.emotional_weight, pinned, params)
 
     spread = compute_spreading(memory.id, active_set, relations_from, fan_of, params)
 

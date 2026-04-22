@@ -163,9 +163,7 @@ class DreamScheduler:
         if idle_seconds < threshold:
             return False
         # Fire only if a new observe has happened since the last idle fire.
-        return (
-            self._last_idle_fire_at is None or last_obs > self._last_idle_fire_at
-        )
+        return self._last_idle_fire_at is None or last_obs > self._last_idle_fire_at
 
     # ─── introspection ──────────────────────────────────────────
 

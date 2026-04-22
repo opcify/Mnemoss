@@ -94,9 +94,7 @@ def test_dream_increments_dreams_total_with_trigger_label(
     tmp_path: Path,
 ) -> None:
     ws = "metrics_dream_ws"
-    before = _count(
-        "mnemoss_dreams_total", workspace=ws, trigger="idle"
-    )
+    before = _count("mnemoss_dreams_total", workspace=ws, trigger="idle")
 
     with _client(tmp_path) as c:
         c.post(
@@ -114,12 +112,8 @@ def test_dispose_counter_stays_zero_on_fresh_workspace(tmp_path: Path) -> None:
     move even though the endpoint ran."""
 
     ws = "metrics_dispose_ws"
-    before_dead = _count(
-        "mnemoss_disposals_total", workspace=ws, reason="activation_dead"
-    )
-    before_redundant = _count(
-        "mnemoss_disposals_total", workspace=ws, reason="redundant"
-    )
+    before_dead = _count("mnemoss_disposals_total", workspace=ws, reason="activation_dead")
+    before_redundant = _count("mnemoss_disposals_total", workspace=ws, reason="redundant")
 
     with _client(tmp_path) as c:
         c.post(
@@ -128,12 +122,8 @@ def test_dispose_counter_stays_zero_on_fresh_workspace(tmp_path: Path) -> None:
         )
         c.post(f"/workspaces/{ws}/dispose")
 
-    after_dead = _count(
-        "mnemoss_disposals_total", workspace=ws, reason="activation_dead"
-    )
-    after_redundant = _count(
-        "mnemoss_disposals_total", workspace=ws, reason="redundant"
-    )
+    after_dead = _count("mnemoss_disposals_total", workspace=ws, reason="activation_dead")
+    after_redundant = _count("mnemoss_disposals_total", workspace=ws, reason="redundant")
     assert after_dead == before_dead
     assert after_redundant == before_redundant
 

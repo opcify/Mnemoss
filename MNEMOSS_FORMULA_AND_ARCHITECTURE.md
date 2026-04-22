@@ -162,14 +162,29 @@ This guarantees $w_F + w_S = 1$ and keeps both in $(0, 1)$.
 
 **Query bias function $b_F(q)$:**
 
+Every rule is purely structural / typographic — we never inspect the
+query for named entities, topics, or meaning. Memory stays query-
+agnostic; $b_F$ only picks up patterns a user *types* to signal "I
+mean this literally."
+
 | Query feature | $b_F$ | Example |
 |---|---|---|
-| Contains quotes | 1.5 | `"4:20 PM"` |
-| Contains specific numbers/dates | 1.3 | "2026-04-22" |
-| Contains proper nouns | 1.2 | "Alice" |
-| Contains pronouns | 0.7 | "that one", "it" |
-| Contains vague terms | 0.6 | "something about", "long ago" |
-| Default | 1.0 | plain query |
+| Quote chars or backtick fence | 1.5 | `"4:20 PM"`, `` `userId` ``, 「我明天要去」, 《红楼梦》 |
+| URL, email, or file path | 1.4 | `https://example.com`, `src/main.py`, `foo@bar.com` |
+| Time/date/number, hashtag, @-mention, CamelCase / snake_case / kebab-case, version | 1.3 | `4:20`, `2026-04-22`, `#release`, `@alice`, `iPhone`, `my_var`, `v1.2.3` |
+| ALL-CAPS Latin acronym ≥3 chars | 1.2 | `USA`, `NASA`, `IBM` |
+| Default | 1.0 | plain query in any script |
+
+Notes:
+- Non-Latin scripts (CJK, Arabic, Devanagari, …) trigger every rule
+  that uses language-neutral regex (quotes, URLs, digits, hashtags,
+  code identifiers). The acronym rule is Latin-only by construction —
+  no other common script uses uppercase — so it's silent on those
+  scripts rather than biased against them.
+- Title-Case proper-noun detection was removed: it was English-biased
+  (silent on CJK / Arabic) and duplicated work that embeddings and
+  the entities FTS column already handle. Named entities flow into
+  recall via Dream P3 output, not via query parsing — see §1.4.1.
 
 #### Normalized Scores
 
@@ -198,16 +213,23 @@ Computed directly from the normalized-weight formula above:
 
 | Scenario | idx_priority | $b_F(q)$ | $w_F$ | Result |
 |---|---|---|---|---|
-| New memory + precise query | 0.95 | 1.5 | ≈ 0.88 | FTS dominates |
-| New memory + vague query | 0.95 | 0.7 | ≈ 0.62 | FTS favored |
-| Old memory + precise query | 0.20 | 1.5 | ≈ 0.51 | Roughly balanced |
-| Old memory + vague query | 0.20 | 0.7 | ≈ 0.19 | Semantic dominates |
+| New memory + quoted query | 0.95 | 1.5 | ≈ 0.87 | FTS dominates |
+| New memory + plain query | 0.95 | 1.0 | ≈ 0.74 | FTS favored by state alone |
+| Old memory + quoted query | 0.20 | 1.5 | ≈ 0.51 | Roughly balanced |
+| Old memory + plain query | 0.20 | 1.0 | ≈ 0.26 | Semantic dominates |
 
 This naturally captures human memory behavior: recent events recalled by 
 literal details, old events recalled by gist. The symmetric design means 
 extreme idx_priority values push one mode hard in both factors — a fresh 
 memory facing a precise query gets *both* a higher FTS state-factor *and* 
 the FTS-leaning bias — compounding into strong preference.
+
+**Note on NER.** Mnemoss does not perform named-entity recognition at
+any stage (query, encode, or Dream). `b_F(q)` inspects typographic
+structure only — never semantic content. The reliance is on the
+embedder (cosine) and the trigram FTS over `content` for every
+entity-like pattern. See MNEMOSS_PROJECT_KNOWLEDGE.md §9.7 for the
+design rationale and DIY hooks.
 
 ---
 

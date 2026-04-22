@@ -60,9 +60,7 @@ def cluster_embeddings(
     # the module (they just can't call this function).
     from sklearn.cluster import HDBSCAN
 
-    clusterer = HDBSCAN(
-        min_cluster_size=min_cluster_size, metric="euclidean", copy=True
-    )
+    clusterer = HDBSCAN(min_cluster_size=min_cluster_size, metric="euclidean", copy=True)
     labels = clusterer.fit_predict(normalized)
     probs = clusterer.probabilities_
 

@@ -70,15 +70,9 @@ async def test_write_and_read_tombstone(tmp_path: Path) -> None:
 async def test_list_tombstones_agent_scope(tmp_path: Path) -> None:
     b = await _backend(tmp_path)
     now = datetime.now(UTC)
-    await b.write_tombstone(
-        Tombstone("mA", "ws", "alice", now, "activation_dead", "gA", -7, [])
-    )
-    await b.write_tombstone(
-        Tombstone("mB", "ws", "bob", now, "redundant", "gB", -3, [])
-    )
-    await b.write_tombstone(
-        Tombstone("mX", "ws", None, now, "activation_dead", "gX", -7, [])
-    )
+    await b.write_tombstone(Tombstone("mA", "ws", "alice", now, "activation_dead", "gA", -7, []))
+    await b.write_tombstone(Tombstone("mB", "ws", "bob", now, "redundant", "gB", -3, []))
+    await b.write_tombstone(Tombstone("mX", "ws", None, now, "activation_dead", "gX", -7, []))
 
     ambient = await b.list_tombstones(agent_id=None)
     assert {t.original_id for t in ambient} == {"mX"}
@@ -98,9 +92,7 @@ async def test_delete_memory_completely_removes_from_all_tables(tmp_path: Path) 
     await b.delete_memory_completely("m1")
 
     assert await b.get_memory("m1") is None
-    vec_hits = await b.vec_search(
-        np.array([1, 0, 0, 0], dtype=np.float32), k=5, agent_id=None
-    )
+    vec_hits = await b.vec_search(np.array([1, 0, 0, 0], dtype=np.float32), k=5, agent_id=None)
     assert all(mid != "m1" for mid, _ in vec_hits)
     fts_hits = await b.fts_search("sample", k=5, agent_id=None)
     assert all(mid != "m1" for mid, _ in fts_hits)
@@ -115,9 +107,7 @@ async def test_cluster_size_counts_cluster_members(tmp_path: Path) -> None:
     for i in range(3):
         m = _memory(f"m{i}", f"c{i}")
         m.cluster_id = "cluster-xyz"
-        await b.write_memory(
-            m, np.array([1 if i == 0 else 0, 0, 0, 0], dtype=np.float32)
-        )
+        await b.write_memory(m, np.array([1 if i == 0 else 0, 0, 0, 0], dtype=np.float32))
     # Memory in a different cluster shouldn't count.
     other = _memory("m3", "other")
     other.cluster_id = "cluster-abc"

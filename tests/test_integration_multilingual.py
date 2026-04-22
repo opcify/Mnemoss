@@ -17,9 +17,7 @@ async def test_japanese_recall(tmp_path: Path) -> None:
         formula=FormulaParams(noise_scale=0.0),
     )
     try:
-        m_time = await mem.observe(
-            role="user", content="明日の午後4時20分にアリスと会議"
-        )
+        m_time = await mem.observe(role="user", content="明日の午後4時20分にアリスと会議")
         await mem.observe(role="user", content="会議の場所はシドニーのオペラハウスの近く")
 
         results = await mem.recall("いつアリスに会う？", k=3)
@@ -37,12 +35,8 @@ async def test_arabic_recall(tmp_path: Path) -> None:
         formula=FormulaParams(noise_scale=0.0),
     )
     try:
-        m_time = await mem.observe(
-            role="user", content="أقابل أليس غداً الساعة 4:20 مساءً"
-        )
-        await mem.observe(
-            role="user", content="مكان الاجتماع بجوار دار أوبرا سيدني"
-        )
+        m_time = await mem.observe(role="user", content="أقابل أليس غداً الساعة 4:20 مساءً")
+        await mem.observe(role="user", content="مكان الاجتماع بجوار دار أوبرا سيدني")
 
         results = await mem.recall("متى ألتقي مع أليس؟", k=3)
         assert results, "recall returned nothing"
@@ -61,9 +55,7 @@ async def test_cross_language_semantic_bridge(tmp_path: Path) -> None:
         formula=FormulaParams(noise_scale=0.0),
     )
     try:
-        m_time = await mem.observe(
-            role="user", content="我明天下午 4:20 和 Alice 见面"
-        )
+        m_time = await mem.observe(role="user", content="我明天下午 4:20 和 Alice 见面")
         await mem.observe(role="user", content="见面地点在悉尼歌剧院旁边")
 
         results = await mem.recall("when is the meeting with Alice?", k=3)

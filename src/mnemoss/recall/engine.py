@@ -23,7 +23,7 @@ from typing import Literal
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
 from mnemoss.encoder import Embedder
-from mnemoss.encoder.extraction import extract_heuristic
+from mnemoss.encoder.extraction import ExtractionFields, extract_heuristic
 from mnemoss.formula.activation import ActivationBreakdown, compute_activation
 from mnemoss.formula.query_bias import has_deep_cue
 from mnemoss.recall.expand import expand_from_seeds, hops_for_streak
@@ -155,14 +155,10 @@ class RecallEngine:
 
         for tier, confidence in tier_plan:
             vec_task = asyncio.create_task(
-                self._store.vec_search(
-                    query_vec, pool_size, agent_id, tier_filter={tier}
-                )
+                self._store.vec_search(query_vec, pool_size, agent_id, tier_filter={tier})
             )
             fts_task = asyncio.create_task(
-                self._store.fts_search(
-                    query, pool_size, agent_id, tier_filter={tier}
-                )
+                self._store.fts_search(query, pool_size, agent_id, tier_filter={tier})
             )
             vec_hits, fts_hits = await asyncio.gather(vec_task, fts_task)
             tiers_scanned.append(tier)
@@ -172,10 +168,7 @@ class RecallEngine:
             for mid, bm25 in fts_hits:
                 bm25_by_id.setdefault(mid, bm25)
 
-            new_ids = (
-                {m for m, _ in vec_hits}
-                | {m for m, _ in fts_hits}
-            ) - scored.keys()
+            new_ids = ({m for m, _ in vec_hits} | {m for m, _ in fts_hits}) - scored.keys()
 
             if new_ids:
                 await self._score_candidates(
@@ -250,9 +243,7 @@ class RecallEngine:
                 # in tests). Without the clamp, a negative gap would
                 # always pass the ≤ check and streak could grow
                 # indefinitely.
-                gap_seconds = max(
-                    0.0, (now - prev.timestamp).total_seconds()
-                )
+                gap_seconds = max(0.0, (now - prev.timestamp).total_seconds())
                 if gap_seconds <= self._params.streak_reset_seconds:
                     streak = prev.streak + 1
                 # else: fresh thread, streak stays at 1 (shallow expansion)
@@ -329,9 +320,7 @@ class RecallEngine:
         # Extraction is CPU-bound regex work — run the whole batch on the
         # shared thread pool so we don't block the event loop. For a Stage 3
         # k≈5, the whole pass finishes in a few milliseconds.
-        fields_list = await asyncio.to_thread(
-            _batch_extract, [m.content for m in pending]
-        )
+        fields_list = await asyncio.to_thread(_batch_extract, [m.content for m in pending])
         for memory, fields in zip(pending, fields_list, strict=True):
             memory.extracted_gist = fields.gist
             memory.extracted_entities = fields.entities
@@ -509,16 +498,14 @@ class RecallEngine:
         return results
 
 
-def _batch_extract(contents: list[str]):
+def _batch_extract(contents: list[str]) -> list[ExtractionFields]:
     """Module-level helper so asyncio.to_thread has something picklable-ish
     to call without reaching into the engine."""
 
     return [extract_heuristic(c) for c in contents]
 
 
-def _tier_plan(
-    params: FormulaParams, *, include_deep: bool
-) -> list[tuple[IndexTier, float]]:
+def _tier_plan(params: FormulaParams, *, include_deep: bool) -> list[tuple[IndexTier, float]]:
     """Return ``[(tier, confidence_threshold)]`` in cascade order.
 
     DEEP has no early-stop threshold — once the cascade reaches it we scan

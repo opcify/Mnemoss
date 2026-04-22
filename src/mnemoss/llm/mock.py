@@ -52,9 +52,7 @@ class MockLLMClient:
     ) -> str:
         r = self._next("text", prompt)
         if not isinstance(r, str):
-            raise TypeError(
-                f"MockLLMClient expected str for complete_text, got {type(r).__name__}"
-            )
+            raise TypeError(f"MockLLMClient expected str for complete_text, got {type(r).__name__}")
         return r
 
     async def complete_json(

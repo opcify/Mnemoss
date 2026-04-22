@@ -81,9 +81,7 @@ async def test_status_reflects_observe_and_dream(tmp_path: Path) -> None:
 
 
 def test_rest_status_endpoint(tmp_path: Path) -> None:
-    config = ServerConfig(
-        embedder_override=FakeEmbedder(dim=16), storage_root=tmp_path
-    )
+    config = ServerConfig(embedder_override=FakeEmbedder(dim=16), storage_root=tmp_path)
     with TestClient(create_app(config)) as c:
         c.post(
             "/workspaces/rest_ws/observe",
@@ -103,15 +101,11 @@ def test_rest_status_endpoint(tmp_path: Path) -> None:
 
 
 async def test_sdk_status_round_trip(tmp_path: Path) -> None:
-    config = ServerConfig(
-        embedder_override=FakeEmbedder(dim=16), storage_root=tmp_path
-    )
+    config = ServerConfig(embedder_override=FakeEmbedder(dim=16), storage_root=tmp_path)
     app = create_app(config)
     transport = httpx.ASGITransport(app=app)
     try:
-        async with MnemossClient(
-            "http://testserver", transport=transport
-        ) as client:
+        async with MnemossClient("http://testserver", transport=transport) as client:
             ws = client.workspace("sdk_ws")
             await ws.observe(role="user", content="hi")
             snapshot = await ws.status()
@@ -138,9 +132,7 @@ async def test_mcp_status_tool_registered(tmp_path: Path) -> None:
 # ─── structured logging ─────────────────────────────────────────
 
 
-async def test_observe_emits_structured_log(
-    tmp_path: Path, caplog
-) -> None:
+async def test_observe_emits_structured_log(tmp_path: Path, caplog) -> None:
     caplog.set_level(logging.INFO, logger="mnemoss.client")
     mem = _mnemoss(tmp_path)
     try:

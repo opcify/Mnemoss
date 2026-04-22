@@ -84,9 +84,7 @@ async def dispose_pass(
             return stats
         candidates = []
         for i in range(0, len(ids), 500):
-            candidates.extend(
-                await store.materialize_memories(ids[i : i + 500])
-            )
+            candidates.extend(await store.materialize_memories(ids[i : i + 500]))
 
     # Fetch pin status for the whole candidate batch up front.
     pinned_set = await store.pinned_any([m.id for m in candidates])
@@ -127,10 +125,7 @@ async def dispose_pass(
             agent_id=memory.agent_id,
             dropped_at=t,
             reason=reason,
-            gist_snapshot=(
-                memory.extracted_gist
-                or _snapshot(memory.content)
-            ),
+            gist_snapshot=(memory.extracted_gist or _snapshot(memory.content)),
             b_at_drop=b,
             source_message_ids=list(memory.source_message_ids),
         )
@@ -158,9 +153,7 @@ def _is_protected(memory: Memory, now: datetime, pinned: set[str]) -> bool:
     return age_days < MIN_AGE_DAYS
 
 
-def _is_redundant_static(
-    memory: Memory, cluster_sizes: dict[str, int]
-) -> bool:
+def _is_redundant_static(memory: Memory, cluster_sizes: dict[str, int]) -> bool:
     if memory.cluster_id is None:
         return False
     if memory.is_cluster_representative:

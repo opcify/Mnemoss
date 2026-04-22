@@ -102,7 +102,8 @@ class MnemossClient:
     ) -> dict[str, Any]:
         resp = await self._http.get(path, params=_clean_params(params))
         resp.raise_for_status()
-        return resp.json()
+        data: dict[str, Any] = resp.json()
+        return data
 
 
 class WorkspaceHandle:
@@ -145,7 +146,8 @@ class WorkspaceHandle:
             json=body,
             params={"agent_id": agent_id},
         )
-        return resp["memory_id"]
+        memory_id: str | None = resp["memory_id"]
+        return memory_id
 
     async def recall(
         self,
@@ -345,12 +347,8 @@ class AgentHandle:
     async def pin(self, memory_id: str) -> None:
         await self._ws.pin(memory_id, agent_id=self._agent_id)
 
-    async def explain_recall(
-        self, query: str, memory_id: str
-    ) -> ActivationBreakdown:
-        return await self._ws.explain_recall(
-            query, memory_id, agent_id=self._agent_id
-        )
+    async def explain_recall(self, query: str, memory_id: str) -> ActivationBreakdown:
+        return await self._ws.explain_recall(query, memory_id, agent_id=self._agent_id)
 
     async def expand(
         self,

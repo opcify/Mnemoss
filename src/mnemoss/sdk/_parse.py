@@ -26,7 +26,8 @@ from mnemoss.recall import RecallResult
 def parse_dt(value: str) -> datetime:
     # dateutil accepts every form FastAPI emits (``+00:00`` and ``Z``)
     # plus historical variants. Safer than ``fromisoformat`` on 3.10.
-    return dateutil_parser.isoparse(value)
+    dt: datetime = dateutil_parser.isoparse(value)
+    return dt
 
 
 def parse_dt_opt(value: str | None) -> datetime | None:

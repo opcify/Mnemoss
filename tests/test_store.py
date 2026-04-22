@@ -18,9 +18,7 @@ from mnemoss.store.sqlite_backend import (
 UTC = timezone.utc
 
 
-def _memory(
-    id: str, content: str, agent_id: str | None = None, session_id: str = "s1"
-) -> Memory:
+def _memory(id: str, content: str, agent_id: str | None = None, session_id: str = "s1") -> Memory:
     now = datetime.now(UTC)
     return Memory(
         id=id,
@@ -130,18 +128,14 @@ async def test_agent_scope_filters(tmp_path: Path) -> None:
     )
 
     # Alice sees her own + ambient, not Bob's.
-    hits = await b.vec_search(
-        np.array([1, 1, 1, 0], dtype=np.float32), k=10, agent_id="alice"
-    )
+    hits = await b.vec_search(np.array([1, 1, 1, 0], dtype=np.float32), k=10, agent_id="alice")
     ids = {h[0] for h in hits}
     assert "priv_alice" in ids
     assert "ambient" in ids
     assert "priv_bob" not in ids
 
     # Ambient-only caller sees only ambient.
-    hits_amb = await b.vec_search(
-        np.array([0, 0, 1, 0], dtype=np.float32), k=10, agent_id=None
-    )
+    hits_amb = await b.vec_search(np.array([0, 0, 1, 0], dtype=np.float32), k=10, agent_id=None)
     ids_amb = {h[0] for h in hits_amb}
     assert ids_amb == {"ambient"}
     await b.close()
@@ -236,9 +230,7 @@ async def test_update_idx_priority_rewrites_value_and_tier(tmp_path: Path) -> No
 
 async def test_tier_counts_returns_distribution(tmp_path: Path) -> None:
     b = await _backend(tmp_path)
-    for i, tier in enumerate(
-        [IndexTier.HOT, IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]
-    ):
+    for i, tier in enumerate([IndexTier.HOT, IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]):
         m = _memory(f"m{i}", f"content {i}")
         m.index_tier = tier
         emb = np.zeros(4, dtype=np.float32)

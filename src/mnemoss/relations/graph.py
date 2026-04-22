@@ -29,16 +29,10 @@ async def write_cooccurrence_edges(
 
     if session_id is None:
         return
-    recent = await store.list_recent_in_session(
-        session_id, params.session_cooccurrence_window + 1
-    )
+    recent = await store.list_recent_in_session(session_id, params.session_cooccurrence_window + 1)
     # The first result is the memory we just wrote; skip it.
     for mid in recent:
         if mid == new_memory_id:
             continue
-        await store.write_relation(
-            new_memory_id, mid, "co_occurs_in_session", confidence=0.5
-        )
-        await store.write_relation(
-            mid, new_memory_id, "co_occurs_in_session", confidence=0.5
-        )
+        await store.write_relation(new_memory_id, mid, "co_occurs_in_session", confidence=0.5)
+        await store.write_relation(mid, new_memory_id, "co_occurs_in_session", confidence=0.5)

@@ -109,9 +109,7 @@ async def expand_from_seeds(
     relations_from = await store.relations_from(relation_ids)
     fan_of = await store.fan_out(relation_ids)
     # Batched pin lookup: 1 SQL instead of one-per-candidate.
-    pinned_ids = await store.pinned_by_agent(
-        [m.id for m in memories], agent_id
-    )
+    pinned_ids = await store.pinned_by_agent([m.id for m in memories], agent_id)
 
     out: list[ExpandedCandidate] = []
     tau = params.tau
@@ -130,11 +128,7 @@ async def expand_from_seeds(
             params=params,
         )
         if breakdown.total > tau:
-            out.append(
-                ExpandedCandidate(
-                    memory=memory, score=breakdown.total, breakdown=breakdown
-                )
-            )
+            out.append(ExpandedCandidate(memory=memory, score=breakdown.total, breakdown=breakdown))
 
     out.sort(key=lambda c: c.score, reverse=True)
     return out[:limit]

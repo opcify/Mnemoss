@@ -42,25 +42,19 @@ def test_gist_caps_at_100_chars() -> None:
     assert len(fields.gist) == 100
 
 
-def test_entities_include_latin_proper_nouns() -> None:
+def test_heuristic_leaves_entities_none() -> None:
+    # Entity extraction moved to Dream P3 Consolidate (level=2) because
+    # any script-specific heuristic biases recall by language. Level-1
+    # stays language-neutral: gist + time only.
     fields = extract_heuristic("Alice and Bob met at the Sydney Opera House")
-    assert fields.entities is not None
-    assert "Alice" in fields.entities
-    assert "Bob" in fields.entities
-    assert "Sydney" in fields.entities
-    assert "Opera" in fields.entities
-    assert "House" in fields.entities
-
-
-def test_entities_dedup() -> None:
-    fields = extract_heuristic("Alice and Alice and Alice")
-    assert fields.entities == ["Alice"]
-
-
-def test_entities_skip_allcaps_and_stopwords() -> None:
-    fields = extract_heuristic("USA is a country. The plan.")
-    # "USA" skipped (allcaps); "The" skipped (stopword).
     assert fields.entities is None
+    assert fields.level == 1
+
+
+def test_heuristic_leaves_participants_and_location_none() -> None:
+    fields = extract_heuristic("Alice went to Paris with Bob")
+    assert fields.location is None
+    assert fields.participants is None
 
 
 def test_absolute_date_is_extracted() -> None:
@@ -83,13 +77,6 @@ def test_level_is_one_even_on_partial_fill() -> None:
     fields = extract_heuristic("plain")
     assert fields.level == 1
     assert fields.time is None
-
-
-def test_location_and_participants_stay_none_in_stage_3() -> None:
-    fields = extract_heuristic("Alice went to Paris with Bob")
-    # Stage 3 doesn't distinguish person vs place heuristically.
-    assert fields.location is None
-    assert fields.participants is None
 
 
 # ─── store round-trip ─────────────────────────────────────────────
@@ -167,10 +154,12 @@ async def test_recall_fires_extraction_on_top_k(tmp_path: Path) -> None:
         results = await mem.recall("Alice", k=3)
         hit = next((r for r in results if r.memory.id == mid), None)
         assert hit is not None
-        # Heuristic fields now populated.
+        # Level-1 heuristic fills gist + time. NER is intentionally not
+        # wired in either level-1 or level-2 — extracted_entities stays
+        # None unless a caller sets it manually. See §9.7 in
+        # MNEMOSS_PROJECT_KNOWLEDGE.md.
         assert hit.memory.extraction_level == 1
-        assert hit.memory.extracted_entities is not None
-        assert "Alice" in hit.memory.extracted_entities
+        assert hit.memory.extracted_entities is None
         assert hit.memory.extracted_time is not None
         assert hit.memory.extracted_time.year == 2026
     finally:

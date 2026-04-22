@@ -110,7 +110,8 @@ class OpenAIClient:
             temperature=temperature,
         )
         raw = response.choices[0].message.content or "{}"
-        return json.loads(raw)
+        parsed: dict[str, Any] = json.loads(raw)
+        return parsed
 
 
 class GeminiClient:
@@ -210,7 +211,8 @@ class GeminiClient:
         # response_mime_type usually yields clean JSON, but fall back to the
         # defensive extractor in case the model emits a preamble or fences.
         try:
-            return json.loads(text)
+            parsed: dict[str, Any] = json.loads(text)
+            return parsed
         except json.JSONDecodeError:
             return _extract_first_json_object(text)
 
@@ -273,9 +275,7 @@ class AnthropicClient:
         temperature: float = 0.0,
     ) -> dict[str, Any]:
         instructed = (
-            prompt
-            + "\n\nRespond with a single JSON object only. "
-            "No prose, no markdown fences."
+            prompt + "\n\nRespond with a single JSON object only. No prose, no markdown fences."
         )
         client = self._get_client()
         response = await client.messages.create(
@@ -340,5 +340,6 @@ def _extract_first_json_object(text: str) -> dict[str, Any]:
         elif c == "}":
             depth -= 1
             if depth == 0:
-                return json.loads(stripped[start : i + 1])
+                parsed: dict[str, Any] = json.loads(stripped[start : i + 1])
+                return parsed
     raise ValueError(f"Unbalanced braces in JSON response: {text!r}")
