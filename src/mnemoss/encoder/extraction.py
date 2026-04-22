@@ -1,9 +1,8 @@
 """Heuristic lazy extraction (level=1).
 
 Fills ``extracted_*`` fields on a Memory using rule-based tools, not
-LLMs. Dream P3 Consolidate replaces these values with LLM output and
-bumps ``extraction_level`` to 2 — that is the authoritative NER path
-in Mnemoss.
+LLMs. Dream P3 Consolidate also refines ``gist`` and ``time`` at
+level=2 using the LLM.
 
 What level-1 heuristics fill:
 
@@ -11,17 +10,13 @@ What level-1 heuristics fill:
 - ``time``: first parseable date/time found anywhere in the content,
   via ``dateparser.search.search_dates``. Handles 200+ languages.
 
-What level-1 intentionally leaves ``None``:
+What stays ``None`` everywhere:
 
-- ``entities``: skipped entirely. A Title-Case-token regex worked for
-  English but silently missed every CJK / Arabic / Thai / Devanagari
-  memory, biasing salience toward Latin-script content. Entities are
-  populated at level=2 by Dream P3 Consolidate, which uses the LLM to
-  emit canonical surface forms + aliases in the content's native
-  language.
-- ``location`` / ``participants``: distinguishing person vs. place
-  without NER is not something a heuristic can do correctly; Dream P3
-  fills these at level=2.
+- ``entities`` / ``location`` / ``participants``. NER is intentionally
+  not wired into Mnemoss at any stage (see
+  MNEMOSS_PROJECT_KNOWLEDGE.md §9.7 for rationale). The fields exist
+  on the Memory dataclass so callers can populate them manually if
+  they already have entity information.
 
 All heuristic signals are pure and cheap; the whole extraction
 finishes in a millisecond or two on typical content. Failures stay

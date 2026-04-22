@@ -154,8 +154,10 @@ async def test_recall_fires_extraction_on_top_k(tmp_path: Path) -> None:
         results = await mem.recall("Alice", k=3)
         hit = next((r for r in results if r.memory.id == mid), None)
         assert hit is not None
-        # Level-1 heuristic fields populated; entities stay None until
-        # Dream P3 Consolidate lifts the row to level=2.
+        # Level-1 heuristic fills gist + time. NER is intentionally not
+        # wired in either level-1 or level-2 — extracted_entities stays
+        # None unless a caller sets it manually. See §9.7 in
+        # MNEMOSS_PROJECT_KNOWLEDGE.md.
         assert hit.memory.extraction_level == 1
         assert hit.memory.extracted_entities is None
         assert hit.memory.extracted_time is not None

@@ -11,7 +11,6 @@ from mnemoss.core.types import IndexTier, Memory, MemoryType
 from mnemoss.dream.cluster import ClusterAssignment
 from mnemoss.dream.relations import (
     write_derived_from_edges,
-    write_shares_entity_edges,
     write_similar_to_edges,
 )
 from mnemoss.store.sqlite_backend import SQLiteBackend
@@ -98,75 +97,4 @@ async def test_derived_from_edges_are_directed(tmp_path: Path) -> None:
     out = await b.relations_from(["c", "p1"])
     assert "p1" in out["c"]
     assert "c" not in out["p1"]
-    await b.close()
-
-
-# ─── shares_entity (Dream P4 edge from P3 NER output) ──────────────
-
-
-def _refined(id: str, content: str, entities: list[str]) -> Memory:
-    m = _memory(id, content)
-    m.extracted_entities = entities
-    m.extraction_level = 2
-    return m
-
-
-async def test_shares_entity_writes_symmetric_edges(tmp_path: Path) -> None:
-    b = await _backend(tmp_path)
-    a = _refined("a", "Alice worked with Bob", ["Alice", "Bob"])
-    b_mem = _refined("b", "Bob met Carol", ["Bob", "Carol"])
-    c = _refined("c", "totally unrelated", ["Dave"])
-    for m in (a, b_mem, c):
-        await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
-
-    count = await write_shares_entity_edges(b, [a, b_mem, c])
-    # a∩b_mem = {bob}, |a∪b_mem|=3 → one symmetric pair = 2 edges.
-    # c shares nothing → 0 edges.
-    assert count == 2
-    out = await b.relations_from(["a", "b", "c"])
-    assert "b" in out["a"]
-    assert "a" in out["b"]
-    assert "c" not in out["a"]
-    await b.close()
-
-
-async def test_shares_entity_is_case_insensitive(tmp_path: Path) -> None:
-    b = await _backend(tmp_path)
-    a = _refined("a", "Alice here", ["Alice"])
-    b_mem = _refined("b", "alice again", ["ALICE"])
-    for m in (a, b_mem):
-        await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
-
-    count = await write_shares_entity_edges(b, [a, b_mem])
-    assert count == 2  # case-folded equality → one pair, symmetric
-    await b.close()
-
-
-async def test_shares_entity_skips_level_below_2(tmp_path: Path) -> None:
-    b = await _backend(tmp_path)
-    # Level-1 memories never get shares_entity edges even if their
-    # (stale) entities overlap — Dream P3 is the only authoritative source.
-    a = _memory("a", "Alice came by")
-    a.extracted_entities = ["Alice"]
-    a.extraction_level = 1
-    b_mem = _memory("b", "Alice left")
-    b_mem.extracted_entities = ["Alice"]
-    b_mem.extraction_level = 1
-    for m in (a, b_mem):
-        await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
-
-    count = await write_shares_entity_edges(b, [a, b_mem])
-    assert count == 0
-    await b.close()
-
-
-async def test_shares_entity_cjk_entities(tmp_path: Path) -> None:
-    b = await _backend(tmp_path)
-    a = _refined("a", "小明去了北京", ["小明", "北京"])
-    b_mem = _refined("b", "小明回来了", ["小明"])
-    for m in (a, b_mem):
-        await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
-
-    count = await write_shares_entity_edges(b, [a, b_mem])
-    assert count == 2
     await b.close()

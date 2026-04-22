@@ -29,7 +29,6 @@ from mnemoss.dream.consolidate import (
 from mnemoss.dream.dispose import dispose_pass
 from mnemoss.dream.relations import (
     write_derived_from_edges,
-    write_shares_entity_edges,
     write_similar_to_edges,
 )
 from mnemoss.dream.replay import select_replay_candidates
@@ -92,10 +91,6 @@ class _DreamState:
     # Every Memory emitted by Consolidate (summaries + patterns). P5
     # Relations writes derived_from edges from these back to their sources.
     consolidated: list[Memory] = field(default_factory=list)
-    # Members whose extraction_level was bumped to 2 during Consolidate.
-    # P5 Relations uses their refined entity lists to write
-    # shares_entity edges.
-    refined_members: list[Memory] = field(default_factory=list)
 
 
 class DreamRunner:
@@ -284,7 +279,6 @@ class DreamRunner:
                     level=fields.level,
                 )
                 refined_ids.append(member.id)
-                state.refined_members.append(member)
 
             # (C) Patterns — intra-cluster PATTERN memories.
             for pattern in result.patterns:
@@ -336,15 +330,13 @@ class DreamRunner:
     async def _phase_relations(self, state: _DreamState) -> PhaseOutcome:
         similar_edges = await write_similar_to_edges(self._store, state.cluster_assignments)
         derived_edges = await write_derived_from_edges(self._store, state.consolidated)
-        shares_edges = await write_shares_entity_edges(self._store, state.refined_members)
         return PhaseOutcome(
             phase=PhaseName.RELATIONS,
             status="ok",
             details={
                 "similar_to_edges": similar_edges,
                 "derived_from_edges": derived_edges,
-                "shares_entity_edges": shares_edges,
-                "total_edges": similar_edges + derived_edges + shares_edges,
+                "total_edges": similar_edges + derived_edges,
             },
         )
 

@@ -1,9 +1,9 @@
 """SQL DDL for Mnemoss workspaces.
 
-Schema v7 adds the ``entities`` column to ``memory_fts`` so Dream P3
-Consolidate outputs become directly searchable via BM25 without any
-query-side NER. Schema v6 split the Raw Log into its own SQLite file.
-Two DBs per workspace:
+Schema v8 drops the short-lived ``entities`` FTS column — NER was
+removed from the system entirely; see MNEMOSS_PROJECT_KNOWLEDGE.md
+§9.7 for the rationale. Schema v6 split the Raw Log into its own
+SQLite file. Two DBs per workspace:
 
 - ``memory.sqlite`` — ``MEMORY_DDL_STATEMENTS`` below (memory, relations,
   pins, tombstones, workspace_meta) plus the ``vec0`` and FTS5
@@ -138,5 +138,5 @@ def vec_ddl(dim: int) -> str:
 
 FTS_DDL = (
     "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts "
-    "USING fts5(memory_id UNINDEXED, content, entities, tokenize='trigram')"
+    "USING fts5(memory_id UNINDEXED, content, tokenize='trigram')"
 )

@@ -274,8 +274,8 @@ class SQLiteBackend:
                 (memory.id, _pack_vec(emb)),
             )
             conn.execute(
-                "INSERT INTO memory_fts(memory_id, content, entities) VALUES (?, ?, ?)",
-                (memory.id, memory.content, _fts_entities_text(memory.extracted_entities)),
+                "INSERT INTO memory_fts(memory_id, content) VALUES (?, ?)",
+                (memory.id, memory.content),
             )
 
     async def write_raw_message(self, msg: RawMessage) -> None:
@@ -435,12 +435,6 @@ class SQLiteBackend:
                     level,
                     memory_id,
                 ),
-            )
-            # Keep memory_fts.entities in sync so Dream P3 output becomes
-            # immediately searchable via BM25 without any query-side NER.
-            conn.execute(
-                "UPDATE memory_fts SET entities = ? WHERE memory_id = ?",
-                (_fts_entities_text(entities), memory_id),
             )
 
     async def update_cluster_assignment(
@@ -1186,19 +1180,6 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
 
 def _dump_json_or_none(value: Any) -> str | None:
     return json.dumps(value) if value is not None else None
-
-
-def _fts_entities_text(entities: list[str] | None) -> str:
-    """Render an entities list as the FTS5 ``entities`` column value.
-
-    Joined with spaces so the trigram tokenizer indexes each surface
-    form independently. ``None`` or empty → empty string (FTS5 handles
-    empty columns fine and contributes nothing to BM25).
-    """
-
-    if not entities:
-        return ""
-    return " ".join(e for e in entities if e)
 
 
 def _json_safe(obj: Any) -> Any:

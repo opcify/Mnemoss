@@ -224,34 +224,12 @@ extreme idx_priority values push one mode hard in both factors — a fresh
 memory facing a precise query gets *both* a higher FTS state-factor *and* 
 the FTS-leaning bias — compounding into strong preference.
 
-#### 1.4.1 How NER flows into recall without parsing the query
-
-The query string is never inspected for named entities. Mnemoss still
-becomes entity-aware through four independent mechanisms, all driven
-by Dream P3 Consolidate's LLM output — not by regex on the query side:
-
-1. **`entities` column on `memory_fts`** — Dream P3 writes each
-   memory's canonical entities (in the source language) into a
-   secondary FTS5 column with the same `trigram` tokenizer. Any query
-   text that happens to contain those tokens hits via BM25 with zero
-   parsing. Queries in mixed scripts work naturally ("Alice 走了吗?"
-   matches a memory whose entities column contains `Alice`).
-2. **`shares_entity` relation edges** — Dream P4 writes symmetric
-   edges (weighted by Jaccard overlap of entity sets) between
-   consolidated members. Spreading activation $\sum_j W_j \cdot S_{ji}$
-   propagates through them: if working memory contains a recent item
-   about "Alice", any candidate memory that shares an entity with it
-   gets a spreading bonus regardless of what the query says.
-3. **First-class `memory_type=entity` rows** — entities promoted to
-   their own Memory rows are retrieved like any other memory. A
-   semantic query "who's my manager?" hits the Alice entity row by
-   cosine, not by parsing "manager" → PER.
-4. **`memory.md` user-facing view** — entities are grouped for human
-   review. Cosmetic; no effect on retrieval.
-
-Level-1 heuristic extraction leaves `entities=None`. Only Dream P3
-(level=2) writes entities, so the `entities` FTS column is empty
-until a memory has been dreamed.
+**Note on NER.** Mnemoss does not perform named-entity recognition at
+any stage (query, encode, or Dream). `b_F(q)` inspects typographic
+structure only — never semantic content. The reliance is on the
+embedder (cosine) and the trigram FTS over `content` for every
+entity-like pattern. See MNEMOSS_PROJECT_KNOWLEDGE.md §9.7 for the
+design rationale and DIY hooks.
 
 ---
 

@@ -150,18 +150,22 @@ async def test_consolidate_returns_summary_refinements_and_patterns() -> None:
     assert result.summary.abstraction_level == 0.65
     assert result.summary.derived_from == ["m1", "m2"]
     assert result.summary.source_context["extracted_by"] == "dream_consolidate"
-    assert result.summary.source_context["aliases"] == ["coffee fact"]
 
     assert len(result.refinements) == 2
     r0 = result.refinements[0]
     assert r0.member_index == 0
     assert r0.fields.level == 2
     assert r0.fields.gist == "Alice liked coffee"
+    # NER is intentionally not populated — entities/location/participants
+    # stay None even at level=2 (see MNEMOSS_PROJECT_KNOWLEDGE.md §9.7).
+    assert r0.fields.entities is None
+    assert r0.fields.location is None
+    assert r0.fields.participants is None
     r1 = result.refinements[1]
     assert r1.member_index == 1
     assert r1.fields.time is not None
     assert r1.fields.time.year == 2026
-    assert r1.fields.location == "cafe"
+    assert r1.fields.location is None
 
     assert len(result.patterns) == 1
     p = result.patterns[0]

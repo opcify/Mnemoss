@@ -15,12 +15,10 @@ that any agent stack can integrate.
 
 The MVP is **shipped**. All six stages in `MNEMOSS_PROJECT_KNOWLEDGE.md` §9 
 landed; the codebase is at `v0.1.0` on PyPI track. Active work is 
-post-Stage-6: benchmarks, whitepaper, adapter polish, new capabilities. 
-The next major capability planned is **Full NER** (canonical 
-cross-run entity identity, entity Memory rows, structured entity API) 
-— see `MNEMOSS_PROJECT_KNOWLEDGE.md` §9 "Future — Full NER 
-Capability". Today's NER support is Dream-P3-only (entities in 
-`memory_fts` + `shares_entity` edges, no cross-run identity).
+post-Stage-6: benchmarks, whitepaper, adapter polish, new capabilities.
+NER is intentionally **not implemented** at any stage (query, encode,
+Dream) and is not on the roadmap — see §9.7 in the project knowledge
+doc for rationale and DIY hooks.
 
 Concretely, the repo ships:
 
@@ -178,29 +176,21 @@ these is a schema-or-semantics change, not a refactor — bump
 - **FTS5 tokenizer** → `trigram` (CJK-capable; BM25 degenerates to zero 
   under `unicode61` for non-space-delimited scripts like Chinese, 
   Japanese, Thai). Multilingual is first-class, not a stretch goal.
-- **`memory_fts` has two indexed columns** — `content` and `entities`. 
-  `content` carries the raw memory text; `entities` is populated by 
-  Dream P3 Consolidate with canonical entity surface forms (space-
-  joined) and lets NER output flow into BM25 without any query-side 
-  entity parsing. Both columns use the same `trigram` tokenizer so
-  CJK / Arabic / mixed-script queries work identically.
+- **`memory_fts` is single-column** — indexes `content` only (trigram
+  tokenizer). Do not add an entities column or any other secondary
+  FTS field without explicit design discussion; NER is intentionally
+  out of scope (§9.7 in PROJECT_KNOWLEDGE).
 - **Query bias `b_F(q)` is structural only** — `{1.0, 1.2, 1.3, 1.4, 
   1.5}` from quotes/backticks (1.5), URL/email/path (1.4), 
   time/date/number/hashtag/@mention/CamelCase/snake_case/kebab/version 
   (1.3), ALL-CAPS acronym (1.2), neutral (1.0). Every rule is a regex 
   on typographic markers; no NER, no vocabulary, no language detection. 
   See `src/mnemoss/formula/query_bias.py`.
-- **Entity extraction happens in Dream P3, not at encode time.** 
-  Level-1 heuristic (`encoder/extraction.py`) fills `gist` + `time` 
-  only; entities / location / participants stay `None` until Dream P3 
-  Consolidate (level=2) emits them via LLM in the source language. 
-  Level-1 was previously doing a Title-Case regex that silently 
-  missed every CJK / Arabic memory — now removed.
-- **`shares_entity` relation predicate** — written by Dream P4 between 
-  refined (level=2) members whose canonical entity sets intersect. 
-  Confidence = Jaccard overlap, case-folded on the comparison side. 
-  Spreading activation reads this edge like any other predicate — 
-  `formula/spreading.py` is predicate-agnostic.
+- **No automatic entity extraction anywhere.** Level-1 heuristic
+  fills `gist` + `time`; Dream P3 refines `gist` + `time` at level=2.
+  `extracted_entities`, `extracted_location`, `extracted_participants`
+  stay `None` unless a caller writes them manually. See §9.7 for
+  DIY guidance if you want entity features in your own fork.
 - **Embedder default (zero-config)** → `LocalEmbedder` with 
   `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, 50+ languages). 
   English-only models are rejected.
