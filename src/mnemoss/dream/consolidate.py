@@ -88,11 +88,7 @@ class ConsolidationResult:
 
     @property
     def is_empty(self) -> bool:
-        return (
-            self.summary is None
-            and not self.refinements
-            and not self.patterns
-        )
+        return self.summary is None and not self.refinements and not self.patterns
 
 
 def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
@@ -109,15 +105,11 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
         existing = {
             "gist": m.extracted_gist,
             "entities": m.extracted_entities,
-            "time": (
-                m.extracted_time.isoformat() if m.extracted_time else None
-            ),
+            "time": (m.extracted_time.isoformat() if m.extracted_time else None),
             "location": m.extracted_location,
             "participants": m.extracted_participants,
         }
-        lines.append(
-            f"   current extraction: {json.dumps(existing, default=str)}"
-        )
+        lines.append(f"   current extraction: {json.dumps(existing, default=str)}")
 
     lines.extend(
         [
@@ -148,7 +140,7 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "    {",
             '      "index": 1,',
             '      "gist": "concise one-sentence summary",',
-            '      "entities": ["named entities"],',
+            '      "entities": ["canonical surface forms"],',
             '      "time": "ISO-8601 timestamp or null",',
             '      "location": "place name or null",',
             '      "participants": ["people"]',
@@ -171,6 +163,22 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "null on fields not implied by the content.",
             "- patterns: each must reference ≥2 members via 'derived_from'.",
             "- All indices are 1-indexed references to the numbered list above.",
+            "",
+            "Entity extraction guidance (applies to refinements[].entities "
+            "and participants, and to summary.content when memory_type='entity'):",
+            "- Emit named entities — people, places, organisations, "
+            "products, projects, concrete things — in the SAME LANGUAGE "
+            "and SCRIPT as the source memory. Do not translate or "
+            "transliterate (e.g. keep 北京 / 北京市 as-is; don't rewrite "
+            "as 'Beijing').",
+            "- Use the LONGEST surface form actually present in the text "
+            "as the canonical name; shorter mentions of the same referent "
+            "are aliases, not separate entities (merge 'Alice' and 'Alice "
+            "Smith' under 'Alice Smith').",
+            "- De-duplicate: one canonical string per referent, even when "
+            "the source mentions it multiple times.",
+            "- Leave entities [] when the content is purely propositional "
+            "(opinions, abstract claims) with no named referents.",
         ]
     )
     return "\n".join(lines)
@@ -216,6 +224,7 @@ async def consolidate_cluster(
 
 
 # ─── summary parse (P3 Extract equivalent) ─────────────────────────
+
 
 def _parse_summary(
     response: dict[str, Any],
@@ -286,6 +295,7 @@ def _parse_summary(
 
 # ─── refinements parse (P4 Refine equivalent) ──────────────────────
 
+
 def _parse_refinements(
     response: dict[str, Any],
     members: list[Memory],
@@ -318,6 +328,7 @@ def _parse_refinements(
 
 
 # ─── patterns parse (P6 Generalize equivalent, intra-cluster) ──────
+
 
 def _parse_patterns(
     response: dict[str, Any],
@@ -382,6 +393,7 @@ def _parse_patterns(
 
 
 # ─── small parsers (mirror refine.py's originals) ──────────────────
+
 
 def _norm_str(value: Any) -> str | None:
     if value is None:

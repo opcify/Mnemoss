@@ -93,6 +93,36 @@ class Mnemoss:
         self._last_rebalance_at: datetime | None = None
         self._last_dispose_at: datetime | None = None
 
+    @classmethod
+    def from_config_file(
+        cls,
+        workspace: str,
+        *,
+        path: str | None = None,
+        **overrides: Any,
+    ) -> Mnemoss:
+        """Construct a ``Mnemoss`` from a ``mnemoss.toml``.
+
+        The file supplies ``embedding_model`` and ``llm``; other keyword
+        arguments can be passed through ``**overrides`` to override or
+        complement it. Raises if no config file is found.
+        """
+
+        from mnemoss.core.config_file import load_config_file
+
+        cfg = load_config_file(path)
+        if cfg is None:
+            raise FileNotFoundError(
+                "No mnemoss config file found. Set MNEMOSS_CONFIG, create "
+                "./mnemoss.toml, or ~/.mnemoss/config.toml, or pass path=."
+            )
+        kwargs: dict[str, Any] = {
+            "embedding_model": cfg.build_embedder(),
+            "llm": cfg.build_llm(),
+        }
+        kwargs.update(overrides)
+        return cls(workspace=workspace, **kwargs)
+
     # ─── public API ───────────────────────────────────────────────────
 
     async def observe(
@@ -325,9 +355,7 @@ class Mnemoss:
         )
         return stats
 
-    async def tombstones(
-        self, *, agent_id: str | None = None, limit: int = 100
-    ) -> list[Tombstone]:
+    async def tombstones(self, *, agent_id: str | None = None, limit: int = 100) -> list[Tombstone]:
         """Return recent tombstones, newest first, scoped the same way as
         recall (agent + ambient, or ambient only)."""
 
@@ -398,9 +426,7 @@ class Mnemoss:
         report = await runner.run(TriggerType(trigger), agent_id=agent_id)
 
         # Dream Diary (§2.5) — append a Markdown audit entry for this run.
-        diary_path = dream_diary_path(
-            self._config.storage.resolve_root(), self._config.workspace
-        )
+        diary_path = dream_diary_path(self._config.storage.resolve_root(), self._config.workspace)
         append_entry(diary_path, report)
         report.diary_path = diary_path
         self._last_dream_at = report.finished_at
@@ -430,9 +456,7 @@ class Mnemoss:
 
         await self._ensure_open()
         assert self._store is not None
-        memories = await self._store.list_memories_for_export(
-            agent_id, min_idx_priority=0.0
-        )
+        memories = await self._store.list_memories_for_export(agent_id, min_idx_priority=0.0)
         pinned = await self._store.pinned_ids_in_scope(agent_id)
         return render_memory_md(
             memories,
@@ -465,25 +489,17 @@ class Mnemoss:
             "tier_counts": tier_counts,
             "tombstone_count": tombstone_count,
             "last_observe_at": (
-                self._last_observe_at.isoformat()
-                if self._last_observe_at is not None
-                else None
+                self._last_observe_at.isoformat() if self._last_observe_at is not None else None
             ),
             "last_dream_at": (
-                self._last_dream_at.isoformat()
-                if self._last_dream_at is not None
-                else None
+                self._last_dream_at.isoformat() if self._last_dream_at is not None else None
             ),
             "last_dream_trigger": self._last_dream_trigger,
             "last_rebalance_at": (
-                self._last_rebalance_at.isoformat()
-                if self._last_rebalance_at is not None
-                else None
+                self._last_rebalance_at.isoformat() if self._last_rebalance_at is not None else None
             ),
             "last_dispose_at": (
-                self._last_dispose_at.isoformat()
-                if self._last_dispose_at is not None
-                else None
+                self._last_dispose_at.isoformat() if self._last_dispose_at is not None else None
             ),
         }
 
@@ -499,9 +515,7 @@ class Mnemoss:
             now=event.closed_at,
             formula=self._config.formula,
         )
-        embedding = (
-            await asyncio.to_thread(self._embedder.embed, [memory.content])
-        )[0]
+        embedding = (await asyncio.to_thread(self._embedder.embed, [memory.content]))[0]
         await self._store.write_memory(memory, embedding)
         await write_cooccurrence_edges(
             self._store, memory.id, memory.session_id or "default", self._config.encoder
@@ -514,12 +528,8 @@ class Mnemoss:
         async with self._open_lock:
             if self._store is not None:
                 return
-            db_path = workspace_db_path(
-                self._config.storage.root, self._config.workspace
-            )
-            raw_path = raw_log_db_path(
-                self._config.storage.root, self._config.workspace
-            )
+            db_path = workspace_db_path(self._config.storage.root, self._config.workspace)
+            raw_path = raw_log_db_path(self._config.storage.root, self._config.workspace)
             store = SQLiteBackend(
                 db_path=db_path,
                 raw_log_path=raw_path,
@@ -591,9 +601,7 @@ class AgentHandle:
         await self._mem.pin(memory_id, agent_id=self._agent_id)
 
     async def explain_recall(self, query: str, memory_id: str):
-        return await self._mem.explain_recall(
-            query, memory_id, agent_id=self._agent_id
-        )
+        return await self._mem.explain_recall(query, memory_id, agent_id=self._agent_id)
 
     async def expand(
         self,

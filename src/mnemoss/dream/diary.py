@@ -24,13 +24,7 @@ log = logging.getLogger(__name__)
 def dream_diary_path(storage_root: Path, workspace: str) -> Path:
     """Return the per-workspace, per-day diary path (doesn't create dirs)."""
 
-    return (
-        storage_root
-        / "workspaces"
-        / workspace
-        / "dreams"
-        / "diary.md"
-    )
+    return storage_root / "workspaces" / workspace / "dreams" / "diary.md"
 
 
 def render_dream_entry(report: DreamReport) -> str:

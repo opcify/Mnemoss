@@ -3,6 +3,7 @@
 from mnemoss.encoder.embedder import (
     Embedder,
     FakeEmbedder,
+    GeminiEmbedder,
     LocalEmbedder,
     OpenAIEmbedder,
     make_embedder,
@@ -11,6 +12,7 @@ from mnemoss.encoder.embedder import (
 __all__ = [
     "Embedder",
     "FakeEmbedder",
+    "GeminiEmbedder",
     "LocalEmbedder",
     "OpenAIEmbedder",
     "make_embedder",

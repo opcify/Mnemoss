@@ -149,9 +149,7 @@ async def test_explain_returns_breakdown(tmp_path: Path) -> None:
     m = await _observe(store, embedder, "Alice meeting 4:20")
     br = await engine.explain("4:20", memory_id=m.id, agent_id=None)
     assert br is not None
-    assert br.total == pytest.approx(
-        br.base_level + br.spreading + br.matching + br.noise
-    )
+    assert br.total == pytest.approx(br.base_level + br.spreading + br.matching + br.noise)
     await store.close()
 
 

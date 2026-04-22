@@ -150,9 +150,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
             include_deep=body.include_deep,
             auto_expand=body.auto_expand,
         )
-        metrics.record_recall(
-            workspace_id, duration=time.perf_counter() - start
-        )
+        metrics.record_recall(workspace_id, duration=time.perf_counter() - start)
         return RecallResponse(
             results=[recall_result_to_dto(r) for r in results],
         )
@@ -188,9 +186,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> ExplainResponse:
         mem = await _resolve(request, workspace_id)
-        breakdown = await mem.explain_recall(
-            body.query, body.memory_id, agent_id=agent_id
-        )
+        breakdown = await mem.explain_recall(body.query, body.memory_id, agent_id=agent_id)
         return ExplainResponse(breakdown=breakdown_to_dto(breakdown))
 
     # ─── expand (explicit) ──────────────────────────────────────
@@ -326,9 +322,7 @@ def create_app(config: ServerConfig | None = None) -> FastAPI:
         agent_id: str | None = None,
     ) -> ExportMarkdownResponse:
         mem = await _resolve(request, workspace_id)
-        md = await mem.export_markdown(
-            agent_id=agent_id, min_idx_priority=body.min_idx_priority
-        )
+        md = await mem.export_markdown(agent_id=agent_id, min_idx_priority=body.min_idx_priority)
         return ExportMarkdownResponse(markdown=md)
 
     # ─── flush_session ──────────────────────────────────────────

@@ -54,9 +54,7 @@ async def test_concurrent_observes_do_not_block_event_loop(tmp_path: Path) -> No
         # With embeds on threads: ~0.15s wall (plus a bit for serialized
         # SQLite writes). Without threading they'd serialize on the event
         # loop for ~0.45s. Give headroom for CI jitter.
-        assert elapsed < 0.35, (
-            f"Observes should run in parallel; took {elapsed:.3f}s"
-        )
+        assert elapsed < 0.35, f"Observes should run in parallel; took {elapsed:.3f}s"
     finally:
         await mem.close()
 

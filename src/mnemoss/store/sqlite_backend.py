@@ -85,9 +85,7 @@ class SQLiteBackend:
 
     async def _run(self, fn, *args, **kwargs):
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            self._executor, functools.partial(fn, *args, **kwargs)
-        )
+        return await loop.run_in_executor(self._executor, functools.partial(fn, *args, **kwargs))
 
     # ─── open / close ─────────────────────────────────────────────────
 
@@ -148,9 +146,12 @@ class SQLiteBackend:
             conn.execute(
                 "INSERT INTO workspace_meta(k, v) VALUES (?, ?), (?, ?), (?, ?)",
                 (
-                    "schema_version", str(SCHEMA_VERSION),
-                    "embedding_dim", str(self._embedding_dim),
-                    "embedder_id", self._embedder_id,
+                    "schema_version",
+                    str(SCHEMA_VERSION),
+                    "embedding_dim",
+                    str(self._embedding_dim),
+                    "embedder_id",
+                    self._embedder_id,
                 ),
             )
 
@@ -161,8 +162,10 @@ class SQLiteBackend:
             conn.execute(
                 "INSERT INTO raw_log_meta(k, v) VALUES (?, ?), (?, ?)",
                 (
-                    "schema_version", str(SCHEMA_VERSION),
-                    "workspace_id", self._workspace_id,
+                    "schema_version",
+                    str(SCHEMA_VERSION),
+                    "workspace_id",
+                    self._workspace_id,
                 ),
             )
 
@@ -182,8 +185,7 @@ class SQLiteBackend:
             )
         if stored_embedder != self._embedder_id:
             raise SchemaMismatchError(
-                f"Embedder id mismatch: DB={stored_embedder!r}, "
-                f"code={self._embedder_id!r}"
+                f"Embedder id mismatch: DB={stored_embedder!r}, code={self._embedder_id!r}"
             )
 
     def _validate_raw_meta(self, conn: apsw.Connection) -> None:
@@ -191,8 +193,7 @@ class SQLiteBackend:
         stored_version = int(rows.get("schema_version", "-1"))
         if stored_version != SCHEMA_VERSION:
             raise SchemaMismatchError(
-                f"Raw-log schema version mismatch: "
-                f"DB={stored_version}, code={SCHEMA_VERSION}"
+                f"Raw-log schema version mismatch: DB={stored_version}, code={SCHEMA_VERSION}"
             )
 
     async def close(self) -> None:
@@ -215,9 +216,7 @@ class SQLiteBackend:
         conn = self._require_conn()
         emb = np.asarray(embedding, dtype=np.float32)
         if emb.shape != (self._embedding_dim,):
-            raise ValueError(
-                f"Embedding shape {emb.shape} != ({self._embedding_dim},)"
-            )
+            raise ValueError(f"Embedding shape {emb.shape} != ({self._embedding_dim},)")
         with conn:
             conn.execute(
                 """
@@ -275,8 +274,8 @@ class SQLiteBackend:
                 (memory.id, _pack_vec(emb)),
             )
             conn.execute(
-                "INSERT INTO memory_fts(memory_id, content) VALUES (?, ?)",
-                (memory.id, memory.content),
+                "INSERT INTO memory_fts(memory_id, content, entities) VALUES (?, ?, ?)",
+                (memory.id, memory.content, _fts_entities_text(memory.extracted_entities)),
             )
 
     async def write_raw_message(self, msg: RawMessage) -> None:
@@ -311,9 +310,7 @@ class SQLiteBackend:
         self, src_id: str, dst_id: str, predicate: str, confidence: float = 1.0
     ) -> None:
         async with self._write_lock:
-            await self._run(
-                self._write_relation_sync, src_id, dst_id, predicate, confidence
-            )
+            await self._run(self._write_relation_sync, src_id, dst_id, predicate, confidence)
 
     def _write_relation_sync(
         self, src_id: str, dst_id: str, predicate: str, confidence: float
@@ -364,9 +361,7 @@ class SQLiteBackend:
         """P7 Rebalance entry point: persist a fresh priority + tier for one memory."""
 
         async with self._write_lock:
-            await self._run(
-                self._update_idx_priority_sync, memory_id, idx_priority, tier
-            )
+            await self._run(self._update_idx_priority_sync, memory_id, idx_priority, tier)
 
     def _update_idx_priority_sync(
         self, memory_id: str, idx_priority: float, tier: IndexTier
@@ -441,6 +436,12 @@ class SQLiteBackend:
                     memory_id,
                 ),
             )
+            # Keep memory_fts.entities in sync so Dream P3 output becomes
+            # immediately searchable via BM25 without any query-side NER.
+            conn.execute(
+                "UPDATE memory_fts SET entities = ? WHERE memory_id = ?",
+                (_fts_entities_text(entities), memory_id),
+            )
 
     async def update_cluster_assignment(
         self,
@@ -480,9 +481,7 @@ class SQLiteBackend:
                 ),
             )
 
-    async def get_embeddings(
-        self, memory_ids: Iterable[str]
-    ) -> dict[str, np.ndarray]:
+    async def get_embeddings(self, memory_ids: Iterable[str]) -> dict[str, np.ndarray]:
         """Return ``{memory_id: embedding}`` for every requested id present.
 
         Missing ids are simply omitted from the result. Used by P2 Cluster.
@@ -496,8 +495,7 @@ class SQLiteBackend:
         conn = self._require_conn()
         placeholders = ",".join("?" for _ in memory_ids)
         rows = conn.execute(
-            f"SELECT memory_id, embedding FROM memory_vec "
-            f"WHERE memory_id IN ({placeholders})",
+            f"SELECT memory_id, embedding FROM memory_vec WHERE memory_id IN ({placeholders})",
             tuple(memory_ids),
         ).fetchall()
         out: dict[str, np.ndarray] = {}
@@ -505,18 +503,14 @@ class SQLiteBackend:
             out[mid] = np.frombuffer(blob, dtype=np.float32).copy()
         return out
 
-    async def link_derived(
-        self, parent_ids: Iterable[str], child_id: str
-    ) -> int:
+    async def link_derived(self, parent_ids: Iterable[str], child_id: str) -> int:
         """Append ``child_id`` to each parent's ``derived_to`` list.
 
         Returns the number of parents that were actually updated. Silently
         skips missing parents and no-op when the edge already exists.
         """
 
-        return await self._run(
-            self._link_derived_sync, list(parent_ids), child_id
-        )
+        return await self._run(self._link_derived_sync, list(parent_ids), child_id)
 
     def _link_derived_sync(self, parent_ids: list[str], child_id: str) -> int:
         if not parent_ids:
@@ -632,15 +626,10 @@ class SQLiteBackend:
                 "AND idx_priority >= ? "
                 "ORDER BY idx_priority DESC LIMIT ?"
             )
-            rows = conn.execute(
-                sql, (agent_id, min_idx_priority, limit)
-            ).fetchall()
+            rows = conn.execute(sql, (agent_id, min_idx_priority, limit)).fetchall()
         if not rows:
             return []
-        return [
-            _row_to_memory(dict(zip(self._memory_columns, row, strict=True)))
-            for row in rows
-        ]
+        return [_row_to_memory(dict(zip(self._memory_columns, row, strict=True))) for row in rows]
 
     async def pinned_ids_in_scope(self, agent_id: str | None) -> set[str]:
         """Return the set of memory ids pinned by the caller's scope.
@@ -654,9 +643,7 @@ class SQLiteBackend:
     def _pinned_in_scope_sync(self, agent_id: str | None) -> set[str]:
         conn = self._require_conn()
         if agent_id is None:
-            rows = conn.execute(
-                "SELECT memory_id FROM pin WHERE agent_id IS NULL"
-            ).fetchall()
+            rows = conn.execute("SELECT memory_id FROM pin WHERE agent_id IS NULL").fetchall()
         else:
             rows = conn.execute(
                 "SELECT memory_id FROM pin WHERE agent_id = ? OR agent_id IS NULL",
@@ -714,15 +701,10 @@ class SQLiteBackend:
 
         return await self._run(self._list_tombstones_sync, agent_id, limit)
 
-    def _list_tombstones_sync(
-        self, agent_id: str | None, limit: int
-    ) -> list[Tombstone]:
+    def _list_tombstones_sync(self, agent_id: str | None, limit: int) -> list[Tombstone]:
         conn = self._require_conn()
         if agent_id is None:
-            sql = (
-                "SELECT * FROM tombstone WHERE agent_id IS NULL "
-                "ORDER BY dropped_at DESC LIMIT ?"
-            )
+            sql = "SELECT * FROM tombstone WHERE agent_id IS NULL ORDER BY dropped_at DESC LIMIT ?"
             rows = conn.execute(sql, (limit,)).fetchall()
         else:
             sql = (
@@ -761,12 +743,8 @@ class SQLiteBackend:
         conn = self._require_conn()
         with conn:
             conn.execute("DELETE FROM memory WHERE id = ?", (memory_id,))
-            conn.execute(
-                "DELETE FROM memory_vec WHERE memory_id = ?", (memory_id,)
-            )
-            conn.execute(
-                "DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,)
-            )
+            conn.execute("DELETE FROM memory_vec WHERE memory_id = ?", (memory_id,))
+            conn.execute("DELETE FROM memory_fts WHERE memory_id = ?", (memory_id,))
             conn.execute(
                 "DELETE FROM relation WHERE src_id = ? OR dst_id = ?",
                 (memory_id, memory_id),
@@ -790,9 +768,7 @@ class SQLiteBackend:
 
     def _get_memory_sync(self, memory_id: str) -> Memory | None:
         conn = self._require_conn()
-        row = conn.execute(
-            "SELECT * FROM memory WHERE id = ?", (memory_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM memory WHERE id = ?", (memory_id,)).fetchone()
         if row is None:
             return None
         return _row_to_memory(dict(zip(self._memory_columns, row, strict=True)))
@@ -930,17 +906,12 @@ class SQLiteBackend:
             seen.update(next_frontier)
             # ``seen`` includes seeds; budget compares against the
             # non-seed reachable set since that's what the caller uses.
-            if (
-                max_candidates is not None
-                and len(seen - seed_set) >= max_candidates
-            ):
+            if max_candidates is not None and len(seen - seed_set) >= max_candidates:
                 break
             frontier = next_frontier
         return seen - seed_set
 
-    async def pinned_by_agent(
-        self, memory_ids: Iterable[str], agent_id: str | None
-    ) -> set[str]:
+    async def pinned_by_agent(self, memory_ids: Iterable[str], agent_id: str | None) -> set[str]:
         """Return the subset of ``memory_ids`` pinned *by this agent*.
 
         Per-agent pin semantics — matches ``is_pinned(id, agent_id)`` but
@@ -949,13 +920,9 @@ class SQLiteBackend:
         selects ambient (agent_id IS NULL) pins only.
         """
 
-        return await self._run(
-            self._pinned_by_agent_sync, list(memory_ids), agent_id
-        )
+        return await self._run(self._pinned_by_agent_sync, list(memory_ids), agent_id)
 
-    def _pinned_by_agent_sync(
-        self, memory_ids: list[str], agent_id: str | None
-    ) -> set[str]:
+    def _pinned_by_agent_sync(self, memory_ids: list[str], agent_id: str | None) -> set[str]:
         if not memory_ids:
             return set()
         conn = self._require_conn()
@@ -991,9 +958,7 @@ class SQLiteBackend:
         a time).
         """
 
-        return await self._run(
-            self._vec_search_sync, query_embedding, k, agent_id, tier_filter
-        )
+        return await self._run(self._vec_search_sync, query_embedding, k, agent_id, tier_filter)
 
     def _vec_search_sync(
         self,
@@ -1005,16 +970,13 @@ class SQLiteBackend:
         conn = self._require_conn()
         emb = np.asarray(query_embedding, dtype=np.float32)
         if emb.shape != (self._embedding_dim,):
-            raise ValueError(
-                f"Query embedding shape {emb.shape} != ({self._embedding_dim},)"
-            )
+            raise ValueError(f"Query embedding shape {emb.shape} != ({self._embedding_dim},)")
         # Pull more than k from vec0, then filter by agent / tier in Python.
         # sqlite-vec MATCH doesn't compose cleanly with SQL filters in one
         # statement. We over-scan so the tier filter still yields ~k hits.
         over_scan = max(k * 8, 64) if tier_filter is not None else max(k * 4, 32)
         rows = conn.execute(
-            "SELECT memory_id, distance FROM memory_vec "
-            "WHERE embedding MATCH ? AND k = ?",
+            "SELECT memory_id, distance FROM memory_vec WHERE embedding MATCH ? AND k = ?",
             (_pack_vec(emb), over_scan),
         ).fetchall()
         ids = [r[0] for r in rows]
@@ -1039,9 +1001,7 @@ class SQLiteBackend:
     ) -> list[tuple[str, float]]:
         """Return ``[(memory_id, bm25_raw)]`` — SQLite BM25 (negative)."""
 
-        return await self._run(
-            self._fts_search_sync, query, k, agent_id, tier_filter
-        )
+        return await self._run(self._fts_search_sync, query, k, agent_id, tier_filter)
 
     def _fts_search_sync(
         self,
@@ -1087,9 +1047,7 @@ class SQLiteBackend:
         }
         return [by_id[i] for i in ids if i in by_id]
 
-    async def list_recent_in_session(
-        self, session_id: str, limit: int
-    ) -> list[str]:
+    async def list_recent_in_session(self, session_id: str, limit: int) -> list[str]:
         """Return recent memory IDs in a session, newest first."""
 
         return await self._run(self._recent_session_sync, session_id, limit)
@@ -1097,8 +1055,7 @@ class SQLiteBackend:
     def _recent_session_sync(self, session_id: str, limit: int) -> list[str]:
         conn = self._require_conn()
         rows = conn.execute(
-            "SELECT id FROM memory WHERE session_id = ? "
-            "ORDER BY created_at DESC LIMIT ?",
+            "SELECT id FROM memory WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
             (session_id, limit),
         ).fetchall()
         return [r[0] for r in rows]
@@ -1185,9 +1142,7 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
     access_history = [datetime.fromtimestamp(t, tz=UTC) for t in json.loads(row["access_history"])]
     last_accessed_raw = row.get("last_accessed_at")
     last_accessed = (
-        datetime.fromtimestamp(last_accessed_raw, tz=UTC)
-        if last_accessed_raw is not None
-        else None
+        datetime.fromtimestamp(last_accessed_raw, tz=UTC) if last_accessed_raw is not None else None
     )
     entities_raw = row.get("extracted_entities")
     participants_raw = row.get("extracted_participants")
@@ -1215,13 +1170,9 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
         idx_priority=row.get("idx_priority", 0.5),
         extracted_gist=row.get("extracted_gist"),
         extracted_entities=json.loads(entities_raw) if entities_raw else None,
-        extracted_time=(
-            datetime.fromtimestamp(time_raw, tz=UTC) if time_raw is not None else None
-        ),
+        extracted_time=(datetime.fromtimestamp(time_raw, tz=UTC) if time_raw is not None else None),
         extracted_location=row.get("extracted_location"),
-        extracted_participants=(
-            json.loads(participants_raw) if participants_raw else None
-        ),
+        extracted_participants=(json.loads(participants_raw) if participants_raw else None),
         extraction_level=row.get("extraction_level", 0),
         cluster_id=row.get("cluster_id"),
         cluster_similarity=row.get("cluster_similarity"),
@@ -1235,6 +1186,19 @@ def _row_to_memory(row: dict[str, Any]) -> Memory:
 
 def _dump_json_or_none(value: Any) -> str | None:
     return json.dumps(value) if value is not None else None
+
+
+def _fts_entities_text(entities: list[str] | None) -> str:
+    """Render an entities list as the FTS5 ``entities`` column value.
+
+    Joined with spaces so the trigram tokenizer indexes each surface
+    form independently. ``None`` or empty → empty string (FTS5 handles
+    empty columns fine and contributes nothing to BM25).
+    """
+
+    if not entities:
+        return ""
+    return " ".join(e for e in entities if e)
 
 
 def _json_safe(obj: Any) -> Any:

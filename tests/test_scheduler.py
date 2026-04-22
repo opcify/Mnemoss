@@ -146,9 +146,7 @@ async def test_idle_fires_after_threshold() -> None:
     backend = _FakeBackend()
     now = datetime(2026, 4, 21, 12, 0, tzinfo=UTC)
     backend.last_observe_at = now - timedelta(seconds=600)
-    sched = _scheduler(
-        backend, clock=now, nightly_at=None, idle_after_seconds=300
-    )
+    sched = _scheduler(backend, clock=now, nightly_at=None, idle_after_seconds=300)
 
     await sched._tick()
     assert backend.dreams == ["idle"]
@@ -158,9 +156,7 @@ async def test_idle_does_not_fire_before_threshold() -> None:
     backend = _FakeBackend()
     now = datetime(2026, 4, 21, 12, 0, tzinfo=UTC)
     backend.last_observe_at = now - timedelta(seconds=60)
-    sched = _scheduler(
-        backend, clock=now, nightly_at=None, idle_after_seconds=300
-    )
+    sched = _scheduler(backend, clock=now, nightly_at=None, idle_after_seconds=300)
 
     await sched._tick()
     assert backend.dreams == []
@@ -212,9 +208,7 @@ async def test_idle_disabled_when_seconds_is_none() -> None:
     backend = _FakeBackend()
     backend.last_observe_at = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
     now = datetime(2026, 4, 21, 23, 0, tzinfo=UTC)
-    sched = _scheduler(
-        backend, clock=now, nightly_at=None, idle_after_seconds=None
-    )
+    sched = _scheduler(backend, clock=now, nightly_at=None, idle_after_seconds=None)
 
     await sched._tick()
     assert backend.dreams == []

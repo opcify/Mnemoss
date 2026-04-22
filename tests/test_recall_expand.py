@@ -208,9 +208,7 @@ async def test_expand_via_relations_respects_max_candidates(
     try:
         ids = []
         for i in range(8):
-            mid = await mem.observe(
-                role="user", content=f"note {i}", session_id="s1"
-            )
+            mid = await mem.observe(role="user", content=f"note {i}", session_id="s1")
             assert mid is not None
             ids.append(mid)
 
@@ -256,9 +254,7 @@ async def test_expansion_escalates_to_hops_3(tmp_path: Path) -> None:
     try:
         ids = []
         for i, c in enumerate(["alpha", "bravo", "charlie", "delta", "echo"]):
-            mid = await mem.observe(
-                role="user", content=c, session_id=f"s{i}"
-            )
+            mid = await mem.observe(role="user", content=c, session_id=f"s{i}")
             assert mid is not None
             ids.append(mid)
         a, b, c_id, d_id, e_id = ids
@@ -266,14 +262,16 @@ async def test_expansion_escalates_to_hops_3(tmp_path: Path) -> None:
         assert mem._store is not None
         # Linear chain: A ↔ B ↔ C ↔ D ↔ E. No shortcuts.
         for src, dst in [
-            (a, b), (b, a),
-            (b, c_id), (c_id, b),
-            (c_id, d_id), (d_id, c_id),
-            (d_id, e_id), (e_id, d_id),
+            (a, b),
+            (b, a),
+            (b, c_id),
+            (c_id, b),
+            (c_id, d_id),
+            (d_id, c_id),
+            (d_id, e_id),
+            (e_id, d_id),
         ]:
-            await mem._store.write_relation(
-                src, dst, "co_occurs_in_session", 0.5
-            )
+            await mem._store.write_relation(src, dst, "co_occurs_in_session", 0.5)
 
         # Verify escalation: each hop count reaches exactly the expected
         # depth of the chain.
@@ -370,15 +368,11 @@ async def test_second_recall_on_same_topic_adds_expanded_results(
         assert mem._store is not None and mem._engine is not None
         engine = mem._engine
 
-        first = await engine.recall(
-            "alice project", agent_id=None, k=2, pool_size=2
-        )
+        first = await engine.recall("alice project", agent_id=None, k=2, pool_size=2)
         assert first, "direct recall returned nothing"
         assert all(r.source == "direct" for r in first)
 
-        second = await engine.recall(
-            "alice project", agent_id=None, k=2, pool_size=2
-        )
+        second = await engine.recall("alice project", agent_id=None, k=2, pool_size=2)
         expanded = [r for r in second if r.source == "expanded"]
         assert expanded, "expected at least one expanded result on follow-up"
         direct_ids = {r.memory.id for r in second if r.source == "direct"}
@@ -480,9 +474,7 @@ async def test_expansion_fires_after_long_gap_with_fresh_streak(
         engine = mem._engine
 
         # First recall establishes history.
-        first = await engine.recall(
-            "alice alpha", agent_id=None, k=2, pool_size=2
-        )
+        first = await engine.recall("alice alpha", agent_id=None, k=2, pool_size=2)
         assert first
 
         # Simulate an hour-long gap by rewriting the history entry's
@@ -494,9 +486,7 @@ async def test_expansion_fires_after_long_gap_with_fresh_streak(
         prev_entry.timestamp = prev_entry.timestamp - timedelta(hours=1)
         prev_entry.streak = 3  # previous streak was deep; gap should reset it
 
-        second = await engine.recall(
-            "alice alpha", agent_id=None, k=2, pool_size=2
-        )
+        second = await engine.recall("alice alpha", agent_id=None, k=2, pool_size=2)
         expanded = [r for r in second if r.source == "expanded"]
         assert expanded, "expansion should fire even after a long gap"
 

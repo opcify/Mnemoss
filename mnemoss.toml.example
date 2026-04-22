@@ -1,0 +1,25 @@
+# Mnemoss configuration example.
+#
+# Copy to one of these locations — the first match wins:
+#   1. The path in the MNEMOSS_CONFIG env var
+#   2. ./mnemoss.toml (current working directory)
+#   3. ~/.mnemoss/config.toml
+#
+# Then use:
+#   from mnemoss import Mnemoss
+#   mem = Mnemoss.from_config_file(workspace="my_agent")
+#
+# Every key is optional except embedder.provider. API keys default to
+# the standard env vars (OPENAI_API_KEY / GEMINI_API_KEY /
+# GOOGLE_API_KEY / ANTHROPIC_API_KEY) when omitted.
+
+[embedder]
+provider = "gemini"                # "local" | "openai" | "gemini"
+model    = "gemini-embedding-001"  # optional
+# api_key = "..."                  # optional; env var used if unset
+# dim     = 3072                   # optional (MRL truncation for Gemini: 768/1536/3072)
+
+[llm]
+provider = "gemini"                # "openai" | "anthropic" | "gemini" | "mock"
+model    = "gemini-2.5-flash"      # optional
+# api_key = "..."                  # optional; env var used if unset

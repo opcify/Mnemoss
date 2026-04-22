@@ -190,7 +190,9 @@ class Memory:
     extracted_time: datetime | None
     extracted_location: str | None
     extracted_participants: list[str] | None
-    extraction_level: int                # 0=raw, 1=heuristic, 2=LLM
+    extraction_level: int                # 0=raw, 1=heuristic gist+time,
+                                         # 2=Dream P3 LLM (entities/location/
+                                         # participants filled here, not level 1)
     
     # Type-specific (entity only)
     aliases: list[str] | None
@@ -551,7 +553,11 @@ architecture around it.
 
 - Proper event segmentation (rule-based)
 - Multi-dimensional salience scoring
-- Lazy extraction (heuristic tools: dateparser, NER, gazetteer)
+- Lazy extraction, level-1 heuristics only (dateparser for time;
+  gist via first-sentence split). Entities / location / participants
+  are NOT filled at level 1 — they're Dream P3's authoritative output
+  to keep the encoding path language-neutral (no English-biased
+  Title-Case pass). See "NER handling" in the architecture doc §1.4.1.
 - Complete Working Memory
 
 ### Stage 4 — Light Dreaming ✅
@@ -586,6 +592,165 @@ Post-ship (tracked separately):
 - Whitepaper
 - Benchmarks vs mem0 / Zep / Letta
 - Adapter polish as host frameworks evolve
+
+### Future — Full NER Capability (planned)
+
+**Framing.** Mnemoss today is "entity-aware, not entity-literate."
+Dream P3 extracts canonical strings per memory, writes them to
+`memory_fts.entities` and `shares_entity` edges, and that's enough to
+make recall work across scripts without ever parsing the query. The
+full NER capability pushes that further: give entities stable
+cross-run identity, promote them to first-class Memory rows, and
+expose structured APIs for callers who already have an entity ID in
+hand. The query side stays dumb throughout — every feature below
+works on stored memory state, not on query inspection.
+
+**Shipped so far** (reference state for the plan):
+
+- Level-1 heuristic extraction fills gist + time only. Entities,
+  location, participants stay `None` until Dream P3.
+- Dream P3 Consolidate emits canonical entity surface forms in the
+  source language, longest-form-wins, deduplicated per cluster.
+- `memory_fts.entities` carries those strings through the same
+  trigram tokenizer so BM25 finds them across scripts.
+- Dream P4 writes Jaccard-weighted `shares_entity` edges between
+  refined cluster members; spreading activation reads them like any
+  other relation predicate.
+- `b_F(q)` is structural-only. No query-side NER, ever.
+
+**Gap.** Each dream run produces entity strings independently — the
+same referent ("Alice Smith" today, "Alice" tomorrow) can stay split.
+`memory_type=entity` rows exist in the schema but are never
+auto-populated. There's no caller-side way to say "recall anything
+about THIS entity."
+
+#### Phase α — Canonical entity identity across runs  (S–M)
+
+Give every distinct referent a stable ULID that survives across dream
+runs.
+
+New tables in `memory.sqlite` (schema bump):
+
+```
+entity:            (id, workspace_id, agent_id, canonical_name, aliases JSON,
+                    kind, created_at, last_mentioned_at, mention_count)
+entity_mention:    (entity_id, memory_id, confidence)
+```
+
+Resolution at Dream P3 time, for each emitted entity string:
+
+1. Exact-match (case-folded) against `canonical_name` or any alias in
+   the same workspace + agent scope → bind to that entity.
+2. Near-match via embedding cosine over `canonical_name + aliases` ≥
+   threshold → bind as a new alias.
+3. Otherwise create a new `entity` row with the surface form as
+   canonical_name.
+
+Write a row into `entity_mention` for every source memory. Touch
+`last_mentioned_at`, increment `mention_count`.
+
+Why: `shares_entity` becomes rigorous (no split across surface
+variants), spreading stops double-counting, and every subsequent
+phase has a stable join key.
+
+#### Phase β — Entity Memory rows  (M)
+
+Promote frequently-mentioned entities to first-class `Memory`
+records.
+
+- Trigger: `entity.mention_count ≥ N` (default 3), OR the entity is
+  referenced by a pinned memory.
+- Content: one-sentence LLM-synthesized description aggregated over
+  all mentions, in the majority language of those mentions.
+- `memory_type = entity`, `abstraction_level ≈ 0.7`.
+- `derived_from` points at every mention's memory ID.
+- The standard `idx_priority` formula applies unchanged — no bespoke
+  decay, `mention_count` is already a rehearsal proxy.
+
+Downstream effects: `memory.md` gains a "People / Places / Projects"
+section grouped by `entity.kind`. Entity rows are retrievable via
+semantic queries ("who's my manager?") without any query-side
+parsing.
+
+#### Phase γ — Entity typing  (S)
+
+Extend Dream P3's refinement schema to emit `kind ∈ {person, place,
+org, product, project, concept}` alongside the string. Store on the
+`entity` row. Used only for `memory.md` grouping and the optional
+filter API (§ε); never gates retrieval.
+
+#### Phase δ — Explicit alias & mention relations  (S, decision)
+
+Aliases live on the `entity` row as JSON today. Option to promote
+`alias_of` and `mentions` to first-class edges in the `relation`
+table. Tradeoff: JSON keeps the graph small but breaks traversal;
+edges enable richer graph queries at a ~10× row cost. Lean toward
+keeping aliases in JSON and only promoting `mentions` if benchmarks
+show entity-scoped graph walks are hot.
+
+#### Phase ε — Entity-scoped recall API  (S)
+
+Advanced, caller-supplied filter:
+
+```python
+results = await mem.recall("what did we do with them last month",
+                           entity_filter=["01HRPZ...alice_uuid"])
+```
+
+Library does no extraction — the caller (CRM adapter, UI with a
+people picker, agent framework that tracked the referent) supplies
+entity IDs. Filter applies at the FTS/vec hit stage via the
+`entity_mention` join. Compatible with every existing ranking signal;
+no formula change.
+
+#### Phase ζ — Disambiguation  (L, defer until needed)
+
+Two distinct referents with identical canonical form (two "Alice
+Smith"s, two "Cursor" products) collapse under Phase α's exact-match
+rule. Resolution path:
+
+- Cluster an entity's mention memories on embeddings — bimodal /
+  high-dispersion clusters flag a disambiguation candidate.
+- One LLM call per flagged entity: "are these all the same referent?
+  If not, partition them."
+- Explicit user overrides: `mem.entity_merge(a, b)`,
+  `mem.entity_split(a, ids_to_split)`.
+
+Likely not worth the design cost until a production workload
+produces the problem organically.
+
+#### Phase η — Entity salience & decay  (S)
+
+No new math needed. Entity `Memory` rows already flow through the
+standard activation formula: `access_history` updates every time a
+query hits via `entity_mention`, `B_i` decays naturally, and
+`idx_priority` keeps hot entities in HOT/WARM. Tier migration is
+automatic.
+
+#### Non-goals
+
+- **Query-side NER of any kind.** The whole plan holds
+  query-agnosticism. Every feature above works on stored state.
+- **PER / LOC / ORG gazetteers.** Static lexicons are brittle and
+  language-biased; LLM-emitted typing (Phase γ) plus the graph is
+  the extensible path.
+- **NER model in the hot path.** `gist + time` is the ceiling for
+  level-1 encoding. Everything richer stays in Dream's cold path.
+
+#### Sequencing & dependencies
+
+- **Tier 1** — Phase α + β. Highest leverage; unlocks stable entity
+  identity and the user-visible entity view.
+- **Tier 2** — Phase γ + ε. Polish + power-user API.
+- **Tier 3** — Phase δ + ζ + η. Harden as real workloads surface
+  issues.
+
+Blockers: Phase α + β both bump `SCHEMA_VERSION` (new tables). Ideal
+to land them together, not in separate releases. The benchmark
+harness (Tier A of the post-MVP roadmap) should precede Phase α so
+we can measure whether canonicalization actually lifts recall
+quality over raw `shares_entity` Jaccard — if not, the effort budget
+redirects.
 
 ---
 

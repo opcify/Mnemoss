@@ -107,19 +107,13 @@ def record_dream(workspace: str, *, trigger: str, duration: float) -> None:
     DREAM_DURATION.labels(workspace=workspace, trigger=trigger).observe(duration)
 
 
-def record_disposal(
-    workspace: str, *, activation_dead: int, redundant: int
-) -> None:
+def record_disposal(workspace: str, *, activation_dead: int, redundant: int) -> None:
     if not HAS_PROMETHEUS:
         return
     if activation_dead:
-        DISPOSALS_TOTAL.labels(
-            workspace=workspace, reason="activation_dead"
-        ).inc(activation_dead)
+        DISPOSALS_TOTAL.labels(workspace=workspace, reason="activation_dead").inc(activation_dead)
     if redundant:
-        DISPOSALS_TOTAL.labels(workspace=workspace, reason="redundant").inc(
-            redundant
-        )
+        DISPOSALS_TOTAL.labels(workspace=workspace, reason="redundant").inc(redundant)
 
 
 async def refresh_memory_gauges(pool: Any) -> None:

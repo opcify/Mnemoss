@@ -29,6 +29,7 @@ from mnemoss.dream.consolidate import (
 from mnemoss.dream.dispose import dispose_pass
 from mnemoss.dream.relations import (
     write_derived_from_edges,
+    write_shares_entity_edges,
     write_similar_to_edges,
 )
 from mnemoss.dream.replay import select_replay_candidates
@@ -91,6 +92,10 @@ class _DreamState:
     # Every Memory emitted by Consolidate (summaries + patterns). P5
     # Relations writes derived_from edges from these back to their sources.
     consolidated: list[Memory] = field(default_factory=list)
+    # Members whose extraction_level was bumped to 2 during Consolidate.
+    # P5 Relations uses their refined entity lists to write
+    # shares_entity edges.
+    refined_members: list[Memory] = field(default_factory=list)
 
 
 class DreamRunner:
@@ -200,9 +205,7 @@ class DreamRunner:
         embeddings = await self._store.get_embeddings(ids)
         state.embeddings = embeddings
 
-        assignments = cluster_embeddings(
-            embeddings, min_cluster_size=self._cluster_min_size
-        )
+        assignments = cluster_embeddings(embeddings, min_cluster_size=self._cluster_min_size)
         state.cluster_assignments = assignments
 
         for mid, a in assignments.items():
@@ -224,9 +227,7 @@ class DreamRunner:
 
     # ─── P3 Consolidate (merged Extract + Refine + Generalize) ─────
 
-    async def _phase_consolidate(
-        self, state: _DreamState, now: datetime
-    ) -> PhaseOutcome:
+    async def _phase_consolidate(self, state: _DreamState, now: datetime) -> PhaseOutcome:
         if self._llm is None:
             return PhaseOutcome(
                 phase=PhaseName.CONSOLIDATE,
@@ -253,9 +254,7 @@ class DreamRunner:
         for cluster_members in clusters:
             if len(cluster_members) < 2:
                 continue  # Singletons have nothing to consolidate.
-            result = await consolidate_cluster(
-                cluster_members, self._llm, self._params, now=now
-            )
+            result = await consolidate_cluster(cluster_members, self._llm, self._params, now=now)
             if result.is_empty:
                 llm_failures += 1
                 continue
@@ -285,6 +284,7 @@ class DreamRunner:
                     level=fields.level,
                 )
                 refined_ids.append(member.id)
+                state.refined_members.append(member)
 
             # (C) Patterns — intra-cluster PATTERN memories.
             for pattern in result.patterns:
@@ -298,9 +298,7 @@ class DreamRunner:
             phase=PhaseName.CONSOLIDATE,
             status="ok",
             details={
-                "clusters_processed": sum(
-                    1 for c in clusters if len(c) >= 2
-                ),
+                "clusters_processed": sum(1 for c in clusters if len(c) >= 2),
                 "summaries": len(summaries),
                 "patterns": len(patterns),
                 "refined": len(refined_ids),
@@ -314,18 +312,13 @@ class DreamRunner:
             },
         )
 
-    def _clusters_for_consolidation(
-        self, state: _DreamState
-    ) -> list[list[Memory]]:
+    def _clusters_for_consolidation(self, state: _DreamState) -> list[list[Memory]]:
         """Resolve the flat clusters list the phase iterates over."""
 
         if state.cluster_assignments:
             groups = group_by_cluster(state.cluster_assignments)
             by_id = {m.id: m for m in state.replay_set}
-            return [
-                [by_id[mid] for mid in members if mid in by_id]
-                for members in groups.values()
-            ]
+            return [[by_id[mid] for mid in members if mid in by_id] for members in groups.values()]
         if state.replay_set:
             return [state.replay_set]
         return []
@@ -334,28 +327,24 @@ class DreamRunner:
         """Embed + write a derived memory, link its derived_from edges."""
 
         assert self._embedder is not None  # guarded by phase entry
-        embedding = await asyncio.to_thread(
-            self._embedder.embed, [memory.content]
-        )
+        embedding = await asyncio.to_thread(self._embedder.embed, [memory.content])
         await self._store.write_memory(memory, embedding[0])
         await self._store.link_derived(memory.derived_from, memory.id)
 
     # ─── P5 Relations ──────────────────────────────────────────────
 
     async def _phase_relations(self, state: _DreamState) -> PhaseOutcome:
-        similar_edges = await write_similar_to_edges(
-            self._store, state.cluster_assignments
-        )
-        derived_edges = await write_derived_from_edges(
-            self._store, state.consolidated
-        )
+        similar_edges = await write_similar_to_edges(self._store, state.cluster_assignments)
+        derived_edges = await write_derived_from_edges(self._store, state.consolidated)
+        shares_edges = await write_shares_entity_edges(self._store, state.refined_members)
         return PhaseOutcome(
             phase=PhaseName.RELATIONS,
             status="ok",
             details={
                 "similar_to_edges": similar_edges,
                 "derived_from_edges": derived_edges,
-                "total_edges": similar_edges + derived_edges,
+                "shares_entity_edges": shares_edges,
+                "total_edges": similar_edges + derived_edges + shares_edges,
             },
         )
 
@@ -369,22 +358,16 @@ class DreamRunner:
             details={
                 "scanned": stats.scanned,
                 "migrated": stats.migrated,
-                "tier_after": {
-                    tier.value: count for tier, count in stats.tier_after.items()
-                },
+                "tier_after": {tier.value: count for tier, count in stats.tier_after.items()},
             },
         )
 
     # ─── P8 Dispose ────────────────────────────────────────────────
 
-    async def _phase_dispose(
-        self, state: _DreamState, now: datetime
-    ) -> PhaseOutcome:
+    async def _phase_dispose(self, state: _DreamState, now: datetime) -> PhaseOutcome:
         # Dispose scans the replay set when P1 ran, else the full table.
         candidates = state.replay_set if state.replay_set else None
-        stats = await dispose_pass(
-            self._store, self._params, now=now, candidates=candidates
-        )
+        stats = await dispose_pass(self._store, self._params, now=now, candidates=candidates)
         return PhaseOutcome(
             phase=PhaseName.DISPOSE,
             status="ok",

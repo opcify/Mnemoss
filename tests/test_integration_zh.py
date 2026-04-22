@@ -25,8 +25,7 @@ async def test_success_criterion_chinese(tmp_path: Path) -> None:
         results = await mem.recall("什么时候见 Alice?", k=3)
         assert results, "recall returned nothing"
         assert results[0].memory.id == m1, (
-            f"expected m1 ('4:20 和 Alice') first; got: "
-            f"{[r.memory.content for r in results]}"
+            f"expected m1 ('4:20 和 Alice') first; got: {[r.memory.content for r in results]}"
         )
     finally:
         await mem.close()

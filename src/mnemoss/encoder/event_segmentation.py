@@ -178,9 +178,7 @@ class EventSegmenter:
 
     # ─── internals ────────────────────────────────────────────────────
 
-    def _close(
-        self, key: _BufferKey, now: datetime, closed_by: str
-    ) -> ClosedEvent:
+    def _close(self, key: _BufferKey, now: datetime, closed_by: str) -> ClosedEvent:
         buf = self._buffers.pop(key)
         return ClosedEvent(
             messages=buf.messages,

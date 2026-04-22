@@ -65,9 +65,7 @@ def compute_activation(
     """
 
     b = compute_base_level(memory.access_history, now, memory.created_at, params)
-    idx_priority = compute_idx_priority(
-        b, memory.salience, memory.emotional_weight, pinned, params
-    )
+    idx_priority = compute_idx_priority(b, memory.salience, memory.emotional_weight, pinned, params)
 
     spread = compute_spreading(memory.id, active_set, relations_from, fan_of, params)
 

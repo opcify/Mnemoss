@@ -162,14 +162,29 @@ This guarantees $w_F + w_S = 1$ and keeps both in $(0, 1)$.
 
 **Query bias function $b_F(q)$:**
 
+Every rule is purely structural / typographic — we never inspect the
+query for named entities, topics, or meaning. Memory stays query-
+agnostic; $b_F$ only picks up patterns a user *types* to signal "I
+mean this literally."
+
 | Query feature | $b_F$ | Example |
 |---|---|---|
-| Contains quotes | 1.5 | `"4:20 PM"` |
-| Contains specific numbers/dates | 1.3 | "2026-04-22" |
-| Contains proper nouns | 1.2 | "Alice" |
-| Contains pronouns | 0.7 | "that one", "it" |
-| Contains vague terms | 0.6 | "something about", "long ago" |
-| Default | 1.0 | plain query |
+| Quote chars or backtick fence | 1.5 | `"4:20 PM"`, `` `userId` ``, 「我明天要去」, 《红楼梦》 |
+| URL, email, or file path | 1.4 | `https://example.com`, `src/main.py`, `foo@bar.com` |
+| Time/date/number, hashtag, @-mention, CamelCase / snake_case / kebab-case, version | 1.3 | `4:20`, `2026-04-22`, `#release`, `@alice`, `iPhone`, `my_var`, `v1.2.3` |
+| ALL-CAPS Latin acronym ≥3 chars | 1.2 | `USA`, `NASA`, `IBM` |
+| Default | 1.0 | plain query in any script |
+
+Notes:
+- Non-Latin scripts (CJK, Arabic, Devanagari, …) trigger every rule
+  that uses language-neutral regex (quotes, URLs, digits, hashtags,
+  code identifiers). The acronym rule is Latin-only by construction —
+  no other common script uses uppercase — so it's silent on those
+  scripts rather than biased against them.
+- Title-Case proper-noun detection was removed: it was English-biased
+  (silent on CJK / Arabic) and duplicated work that embeddings and
+  the entities FTS column already handle. Named entities flow into
+  recall via Dream P3 output, not via query parsing — see §1.4.1.
 
 #### Normalized Scores
 
@@ -198,16 +213,45 @@ Computed directly from the normalized-weight formula above:
 
 | Scenario | idx_priority | $b_F(q)$ | $w_F$ | Result |
 |---|---|---|---|---|
-| New memory + precise query | 0.95 | 1.5 | ≈ 0.88 | FTS dominates |
-| New memory + vague query | 0.95 | 0.7 | ≈ 0.62 | FTS favored |
-| Old memory + precise query | 0.20 | 1.5 | ≈ 0.51 | Roughly balanced |
-| Old memory + vague query | 0.20 | 0.7 | ≈ 0.19 | Semantic dominates |
+| New memory + quoted query | 0.95 | 1.5 | ≈ 0.87 | FTS dominates |
+| New memory + plain query | 0.95 | 1.0 | ≈ 0.74 | FTS favored by state alone |
+| Old memory + quoted query | 0.20 | 1.5 | ≈ 0.51 | Roughly balanced |
+| Old memory + plain query | 0.20 | 1.0 | ≈ 0.26 | Semantic dominates |
 
 This naturally captures human memory behavior: recent events recalled by 
 literal details, old events recalled by gist. The symmetric design means 
 extreme idx_priority values push one mode hard in both factors — a fresh 
 memory facing a precise query gets *both* a higher FTS state-factor *and* 
 the FTS-leaning bias — compounding into strong preference.
+
+#### 1.4.1 How NER flows into recall without parsing the query
+
+The query string is never inspected for named entities. Mnemoss still
+becomes entity-aware through four independent mechanisms, all driven
+by Dream P3 Consolidate's LLM output — not by regex on the query side:
+
+1. **`entities` column on `memory_fts`** — Dream P3 writes each
+   memory's canonical entities (in the source language) into a
+   secondary FTS5 column with the same `trigram` tokenizer. Any query
+   text that happens to contain those tokens hits via BM25 with zero
+   parsing. Queries in mixed scripts work naturally ("Alice 走了吗?"
+   matches a memory whose entities column contains `Alice`).
+2. **`shares_entity` relation edges** — Dream P4 writes symmetric
+   edges (weighted by Jaccard overlap of entity sets) between
+   consolidated members. Spreading activation $\sum_j W_j \cdot S_{ji}$
+   propagates through them: if working memory contains a recent item
+   about "Alice", any candidate memory that shares an entity with it
+   gets a spreading bonus regardless of what the query says.
+3. **First-class `memory_type=entity` rows** — entities promoted to
+   their own Memory rows are retrieved like any other memory. A
+   semantic query "who's my manager?" hits the Alice entity row by
+   cosine, not by parsing "manager" → PER.
+4. **`memory.md` user-facing view** — entities are grouped for human
+   review. Cosmetic; no effect on retrieval.
+
+Level-1 heuristic extraction leaves `entities=None`. Only Dream P3
+(level=2) writes entities, so the `entities` FTS column is empty
+until a memory has been dreamed.
 
 ---
 

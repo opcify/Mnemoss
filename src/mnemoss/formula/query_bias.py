@@ -2,27 +2,42 @@
 
 See MNEMOSS_FORMULA_AND_ARCHITECTURE.md §1.4.
 
-Stage 2 expansion:
-- CJK quote brackets include 《》 『』 【】 alongside the Stage-1 set
-  (corner brackets 「」, straight, curly, French guillemets).
-- Latin-script proper-noun detection — a Title Case token outside the
-  common-stopword list biases b_F upward to 1.2 (between neutral and
-  time/number).
-- ``has_deep_cue`` detects multilingual temporal-distance markers that
-  tell cascade retrieval it's worth scanning the DEEP tier even without
-  an explicit ``include_deep=True`` from the caller.
+``b_F(q)`` returns a scalar that tilts the hybrid matching weights toward
+FTS (literal) or semantic (embedding) scoring. Every rule here is
+**structural / typographic**, not semantic — we never inspect the query
+for named entities, topics, or meaning. The memory system is
+query-agnostic; only patterns a user *types* to signal "I mean this
+literally" (quotes, digits, URLs, hashtags, code identifiers,
+acronyms) count as cues.
 
-Stage 3+ will replace the Title Case proper-noun rule with a proper
-multilingual NER pass and add intent classifiers for vague-query bias.
+Rule ladder (strongest cue wins, first-match):
+
+- **1.5** — quote chars or a backtick-fenced span → verbatim phrase
+- **1.4** — URL, email, or file path with extension → exact literal token
+- **1.3** — time/date/number, hashtag, @-mention, CamelCase / snake_case
+  / kebab-case identifier → concrete structural token
+- **1.2** — ALL-CAPS Latin token ≥3 chars → acronym
+- **1.0** — none of the above → neutral
+
+Non-Latin scripts (CJK, Arabic, Devanagari, …) trigger every rule that
+uses language-neutral regex (quotes, URLs, digits, hashtags, code
+identifiers embedded in sentences). The acronym rule is structurally
+Latin-only because no other common script uses uppercase — it's silent
+on those scripts, not biased against them.
+
+``has_deep_cue`` detects multilingual temporal-distance markers that
+tell cascade retrieval it's worth scanning the DEEP tier even without
+an explicit ``include_deep=True`` from the caller. That's a separate
+signal from ``b_F`` and is already multilingual by design.
 """
 
 from __future__ import annotations
 
 import re
 
-# Quote characters from multiple language conventions. Stage 1 had the
-# Latin quotes + corner brackets; Stage 2 adds book/title brackets used
-# in Chinese and Japanese quotation.
+# ─── Quote characters ──────────────────────────────────────────────
+# Multiple language conventions; book-title and corner brackets count as
+# quotes because that's how CJK marks verbatim phrases.
 _QUOTE_CHARS = (
     '"',
     "'",
@@ -42,6 +57,26 @@ _QUOTE_CHARS = (
     "〉",
 )
 
+# ─── Regex patterns — language-neutral structural cues ─────────────
+
+# Backtick fence: `foo`, ``foo``. Matches an odd or even number of
+# opening backticks to keep the rule robust to minor typos.
+_BACKTICK_RE = re.compile(r"`[^`\n]+`")
+
+# URL (with or without scheme), email, file path with extension, version.
+# Kept intentionally loose — we just need "does this look structurally
+# literal", not a full grammar.
+_URL_RE = re.compile(
+    r"\b(?:https?://|www\.)\S+|"  # http(s):// or www.
+    r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",  # email
+    re.IGNORECASE,
+)
+_PATH_RE = re.compile(
+    r"(?:(?:\.{1,2}|~)?/)?"  # optional leading ./ ../ ~/ /
+    r"[\w.-]+/[\w./-]*\.[A-Za-z0-9]{1,6}\b"
+)
+_VERSION_RE = re.compile(r"\bv?\d+\.\d+(?:\.\d+)?(?:[-+][\w.]+)?\b")
+
 # Time patterns like 4:20, 16:00.
 _TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
 # ISO-ish dates like 2026-04-22, or day-month-year forms.
@@ -49,27 +84,24 @@ _DATE_RE = re.compile(r"\b\d{2,4}[-/]\d{1,2}[-/]\d{1,4}\b")
 # Bare digit runs of 2+ characters (excluding single digits to avoid noise).
 _NUMBER_RE = re.compile(r"\b\d{2,}\b")
 
-# Latin-script word: ≥ 3 characters, allows accented letters so French /
-# Spanish / German proper nouns (Élise, Señor, Müller) still match.
-_WORD_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ][a-zà-öø-ÿ]{2,}")
+# Hashtag: #tag (Latin, digits, underscore; must start with #letter).
+_HASHTAG_RE = re.compile(r"(?:^|\s)#[A-Za-z_]\w{1,}")
+# @-mention: @name (Latin, digits, underscore, hyphen, dot).
+_MENTION_RE = re.compile(r"(?:^|\s)@[A-Za-z_][\w.\-]{1,}")
 
-# Stopwords that are commonly Title Cased at sentence start and would
-# otherwise trigger false proper-noun positives. Lowercase comparison.
-_EN_TITLECASE_STOPWORDS = frozenset(
-    {
-        "a", "an", "and", "are", "as", "at", "be", "been", "being", "but",
-        "by", "can", "could", "did", "do", "does", "for", "from", "had",
-        "has", "have", "his", "how", "i", "if", "in", "is", "it", "its",
-        "may", "might", "must", "my", "no", "not", "of", "on", "or", "our",
-        "should", "so", "such", "than", "that", "the", "their", "them",
-        "these", "they", "this", "those", "to", "was", "we", "were", "what",
-        "when", "where", "which", "who", "whom", "whose", "why", "will",
-        "with", "would", "you", "your",
-    }
-)
+# Code identifiers: CamelCase (≥1 lowercase → ≥1 uppercase), snake_case,
+# kebab-case with a letter on each side of the separator. All require a
+# letter boundary so plain sentences ("I said") don't match.
+_CAMEL_RE = re.compile(r"\b[A-Za-z]+(?:[a-z]+[A-Z]|[A-Z][a-z])\w*\b")
+_SNAKE_RE = re.compile(r"\b[A-Za-z]\w*_\w+\b")
+_KEBAB_RE = re.compile(r"\b[A-Za-z]\w*-\w+\b")
 
-# Multilingual markers for "this is about the distant past" — triggers
-# DEEP cascade inclusion even without an explicit opt-in.
+# ALL-CAPS Latin acronym (≥3 chars). Structurally typographic: no
+# vocabulary check, no language lookup. Silent on non-Latin scripts by
+# construction.
+_ACRONYM_RE = re.compile(r"\b[A-Z]{3,}\b")
+
+# ─── Deep-cue multilingual markers ─────────────────────────────────
 _DEEP_CUES: tuple[str, ...] = (
     # English
     "long ago",
@@ -123,22 +155,45 @@ _DEEP_CUES: tuple[str, ...] = (
 
 
 def compute_query_bias(query: str) -> float:
-    """Return b_F(q) ∈ {1.0, 1.2, 1.3, 1.5}.
+    """Return b_F(q) ∈ {1.0, 1.2, 1.3, 1.4, 1.5}.
 
-    Higher values bias matching toward literal (FTS) mode; lower values
-    bias toward semantic. The checks are ordered strongest-first so a
-    quoted query that also contains a time still returns 1.5.
+    Ordered strongest-first so mixed queries pick the most literal cue.
+    All rules are regex-based and structural — no NER, no vocabulary,
+    no language detection.
     """
 
     q = query.strip()
+    if not q:
+        return 1.0
 
+    # 1.5 — verbatim phrase markers.
     if any(c in q for c in _QUOTE_CHARS):
         return 1.5
+    if _BACKTICK_RE.search(q):
+        return 1.5
 
-    if _TIME_RE.search(q) or _DATE_RE.search(q) or _NUMBER_RE.search(q):
+    # 1.4 — exact literal tokens (URLs, emails, file paths).
+    if _URL_RE.search(q) or _PATH_RE.search(q):
+        return 1.4
+
+    # 1.3 — concrete structural tokens: digits, tags, code identifiers,
+    # version strings. Version check sits here because "v1.2.3" is a
+    # concrete literal but not as strong a cue as a full URL.
+    if (
+        _TIME_RE.search(q)
+        or _DATE_RE.search(q)
+        or _NUMBER_RE.search(q)
+        or _HASHTAG_RE.search(q)
+        or _MENTION_RE.search(q)
+        or _CAMEL_RE.search(q)
+        or _SNAKE_RE.search(q)
+        or _KEBAB_RE.search(q)
+        or _VERSION_RE.search(q)
+    ):
         return 1.3
 
-    if _has_latin_proper_noun(q):
+    # 1.2 — acronym-style ALL-CAPS token (Latin-script only by structure).
+    if _ACRONYM_RE.search(q):
         return 1.2
 
     return 1.0
@@ -158,26 +213,3 @@ def has_deep_cue(query: str) -> bool:
         return False
     lowered = query.lower()
     return any(cue in lowered or cue in query for cue in _DEEP_CUES)
-
-
-def _has_latin_proper_noun(query: str) -> bool:
-    """Heuristic Title Case detector for Latin-script proper nouns.
-
-    Returns True if the query contains a Latin-script token of ≥ 3 letters
-    that is capitalized and not on the stopword list. The first-token
-    position is *not* exempted because users often write fragments like
-    "Alice meeting?" where the proper noun is the first token.
-    """
-
-    for token in _WORD_RE.findall(query):
-        # Skip all-upper sequences so acronyms (USA, NASA) don't flip the
-        # bias — they're better served by FTS anyway, but they already
-        # route through number/FTS semantics more often than not.
-        if token.isupper():
-            continue
-        if not token[0].isupper():
-            continue
-        if token.lower() in _EN_TITLECASE_STOPWORDS:
-            continue
-        return True
-    return False

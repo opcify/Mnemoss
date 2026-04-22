@@ -81,11 +81,7 @@ class ServerConfig:
         storage_root_raw = os.environ.get("MNEMOSS_STORAGE_ROOT")
         storage_root = Path(storage_root_raw) if storage_root_raw else None
         allowed_raw = os.environ.get("MNEMOSS_ALLOWED_WORKSPACES")
-        allowed = (
-            {s.strip() for s in allowed_raw.split(",") if s.strip()}
-            if allowed_raw
-            else None
-        )
+        allowed = {s.strip() for s in allowed_raw.split(",") if s.strip()} if allowed_raw else None
         scheduler_enabled = os.environ.get("MNEMOSS_SCHEDULER", "").lower() in (
             "1",
             "true",

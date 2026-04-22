@@ -61,9 +61,7 @@ def test_priority_threshold_filters_out_dim_memories() -> None:
 
 def test_pinned_bypasses_threshold() -> None:
     memories = [_mem("pinned_but_dim", "should appear", idx_priority=0.1)]
-    md = render_memory_md(
-        memories, pinned_ids={"pinned_but_dim"}, min_idx_priority=0.5
-    )
+    md = render_memory_md(memories, pinned_ids={"pinned_but_dim"}, min_idx_priority=0.5)
     assert "should appear" in md
     assert "📌" in md
 

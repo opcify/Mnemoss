@@ -8,6 +8,12 @@ from mnemoss.core.config import (
     SegmentationParams,
     StorageParams,
 )
+from mnemoss.core.config_file import (
+    EmbedderFileConfig,
+    LLMFileConfig,
+    MnemossFileConfig,
+    load_config_file,
+)
 from mnemoss.core.types import (
     Event,
     IndexTier,
@@ -19,7 +25,13 @@ from mnemoss.core.types import (
 )
 from mnemoss.dream import DreamReport, DreamRunner, PhaseName, PhaseOutcome, TriggerType
 from mnemoss.dream.dispose import DisposalStats
-from mnemoss.encoder import Embedder, FakeEmbedder, LocalEmbedder, OpenAIEmbedder
+from mnemoss.encoder import (
+    Embedder,
+    FakeEmbedder,
+    GeminiEmbedder,
+    LocalEmbedder,
+    OpenAIEmbedder,
+)
 from mnemoss.index import RebalanceStats
 from mnemoss.llm import (
     AnthropicClient,
@@ -42,18 +54,22 @@ __all__ = [
     "DreamRunner",
     "DreamScheduler",
     "Embedder",
+    "EmbedderFileConfig",
     "EncoderParams",
     "Event",
     "FakeEmbedder",
     "FormulaParams",
     "GeminiClient",
+    "GeminiEmbedder",
     "IndexTier",
     "LLMClient",
+    "LLMFileConfig",
     "LocalEmbedder",
     "Memory",
     "MemoryType",
     "Mnemoss",
     "MnemossConfig",
+    "MnemossFileConfig",
     "MockLLMClient",
     "OpenAIClient",
     "OpenAIEmbedder",
@@ -68,4 +84,5 @@ __all__ = [
     "StorageParams",
     "Tombstone",
     "TriggerType",
+    "load_config_file",
 ]

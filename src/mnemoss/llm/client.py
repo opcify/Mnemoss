@@ -273,9 +273,7 @@ class AnthropicClient:
         temperature: float = 0.0,
     ) -> dict[str, Any]:
         instructed = (
-            prompt
-            + "\n\nRespond with a single JSON object only. "
-            "No prose, no markdown fences."
+            prompt + "\n\nRespond with a single JSON object only. No prose, no markdown fences."
         )
         client = self._get_client()
         response = await client.messages.create(

@@ -35,9 +35,7 @@ def _canned(_prompt: str) -> dict:
                 "participants": ["Alice"],
             }
         ],
-        "patterns": [
-            {"content": "Alice-related pattern", "derived_from": [1, 2]}
-        ],
+        "patterns": [{"content": "Alice-related pattern", "derived_from": [1, 2]}],
     }
 
 

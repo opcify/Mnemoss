@@ -98,9 +98,7 @@ def test_json_extractor_handles_nested() -> None:
 
 def test_json_extractor_survives_braces_in_strings() -> None:
     text = '{"caption": "the { char can appear }"}'
-    assert _extract_first_json_object(text) == {
-        "caption": "the { char can appear }"
-    }
+    assert _extract_first_json_object(text) == {"caption": "the { char can appear }"}
 
 
 def test_json_extractor_raises_on_no_object() -> None:

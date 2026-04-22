@@ -117,8 +117,7 @@ async def test_dream_agent_scoping(tmp_path: Path) -> None:
         alice_report = await mem.dream(trigger="idle", agent_id="alice")
         alice_ids = alice_report.outcome(PhaseName.REPLAY).details["memory_ids"]
         alice_contents = {
-            m.content
-            for m in alice_report.outcome(PhaseName.REPLAY).details["memories"]
+            m.content for m in alice_report.outcome(PhaseName.REPLAY).details["memories"]
         }
         assert "alice note" in alice_contents
         assert "ambient note" in alice_contents

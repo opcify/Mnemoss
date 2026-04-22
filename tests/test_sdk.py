@@ -88,9 +88,7 @@ async def test_observe_sends_correct_request(tmp_path) -> None:
         seen["body"] = json.loads(req.content)
         return httpx.Response(200, json={"memory_id": "mem_1"})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         ws = client.workspace("ws")
         mid = await ws.observe(role="user", content="hi")
 
@@ -107,9 +105,7 @@ async def test_observe_passes_agent_id_as_query_param() -> None:
         seen["url"] = str(req.url)
         return httpx.Response(200, json={"memory_id": "mem_1"})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         ws = client.workspace("ws")
         await ws.observe(role="user", content="hi", agent_id="alice")
 
@@ -123,9 +119,7 @@ async def test_observe_omits_agent_id_when_none() -> None:
         seen["url"] = str(req.url)
         return httpx.Response(200, json={"memory_id": "mem_1"})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         await client.workspace("ws").observe(role="user", content="hi")
 
     # ?agent_id=None in the URL would be a bug.
@@ -162,9 +156,7 @@ async def test_recall_parses_memory_and_breakdown() -> None:
             },
         )
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         results = await client.workspace("ws").recall("alpha", k=1)
 
     assert len(results) == 1
@@ -192,9 +184,7 @@ async def test_agent_handle_binds_agent_id_on_every_call() -> None:
             return httpx.Response(200, json={"ok": True})
         return httpx.Response(404)
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         alice = client.workspace("ws").for_agent("alice")
         await alice.observe(role="user", content="x")
         await alice.recall("y", k=3)
@@ -208,9 +198,7 @@ async def test_explain_parses_breakdown() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"breakdown": _breakdown_dto()})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         b = await client.workspace("ws").explain_recall("q", "mem_1")
 
     assert b.total == pytest.approx(3.0)
@@ -235,9 +223,7 @@ async def test_dream_parses_report() -> None:
             },
         )
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         report = await client.workspace("ws").dream(trigger="idle")
 
     assert report.trigger is TriggerType.IDLE
@@ -267,9 +253,7 @@ async def test_tombstones_parses_list() -> None:
             },
         )
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         tombs = await client.workspace("ws").tombstones()
 
     assert len(tombs) == 1
@@ -289,9 +273,7 @@ async def test_rebalance_parses_tier_enums() -> None:
             },
         )
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         stats = await client.workspace("ws").rebalance()
 
     assert stats.scanned == 10
@@ -314,9 +296,7 @@ async def test_dispose_parses_stats() -> None:
             },
         )
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         stats = await client.workspace("ws").dispose()
 
     assert stats.disposed == 1
@@ -331,9 +311,7 @@ async def test_tier_counts_returns_plain_dict() -> None:
             json={"tiers": {"hot": 3, "warm": 1, "cold": 0, "deep": 0}},
         )
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         counts = await client.workspace("ws").tier_counts()
 
     assert counts == {"hot": 3, "warm": 1, "cold": 0, "deep": 0}
@@ -343,9 +321,7 @@ async def test_export_markdown_returns_string() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"markdown": "## Facts\n- x"})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         md = await client.workspace("ws").export_markdown()
 
     assert md == "## Facts\n- x"
@@ -355,9 +331,7 @@ async def test_flush_returns_count() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"flushed": 2})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         n = await client.workspace("ws").flush_session()
 
     assert n == 2
@@ -367,8 +341,6 @@ async def test_http_errors_raise() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"detail": "bad key"})
 
-    async with MnemossClient(
-        "http://test", transport=_transport(handler)
-    ) as client:
+    async with MnemossClient("http://test", transport=_transport(handler)) as client:
         with pytest.raises(httpx.HTTPStatusError):
             await client.workspace("ws").observe(role="user", content="hi")

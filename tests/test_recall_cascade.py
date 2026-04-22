@@ -80,9 +80,7 @@ async def test_cascade_stops_at_hot_when_fresh_hit(tmp_path: Path) -> None:
     # Only HOT memory present, fresh enough to exceed CONFIDENCE_HOT=1.0.
     await _observe_at_tier(store, embedder, "Alice meeting 4:20", IndexTier.HOT)
 
-    _, stats = await engine.recall_with_stats(
-        "Alice meeting", agent_id=None, k=3
-    )
+    _, stats = await engine.recall_with_stats("Alice meeting", agent_id=None, k=3)
     assert stats.stopped_at is IndexTier.HOT
     assert stats.tiers_scanned == [IndexTier.HOT]
     await store.close()
@@ -91,13 +89,9 @@ async def test_cascade_stops_at_hot_when_fresh_hit(tmp_path: Path) -> None:
 async def test_cascade_falls_through_when_hot_empty(tmp_path: Path) -> None:
     store, engine, embedder = await _setup(tmp_path)
     # Stash the content only in COLD; HOT and WARM are empty.
-    m = await _observe_at_tier(
-        store, embedder, "ancient record about Alice", IndexTier.COLD
-    )
+    m = await _observe_at_tier(store, embedder, "ancient record about Alice", IndexTier.COLD)
 
-    results, stats = await engine.recall_with_stats(
-        "Alice", agent_id=None, k=3
-    )
+    results, stats = await engine.recall_with_stats("Alice", agent_id=None, k=3)
     # Cold hit gets returned because it clears tau even if no early-stop.
     assert m.id in {r.memory.id for r in results}
     # All three default tiers scanned; no early stop.
@@ -107,13 +101,9 @@ async def test_cascade_falls_through_when_hot_empty(tmp_path: Path) -> None:
 
 async def test_deep_excluded_from_default_recall(tmp_path: Path) -> None:
     store, engine, embedder = await _setup(tmp_path)
-    deep = await _observe_at_tier(
-        store, embedder, "lost memory about Alice", IndexTier.DEEP
-    )
+    deep = await _observe_at_tier(store, embedder, "lost memory about Alice", IndexTier.DEEP)
 
-    results, stats = await engine.recall_with_stats(
-        "Alice", agent_id=None, k=3
-    )
+    results, stats = await engine.recall_with_stats("Alice", agent_id=None, k=3)
     assert deep.id not in {r.memory.id for r in results}
     # DEEP never scanned without opt-in.
     assert IndexTier.DEEP not in stats.tiers_scanned
@@ -122,13 +112,9 @@ async def test_deep_excluded_from_default_recall(tmp_path: Path) -> None:
 
 async def test_deep_included_with_opt_in(tmp_path: Path) -> None:
     store, engine, embedder = await _setup(tmp_path)
-    deep = await _observe_at_tier(
-        store, embedder, "lost memory about Alice", IndexTier.DEEP
-    )
+    deep = await _observe_at_tier(store, embedder, "lost memory about Alice", IndexTier.DEEP)
 
-    results, stats = await engine.recall_with_stats(
-        "Alice", agent_id=None, k=3, include_deep=True
-    )
+    results, stats = await engine.recall_with_stats("Alice", agent_id=None, k=3, include_deep=True)
     assert deep.id in {r.memory.id for r in results}
     assert IndexTier.DEEP in stats.tiers_scanned
     await store.close()
@@ -136,9 +122,7 @@ async def test_deep_included_with_opt_in(tmp_path: Path) -> None:
 
 async def test_deep_auto_included_on_temporal_cue(tmp_path: Path) -> None:
     store, engine, embedder = await _setup(tmp_path)
-    deep = await _observe_at_tier(
-        store, embedder, "original plan about Alice", IndexTier.DEEP
-    )
+    deep = await _observe_at_tier(store, embedder, "original plan about Alice", IndexTier.DEEP)
 
     # No include_deep=True, but the query contains "long ago" → auto-include.
     results, stats = await engine.recall_with_stats(
@@ -151,13 +135,9 @@ async def test_deep_auto_included_on_temporal_cue(tmp_path: Path) -> None:
 
 async def test_reminiscence_promotes_deep_hit_to_warm(tmp_path: Path) -> None:
     store, engine, embedder = await _setup(tmp_path)
-    deep = await _observe_at_tier(
-        store, embedder, "forgotten Alice note", IndexTier.DEEP
-    )
+    deep = await _observe_at_tier(store, embedder, "forgotten Alice note", IndexTier.DEEP)
 
-    results, _ = await engine.recall_with_stats(
-        "Alice", agent_id=None, k=3, include_deep=True
-    )
+    results, _ = await engine.recall_with_stats("Alice", agent_id=None, k=3, include_deep=True)
     assert deep.id in {r.memory.id for r in results}
 
     # After recall, the memory should have jumped to WARM and bumped
@@ -188,9 +168,7 @@ async def test_stats_are_well_formed(tmp_path: Path) -> None:
     await _observe_at_tier(store, embedder, "Alice WARM", IndexTier.WARM)
     await _observe_at_tier(store, embedder, "Alice COLD", IndexTier.COLD)
 
-    _, stats = await engine.recall_with_stats(
-        "Alice", agent_id=None, k=10, include_deep=True
-    )
+    _, stats = await engine.recall_with_stats("Alice", agent_id=None, k=10, include_deep=True)
     assert stats.candidates_scored >= 1
     assert stats.tiers_scanned
     # Whatever cascade did, stopped_at (if set) must be one of the scanned tiers.
@@ -228,9 +206,7 @@ async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
     ids: list[str] = []
     for tier in (IndexTier.HOT, IndexTier.WARM, IndexTier.COLD):
         for i in range(3):
-            m = await _observe_at_tier(
-                store2, embedder, f"alice note {tier.value}-{i}", tier
-            )
+            m = await _observe_at_tier(store2, embedder, f"alice note {tier.value}-{i}", tier)
             ids.append(m.id)
 
     import mnemoss.recall.engine as engine_mod
@@ -262,16 +238,18 @@ async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
 async def test_vec_and_fts_respect_tier_filter(tmp_path: Path) -> None:
     store, _, embedder = await _setup(tmp_path)
     m_hot = await _observe_at_tier(store, embedder, "alice HOT story", IndexTier.HOT)
-    m_warm = await _observe_at_tier(
-        store, embedder, "alice WARM story", IndexTier.WARM
-    )
+    m_warm = await _observe_at_tier(store, embedder, "alice WARM story", IndexTier.WARM)
 
     hot_only = await store.vec_search(
-        embedder.embed(["alice"])[0], k=10, agent_id=None,
+        embedder.embed(["alice"])[0],
+        k=10,
+        agent_id=None,
         tier_filter={IndexTier.HOT},
     )
     warm_only = await store.vec_search(
-        embedder.embed(["alice"])[0], k=10, agent_id=None,
+        embedder.embed(["alice"])[0],
+        k=10,
+        agent_id=None,
         tier_filter={IndexTier.WARM},
     )
     hot_ids = {mid for mid, _ in hot_only}

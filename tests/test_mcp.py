@@ -191,17 +191,13 @@ async def test_mcp_call_tool_returns_parseable_json(tmp_path: Path) -> None:
     try:
         mcp = create_mcp_server(mem)
 
-        observe_result = await mcp.call_tool(
-            "observe", {"role": "user", "content": "hi from mcp"}
-        )
+        observe_result = await mcp.call_tool("observe", {"role": "user", "content": "hi from mcp"})
         observed = _call_tool_structured(observe_result)
         assert observed["encoded"] is True
         assert isinstance(observed["memory_id"], str)
 
         # Round-trip: recall should see the memory we just observed.
-        recall_result = await mcp.call_tool(
-            "recall", {"query": "hi from mcp", "k": 3}
-        )
+        recall_result = await mcp.call_tool("recall", {"query": "hi from mcp", "k": 3})
         recall_items = _call_tool_structured(recall_result)
         assert recall_items
         assert any(r["memory"]["content"] == "hi from mcp" for r in recall_items)
@@ -221,9 +217,7 @@ async def test_mcp_agent_binding_applies_to_every_tool_call(
 
         # Write one as alice (via MCP), one as bob (via the library
         # directly — MCP is locked to alice).
-        await mcp.call_tool(
-            "observe", {"role": "user", "content": "alice private"}
-        )
+        await mcp.call_tool("observe", {"role": "user", "content": "alice private"})
         await mem.observe(role="user", content="bob private", agent_id="bob")
 
         # MCP recall should see Alice's + ambient, never Bob's.
@@ -315,9 +309,7 @@ async def test_open_backend_http_mode_constructs_workspace_handle(
         assert backend.workspace_id == "http_ws"
 
 
-async def test_open_backend_embedded_mode_constructs_mnemoss(
-    tmp_path: Path, monkeypatch
-) -> None:
+async def test_open_backend_embedded_mode_constructs_mnemoss(tmp_path: Path, monkeypatch) -> None:
     """Embedded mode yields a ``Mnemoss`` instance. Point storage at
     tmp_path so the test doesn't write to ~/.mnemoss."""
 

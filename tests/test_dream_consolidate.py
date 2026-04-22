@@ -78,6 +78,7 @@ def _mem(
 
 # ─── prompt shape ──────────────────────────────────────────────────
 
+
 def test_prompt_includes_members_roles_and_existing_extractions() -> None:
     members = [
         _mem("m1", "Alice likes coffee", gist="existing gist"),
@@ -97,6 +98,7 @@ def test_prompt_includes_members_roles_and_existing_extractions() -> None:
 
 
 # ─── happy-path consolidation ─────────────────────────────────────
+
 
 async def test_consolidate_returns_summary_refinements_and_patterns() -> None:
     llm = MockLLMClient(
@@ -171,11 +173,10 @@ async def test_consolidate_returns_summary_refinements_and_patterns() -> None:
 
 # ─── edge cases ────────────────────────────────────────────────────
 
+
 async def test_consolidate_singleton_cluster_returns_empty_without_calling_llm() -> None:
     llm = MockLLMClient()
-    result = await consolidate_cluster(
-        [_mem("m1", "solo")], llm, FormulaParams()
-    )
+    result = await consolidate_cluster([_mem("m1", "solo")], llm, FormulaParams())
     assert result.is_empty
     assert llm.calls == []
 
@@ -427,6 +428,7 @@ async def test_consolidate_salience_summary_takes_max_of_members() -> None:
 
 
 # ─── end-to-end via the runner ─────────────────────────────────────
+
 
 def _mnemoss(tmp_path: Path, **kwargs) -> Mnemoss:
     return Mnemoss(

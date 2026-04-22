@@ -56,9 +56,7 @@ def _msg(
 def test_auto_close_produces_single_event() -> None:
     seg = EventSegmenter()
     now = datetime.now(UTC)
-    step = seg.on_observe(
-        _msg("hi", turn_id="auto"), now, SegmentationParams(), auto_close=True
-    )
+    step = seg.on_observe(_msg("hi", turn_id="auto"), now, SegmentationParams(), auto_close=True)
     assert len(step.closed_events) == 1
     assert step.closed_events[0].closed_by == "auto_1to1"
     assert step.closed_events[0].memory_id == step.pending_memory_id
@@ -142,9 +140,7 @@ def test_character_cap_also_triggers_size_limit() -> None:
     params = SegmentationParams(max_event_characters=10)
     t = datetime(2026, 4, 21, 12, 0, 0, tzinfo=UTC)
 
-    step = seg.on_observe(
-        _msg("exactlyten", turn_id="c", ts=t), t, params
-    )
+    step = seg.on_observe(_msg("exactlyten", turn_id="c", ts=t), t, params)
     assert len(step.closed_events) == 1
     assert step.closed_events[0].closed_by == "size_limit"
 
@@ -274,9 +270,7 @@ async def test_flush_session_scoped_by_agent(tmp_path: Path) -> None:
 
 
 async def test_size_limit_during_observe_persists_immediately(tmp_path: Path) -> None:
-    mem = _mnemoss(
-        tmp_path, segmentation=SegmentationParams(max_event_messages=2)
-    )
+    mem = _mnemoss(tmp_path, segmentation=SegmentationParams(max_event_messages=2))
     try:
         await mem.observe(role="user", content="a", turn_id="size")
         await mem.observe(role="user", content="b", turn_id="size")  # hits cap
@@ -292,9 +286,7 @@ async def test_time_gap_does_not_interfere_within_one_turn(tmp_path: Path) -> No
     # Guardrail: time_gap only compares against *other* buffers, not the
     # current one being appended to. Two messages arriving 10 minutes
     # apart but with the same turn_id should still batch.
-    mem = _mnemoss(
-        tmp_path, segmentation=SegmentationParams(time_gap_seconds=30.0)
-    )
+    mem = _mnemoss(tmp_path, segmentation=SegmentationParams(time_gap_seconds=30.0))
     try:
         mid1 = await mem.observe(role="user", content="early", turn_id="long_turn")
         # Simulate a long pause — since we can't time-travel the wall clock

@@ -21,9 +21,7 @@ def test_bounded_in_unit_interval() -> None:
 
 def test_short_trivial_is_low() -> None:
     low = compute_salience("ok")
-    high = compute_salience(
-        "Alice said the meeting on 2026-04-22 at 4:20 was important!"
-    )
+    high = compute_salience("Alice said the meeting on 2026-04-22 at 4:20 was important!")
     assert low < 0.3
     assert high > low
 
@@ -49,11 +47,11 @@ def test_numeric_temporal_content_raises_salience() -> None:
 
 
 def test_length_band_peaks_in_middle() -> None:
-    short = compute_salience("ok")           # < 10 → 0.1
+    short = compute_salience("ok")  # < 10 → 0.1
     brief = compute_salience("see you soon")  # 13 chars → 0.5
     medium = compute_salience(
         "Alice said the meeting moved to Tuesday afternoon at 4:20."
-    )                                         # ~58 chars → 1.0 length
+    )  # ~58 chars → 1.0 length
     # short < brief < medium on the length dimension alone.
     assert short < brief < medium
 

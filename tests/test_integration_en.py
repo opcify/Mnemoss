@@ -24,9 +24,7 @@ async def test_english_recall(tmp_path: Path) -> None:
         formula=FormulaParams(noise_scale=0.0),
     )
     try:
-        m_time = await mem.observe(
-            role="user", content="Meeting with Alice tomorrow at 4:20 PM"
-        )
+        m_time = await mem.observe(role="user", content="Meeting with Alice tomorrow at 4:20 PM")
         await mem.observe(
             role="user",
             content="The meeting place is next to the Sydney Opera House",
@@ -35,8 +33,7 @@ async def test_english_recall(tmp_path: Path) -> None:
         results = await mem.recall("When is my meeting with Alice?", k=3)
         assert results, "recall returned nothing"
         assert results[0].memory.id == m_time, (
-            f"expected the 4:20 memory first; got: "
-            f"{[r.memory.content for r in results]}"
+            f"expected the 4:20 memory first; got: {[r.memory.content for r in results]}"
         )
     finally:
         await mem.close()

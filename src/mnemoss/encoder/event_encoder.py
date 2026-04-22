@@ -91,11 +91,7 @@ def encode_event(
     t = now if now is not None else datetime.now(UTC)
     first = messages[0]
 
-    content = (
-        first.content
-        if len(messages) == 1
-        else "\n".join(m.content for m in messages)
-    )
+    content = first.content if len(messages) == 1 else "\n".join(m.content for m in messages)
 
     ip = initial_idx_priority(params)
     return Memory(

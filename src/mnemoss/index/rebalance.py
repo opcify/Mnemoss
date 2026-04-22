@@ -38,12 +38,8 @@ class RebalanceStats:
 
     scanned: int = 0
     migrated: int = 0
-    tier_before: dict[IndexTier, int] = field(
-        default_factory=lambda: {t: 0 for t in IndexTier}
-    )
-    tier_after: dict[IndexTier, int] = field(
-        default_factory=lambda: {t: 0 for t in IndexTier}
-    )
+    tier_before: dict[IndexTier, int] = field(default_factory=lambda: {t: 0 for t in IndexTier})
+    tier_after: dict[IndexTier, int] = field(default_factory=lambda: {t: 0 for t in IndexTier})
 
 
 async def rebalance(
@@ -73,9 +69,7 @@ async def rebalance(
 
         for memory in memories:
             stats.scanned += 1
-            b = compute_base_level(
-                memory.access_history, t, memory.created_at, params
-            )
+            b = compute_base_level(memory.access_history, t, memory.created_at, params)
             ip = compute_idx_priority(
                 base_level=b,
                 salience=memory.salience,
