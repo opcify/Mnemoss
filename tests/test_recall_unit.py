@@ -36,7 +36,12 @@ async def _setup(
         store=store,
         embedder=embedder,
         working=wm,
-        params=FormulaParams(),
+        # ``reconsolidate_min_cosine=-1.0`` disables the gate, keeping
+        # the test asserting legacy "every returned memory bumps
+        # access_history" behavior. The default 0.5 gate (and even 0.0)
+        # would skip bumps when FakeEmbedder randomly produces negative
+        # cosines.
+        params=FormulaParams(reconsolidate_min_cosine=-1.0),
         rng=random.Random(0),
     )
     return store, engine, embedder, wm

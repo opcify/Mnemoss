@@ -30,7 +30,9 @@ def _mnemoss(tmp_path: Path, **kwargs) -> Mnemoss:
         workspace="ws",
         embedding_model=FakeEmbedder(dim=16),
         storage=StorageParams(root=tmp_path),
-        formula=FormulaParams(noise_scale=0.0),  # deterministic
+        # auto-expand is a legacy ACT-R recall feature; opt out of the
+        # new tier-cascade default so these tests still exercise it.
+        formula=FormulaParams(noise_scale=0.0, use_tier_cascade_recall=False),
         **kwargs,
     )
 

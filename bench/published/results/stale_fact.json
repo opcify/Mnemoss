@@ -1,0 +1,154 @@
+{
+  "chart": "stale_fact",
+  "embedder": "openai",
+  "distractors": 300,
+  "sleep_seconds": 60.0,
+  "k": 10,
+  "timestamp": "2026-04-24T10:52:33.837778+00:00",
+  "results": [
+    {
+      "n_pairs": 25,
+      "new_top1": 1,
+      "old_top1": 23,
+      "neither_top1": 1,
+      "new_in_topk": 25,
+      "old_in_topk": 25,
+      "both_in_topk": 25,
+      "new_above_old_when_both": 2,
+      "per_category": {
+        "state_update": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        },
+        "preference": {
+          "n": 5,
+          "new_top1": 1,
+          "new_above_old": 1,
+          "both_in_topk": 5
+        },
+        "relationship": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        },
+        "fact_correction": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        },
+        "goal_update": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 1,
+          "both_in_topk": 5
+        }
+      },
+      "rate_new_top1": 0.04,
+      "rate_old_top1": 0.92,
+      "rate_supersession_when_both": 0.08,
+      "rate_both_recalled": 1.0,
+      "arm": "raw_stack",
+      "embedder": "openai"
+    },
+    {
+      "n_pairs": 25,
+      "new_top1": 1,
+      "old_top1": 23,
+      "neither_top1": 1,
+      "new_in_topk": 25,
+      "old_in_topk": 25,
+      "both_in_topk": 25,
+      "new_above_old_when_both": 1,
+      "per_category": {
+        "state_update": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        },
+        "preference": {
+          "n": 5,
+          "new_top1": 1,
+          "new_above_old": 1,
+          "both_in_topk": 5
+        },
+        "relationship": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        },
+        "fact_correction": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        },
+        "goal_update": {
+          "n": 5,
+          "new_top1": 0,
+          "new_above_old": 0,
+          "both_in_topk": 5
+        }
+      },
+      "rate_new_top1": 0.04,
+      "rate_old_top1": 0.92,
+      "rate_supersession_when_both": 0.04,
+      "rate_both_recalled": 1.0,
+      "arm": "mnemoss_default",
+      "embedder": "openai"
+    },
+    {
+      "n_pairs": 25,
+      "new_top1": 18,
+      "old_top1": 0,
+      "neither_top1": 7,
+      "new_in_topk": 25,
+      "old_in_topk": 17,
+      "both_in_topk": 17,
+      "new_above_old_when_both": 17,
+      "per_category": {
+        "state_update": {
+          "n": 5,
+          "new_top1": 2,
+          "new_above_old": 2,
+          "both_in_topk": 2
+        },
+        "preference": {
+          "n": 5,
+          "new_top1": 1,
+          "new_above_old": 5,
+          "both_in_topk": 5
+        },
+        "relationship": {
+          "n": 5,
+          "new_top1": 5,
+          "new_above_old": 5,
+          "both_in_topk": 5
+        },
+        "fact_correction": {
+          "n": 5,
+          "new_top1": 5,
+          "new_above_old": 2,
+          "both_in_topk": 2
+        },
+        "goal_update": {
+          "n": 5,
+          "new_top1": 5,
+          "new_above_old": 3,
+          "both_in_topk": 3
+        }
+      },
+      "rate_new_top1": 0.72,
+      "rate_old_top1": 0.0,
+      "rate_supersession_when_both": 1.0,
+      "rate_both_recalled": 0.68,
+      "arm": "mnemoss_decay",
+      "embedder": "openai"
+    }
+  ]
+}

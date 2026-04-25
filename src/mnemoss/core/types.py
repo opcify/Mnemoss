@@ -86,6 +86,18 @@ class Memory:
     derived_to: list[str] = field(default_factory=list)
     source_message_ids: list[str] = field(default_factory=list)
     source_context: dict[str, Any] = field(default_factory=dict)
+    # Semantic near-duplicate dedup (v0.3+). When a newly-observed
+    # memory has cosine ≥ ``encoder.supersede_cosine_threshold`` with
+    # an existing memory in the same agent scope, the older memory is
+    # marked superseded_by the new one and filtered from recall by
+    # default. At the shipped threshold (0.85) this catches near-exact
+    # repeats and multi-writer duplicates; it does NOT catch general
+    # semantic contradictions (those have much lower cosine). Opt-in
+    # via ``EncoderParams.supersede_on_observe``. See the bench report
+    # at ``reports/supersession_bench/README.md`` §5.3 for the
+    # precision/recall tradeoff across thresholds.
+    superseded_by: str | None = None
+    superseded_at: datetime | None = None
 
 
 @dataclass

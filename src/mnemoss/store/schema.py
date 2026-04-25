@@ -60,13 +60,20 @@ MEMORY_DDL_STATEMENTS = [
       derived_from TEXT NOT NULL DEFAULT '[]',
       derived_to TEXT NOT NULL DEFAULT '[]',
       source_message_ids TEXT NOT NULL DEFAULT '[]',
-      source_context TEXT NOT NULL DEFAULT '{}'
+      source_context TEXT NOT NULL DEFAULT '{}',
+      superseded_by TEXT,
+      superseded_at REAL
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_memory_agent ON memory(agent_id)",
     "CREATE INDEX IF NOT EXISTS idx_memory_session ON memory(session_id)",
     "CREATE INDEX IF NOT EXISTS idx_memory_tier ON memory(index_tier)",
     "CREATE INDEX IF NOT EXISTS idx_memory_cluster ON memory(cluster_id)",
+    # Partial index — only non-null rows stored. Recall filters
+    # "WHERE superseded_by IS NULL" constantly, and this partial
+    # index lets SQLite skip it when the feature is off entirely.
+    "CREATE INDEX IF NOT EXISTS idx_memory_superseded "
+    "ON memory(superseded_by) WHERE superseded_by IS NOT NULL",
     """
     CREATE TABLE IF NOT EXISTS relation (
       src_id TEXT NOT NULL,
@@ -130,9 +137,17 @@ RAW_LOG_DDL_STATEMENTS = [
 
 
 def vec_ddl(dim: int) -> str:
+    # distance_metric=cosine is explicit; sqlite-vec's default is L2.
+    # The recall engine's ``similarity = 1 - distance`` transform in
+    # ``_memory_ops.vec_search`` is only correct for cosine distance;
+    # with the L2 default, OpenAI-style unit-normalized vectors produce
+    # values like ``1 - sqrt(2(1-cos))`` that go negative for true
+    # cosines below ~0.5 and destroy the signal for semantic recall.
+    # See ``docs/ROOT_CAUSE.md``.
     return (
         f"CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec "
-        f"USING vec0(memory_id TEXT PRIMARY KEY, embedding float[{dim}])"
+        f"USING vec0(memory_id TEXT PRIMARY KEY, "
+        f"embedding float[{dim}] distance_metric=cosine)"
     )
 
 

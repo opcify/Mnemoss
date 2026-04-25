@@ -14,7 +14,7 @@ that any agent stack can integrate.
 ## Repository State
 
 The MVP is **shipped** (all six stages in `MNEMOSS_PROJECT_KNOWLEDGE.md` 
-§9). The codebase is at `v0.1.0` on PyPI track. A production-readiness 
+§9). The codebase is at `v0.0.1` on PyPI track. A production-readiness 
 pass then landed on top — cross-process workspace lock, schema 
 migration framework, Dream cost governor, partial-failure recovery, 
 retrying embedder wrapper, per-dataclass config validators, input 
@@ -129,6 +129,18 @@ needed to be productive without re-reading them cover-to-cover.
   patterns (it replaces the former Extract / Refine / Generalize trio). 
   LLM is used only for content generation, never for system decisions.
 
+**The async-ACT-R bet (recall mode = fast_index).** Mnemoss's defining 
+architectural choice: all expensive cognition — activation formula 
+evaluation, spreading, relationship propagation, tier migration — runs 
+**off the read path**. Recall itself is: (1) ANN top-K via HNSW, (2) 
+batch-fetch cached `idx_priority`, (3) linear combine + sort. No FTS, 
+no per-candidate formula, no noise, no tier cascade. The cost that 
+grows with N (O(N) vector/FTS scan) happens during Dream, not during 
+the user-facing `recall()` call. Enable with 
+`FormulaParams(use_fast_index_recall=True)` — off by default to 
+preserve the full ACT-R read path for agent workloads that want 
+recency priors and query-dependent matching weights.
+
 **The formula (the heart):** a single ACT-R activation equation 
 `A_i = B_i + Σ W_j·S_ji + MP·[w_F·s̃_F + w_S·s̃_S] + ε` drives 
 retrieval ranking, index-tier migration (HOT/WARM/COLD/DEEP based on 
@@ -229,7 +241,7 @@ so callers can distinguish "worked" from "partially crashed."
 ## Non-Negotiable Principles
 
 See `MNEMOSS_PROJECT_KNOWLEDGE.md` §3 for the authoritative statements. 
-The eight, in brief:
+The nine, in brief:
 
 1. **Formula drives everything** — no LLM in system decisions.
 2. **One Memory table** holds all types (episode/fact/entity/pattern).
@@ -239,6 +251,9 @@ The eight, in brief:
 6. **Dreaming is opportunistic** — five triggers, not just nightly.
 7. **Multi-tier index, unified data** — tier migration = metadata only.
 8. **Disposal is formula-derived** — `max_A_i < τ − δ`, zero LLM.
+9. **`idx_priority` is for ranking, not search** — drives tier
+   membership, disposal, export filtering. Search uses pure cosine
+   within tiers. Mixing the two collapses recall on aged corpora.
 
 If a proposed change violates one, reject it or revise the principles 
 explicitly (and update the doc).

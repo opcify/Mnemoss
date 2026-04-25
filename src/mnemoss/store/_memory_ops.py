@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 import json
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 import apsw
 import numpy as np
@@ -55,10 +55,12 @@ def write_memory(
                 extracted_location, extracted_participants, extraction_level,
                 cluster_id, cluster_similarity, is_cluster_representative,
                 derived_from, derived_to,
-                source_message_ids, source_context
+                source_message_ids, source_context,
+                superseded_by, superseded_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       ?, ?, ?, ?, ?, ?,
                       ?, ?, ?,
+                      ?, ?,
                       ?, ?,
                       ?, ?)
             """,
@@ -93,6 +95,8 @@ def write_memory(
                 json.dumps(memory.derived_to),
                 json.dumps(memory.source_message_ids),
                 json.dumps(json_safe(memory.source_context)),
+                memory.superseded_by,
+                memory.superseded_at.timestamp() if memory.superseded_at else None,
             ),
         )
         conn.execute(
@@ -127,6 +131,27 @@ def update_idx_priority(
         conn.execute(
             "UPDATE memory SET idx_priority = ?, index_tier = ? WHERE id = ?",
             (idx_priority, tier.value, memory_id),
+        )
+
+
+def mark_superseded(
+    conn: apsw.Connection,
+    old_id: str,
+    new_id: str,
+    at: datetime,
+) -> None:
+    """Mark ``old_id`` as superseded by ``new_id`` at time ``at``.
+
+    No-op if ``old_id`` is already superseded (first writer wins — we
+    don't overwrite an earlier supersession with a later one, so the
+    tombstone-like chain of supersessions stays stable).
+    """
+
+    with conn:
+        conn.execute(
+            "UPDATE memory SET superseded_by = ?, superseded_at = ? "
+            "WHERE id = ? AND superseded_by IS NULL",
+            (new_id, at.timestamp(), old_id),
         )
 
 
@@ -335,6 +360,40 @@ def tier_counts(conn: apsw.Connection) -> dict[IndexTier, int]:
         with contextlib.suppress(ValueError):
             counts[IndexTier(cast(str, tier_name))] = cast(int, count)
     return counts
+
+
+def get_idx_priorities(
+    conn: apsw.Connection,
+    memory_ids: list[str],
+    agent_id: str | None,
+) -> dict[str, float]:
+    """Return ``{memory_id: idx_priority}`` for ids passing scope filter.
+
+    Used by the fast-index recall path — it wants just the cached
+    ``idx_priority`` scalar per candidate, filtered by agent scope, in
+    one round-trip. Ids that fail scope (or don't exist) are omitted
+    from the result rather than raising.
+    """
+
+    if not memory_ids:
+        return {}
+    placeholders = ",".join("?" for _ in memory_ids)
+    clauses = [f"id IN ({placeholders})"]
+    params: list[Any] = list(memory_ids)
+    if agent_id is None:
+        clauses.append("agent_id IS NULL")
+    else:
+        clauses.append("(agent_id = ? OR agent_id IS NULL)")
+        params.append(agent_id)
+    # Exclude superseded memories from fast-index recall — same
+    # contract as the full ACT-R path.
+    clauses.append("superseded_by IS NULL")
+
+    rows = conn.execute(
+        f"SELECT id, idx_priority FROM memory WHERE {' AND '.join(clauses)}",
+        tuple(params),
+    ).fetchall()
+    return {cast(str, mid): float(cast(float, p)) for mid, p in rows}
 
 
 def cluster_size(conn: apsw.Connection, cluster_id: str) -> int:

@@ -7,6 +7,7 @@ from mnemoss.core.config import (
     MnemossConfig,
     SegmentationParams,
     StorageParams,
+    TierCapacityParams,
 )
 from mnemoss.core.config_file import (
     EmbedderFileConfig,
@@ -45,7 +46,7 @@ from mnemoss.llm import (
 from mnemoss.recall import CascadeStats, RecallResult
 from mnemoss.scheduler import DreamScheduler, SchedulerConfig
 
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 
 __all__ = [
     "AgentHandle",
@@ -87,6 +88,7 @@ __all__ = [
     "SchedulerConfig",
     "SegmentationParams",
     "StorageParams",
+    "TierCapacityParams",
     "Tombstone",
     "TriggerType",
     "load_config_file",

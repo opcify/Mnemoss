@@ -111,6 +111,12 @@ def row_to_memory(row: dict[str, Any]) -> Memory:
         derived_to=json.loads(derived_to_raw),
         source_message_ids=json.loads(row["source_message_ids"]),
         source_context=json.loads(row["source_context"]),
+        superseded_by=row.get("superseded_by"),
+        superseded_at=(
+            datetime.fromtimestamp(row["superseded_at"], tz=UTC)
+            if row.get("superseded_at") is not None
+            else None
+        ),
     )
 
 
@@ -137,6 +143,8 @@ def filter_by_agent_and_tier(
     ids: list[str],
     agent_id: str | None,
     tier_filter: set[IndexTier] | None,
+    *,
+    include_superseded: bool = False,
 ) -> set[str]:
     """Return the subset of ``ids`` that pass the agent + tier scope filter.
 
@@ -144,6 +152,13 @@ def filter_by_agent_and_tier(
     candidates from their respective indexes, then refine against the
     ``memory`` table's ``agent_id`` / ``index_tier`` columns in one SQL
     round-trip.
+
+    By default, memories marked ``superseded_by`` (contradiction-aware
+    observe has seen a newer version) are excluded from recall. Pass
+    ``include_superseded=True`` for paths that need the full ledger
+    (inspection CLI, Dream replay / disposal audit). The partial
+    index ``idx_memory_superseded`` keeps the filter cheap when the
+    feature is inactive.
     """
 
     placeholders = ",".join("?" for _ in ids)
@@ -162,6 +177,9 @@ def filter_by_agent_and_tier(
         tier_placeholders = ",".join("?" for _ in tier_filter)
         clauses.append(f"index_tier IN ({tier_placeholders})")
         params.extend(t.value for t in tier_filter)
+
+    if not include_superseded:
+        clauses.append("superseded_by IS NULL")
 
     sql = f"SELECT id FROM memory WHERE {' AND '.join(clauses)}"
     rows = conn.execute(sql, tuple(params)).fetchall()

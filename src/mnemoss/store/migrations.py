@@ -123,6 +123,25 @@ def _entities_text_from_json(entities_json: str | None) -> str:
     return " ".join(e for e in entities if isinstance(e, str) and e)
 
 
+def _add_superseded_columns(conn: apsw.Connection) -> None:
+    """Add ``superseded_by`` / ``superseded_at`` columns to ``memory``.
+
+    Used by v8 → v9 to support contradiction-aware observe. SQLite
+    supports ``ALTER TABLE ADD COLUMN`` in-place (O(1) schema change,
+    rows keep their existing values and new columns default to
+    NULL), so the migration is cheap even on a multi-million-row
+    workspace. Also creates the partial index that recall uses to
+    skip superseded rows cheaply.
+    """
+
+    conn.execute("ALTER TABLE memory ADD COLUMN superseded_by TEXT")
+    conn.execute("ALTER TABLE memory ADD COLUMN superseded_at REAL")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_memory_superseded "
+        "ON memory(superseded_by) WHERE superseded_by IS NOT NULL"
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         from_version=6,
@@ -135,6 +154,12 @@ MIGRATIONS: tuple[Migration, ...] = (
         to_version=8,
         description="Drop `entities` column from memory_fts (NER removed).",
         fn=_rebuild_memory_fts_single_column,
+    ),
+    Migration(
+        from_version=8,
+        to_version=9,
+        description="Add superseded_by/superseded_at to memory (contradiction-aware observe).",
+        fn=_add_superseded_columns,
     ),
 )
 

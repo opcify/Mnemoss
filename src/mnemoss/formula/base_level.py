@@ -28,6 +28,8 @@ def compute_base_level(
     now: datetime,
     created_at: datetime,
     params: FormulaParams,
+    *,
+    d: float | None = None,
 ) -> float:
     """Return B_i for a memory at time ``now``.
 
@@ -35,13 +37,23 @@ def compute_base_level(
     plus every retrieval timestamp. An empty list is treated as "never
     accessed" and returns only the encoding-grace term (history = -inf
     semantically, but we return 0 for the history term in that edge case).
+
+    ``d`` (keyword-only) overrides the decay exponent for this call.
+    Recall/activation paths pass ``params.d_recall`` (gentle decay so
+    access_history differentiation dominates); storage paths (disposal,
+    tier migration, replay) pass ``params.d_storage`` (aggressive decay
+    so old memories genuinely age out). When ``d`` is ``None`` the
+    legacy ``params.d`` is used — kept for backwards compatibility with
+    callers that construct ``FormulaParams(d=X)`` directly.
     """
+
+    decay = params.d if d is None else d
 
     if access_history:
         decay_sum = 0.0
         for t_k in access_history:
             age = _age_seconds(now, t_k, params.t_floor_seconds)
-            decay_sum += age ** (-params.d)
+            decay_sum += age ** (-decay)
         history = math.log(decay_sum) if decay_sum > 0.0 else 0.0
     else:
         history = 0.0

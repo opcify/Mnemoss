@@ -1,0 +1,100 @@
+{"category": "state_update", "old": "I'm planning to move to Seattle for a new job next year.", "new": "I've decided to stay in Boston instead — the Seattle offer fell through.", "question": "Where are you moving?"}
+{"category": "state_update", "old": "The standup meeting is at 9am every weekday.", "new": "We moved the standup to 10am starting this week.", "question": "What time is our daily standup?"}
+{"category": "state_update", "old": "Tom is the tech lead on the payments team.", "new": "Tom rotated off payments; Priya is the new tech lead there.", "question": "Who leads the payments team?"}
+{"category": "state_update", "old": "The release is scheduled for Friday the 15th.", "new": "Release pushed to Monday the 18th because of the security audit.", "question": "When is the next release?"}
+{"category": "state_update", "old": "We're staying at the Marriott for the conference.", "new": "Switched to the Hyatt — the Marriott was overbooked.", "question": "Which hotel are we at for the conference?"}
+{"category": "state_update", "old": "Our team grew to 12 engineers this quarter.", "new": "Team shrunk to 8 after the layoffs last quarter.", "question": "How big is my engineering team?"}
+{"category": "state_update", "old": "The Q3 sales target is $2M.", "new": "Q3 target revised down to $1.5M given market conditions.", "question": "What is the Q3 sales target?"}
+{"category": "state_update", "old": "We're hiring a Head of Product next month.", "new": "Put the Head of Product hire on hold until next year.", "question": "Are we hiring a Head of Product?"}
+{"category": "state_update", "old": "The office is currently at 500 Market Street.", "new": "We moved to 800 Mission Street this week.", "question": "What's the current office address?"}
+{"category": "state_update", "old": "Board meeting is scheduled for Tuesday at 9am.", "new": "Board meeting postponed to Friday at 2pm.", "question": "When is the board meeting?"}
+{"category": "preference", "old": "I love coffee in the morning, can't function without it.", "new": "I quit coffee last month — switched to green tea.", "question": "What do you drink in the morning?"}
+{"category": "preference", "old": "I prefer Python for backend work; Node feels sloppy to me.", "new": "I've come around on Node — using it for the new project and enjoying it.", "question": "Which backend language do you prefer?"}
+{"category": "preference", "old": "I hate open-plan offices, they destroy my focus.", "new": "The new open-plan layout is actually fine — the noise-cancelling headphones help.", "question": "How do you feel about open-plan offices?"}
+{"category": "preference", "old": "I always take the bus to work — the train is too crowded.", "new": "Switched to the train after they added more cars; much faster than the bus.", "question": "How do you commute to work?"}
+{"category": "preference", "old": "I don't use Vim, the learning curve isn't worth it.", "new": "I gave Vim another shot this month and I'm finally productive with it.", "question": "What text editor do you use?"}
+{"category": "preference", "old": "I use iPhone for work.", "new": "I switched to Android last month — Pixel 8 Pro.", "question": "What phone do I use for work?"}
+{"category": "preference", "old": "I only read physical books.", "new": "I've been using Kindle exclusively since my trip.", "question": "How do I read books?"}
+{"category": "preference", "old": "I hate spicy food.", "new": "I've developed a taste for spicy food — love Korean now.", "question": "Do I like spicy food?"}
+{"category": "preference", "old": "I prefer driving to work.", "new": "I bike to work now — healthier and faster.", "question": "How do I get to work?"}
+{"category": "preference", "old": "Morning workouts aren't my thing.", "new": "I started a 6am gym routine this month and love it.", "question": "When do I work out?"}
+{"category": "relationship", "old": "Alice is my coworker at Acme — we share a desk.", "new": "Alice left Acme last month and joined Contoso as an engineering manager.", "question": "Where does Alice work?"}
+{"category": "relationship", "old": "My therapist is Dr. Patel; I see her on Thursdays.", "new": "I switched therapists — now seeing Dr. Chen on Monday evenings.", "question": "Who is my therapist?"}
+{"category": "relationship", "old": "Jordan is my tennis partner on weekends.", "new": "Jordan moved to Portland; I'm playing with Sam now on Saturdays.", "question": "Who do I play tennis with?"}
+{"category": "relationship", "old": "Rachel and I are dating; we met at the office holiday party.", "new": "Rachel and I broke up in March; we stayed friends but that's it.", "question": "Am I dating Rachel?"}
+{"category": "relationship", "old": "My roommate is Kevin — he's a grad student in biology.", "new": "Kevin moved out in August; my new roommate is Marcus, a junior designer.", "question": "Who is my roommate?"}
+{"category": "relationship", "old": "David is my closest friend in the city.", "new": "David and I had a falling out; we haven't spoken in months.", "question": "What's my relationship with David?"}
+{"category": "relationship", "old": "Cassidy is my babysitter on weekends.", "new": "Cassidy moved away; now my mom helps on weekends.", "question": "Who babysits on weekends?"}
+{"category": "relationship", "old": "Dr. Wong is my cardiologist.", "new": "Switched to Dr. Martinez at Kaiser — she has better availability.", "question": "Who is my cardiologist?"}
+{"category": "relationship", "old": "Maya is my running partner.", "new": "Maya got injured; I now run with Ben twice a week.", "question": "Who do I run with?"}
+{"category": "relationship", "old": "Theo is the contractor on the kitchen remodel.", "new": "Theo quit; we brought in a new contractor, Ravi.", "question": "Who is managing the kitchen remodel?"}
+{"category": "fact_correction", "old": "I thought my flight to Tokyo was at 3pm on Tuesday.", "new": "Double-checked — the flight is actually at 6pm on Tuesday, not 3pm.", "question": "When does my flight to Tokyo leave?"}
+{"category": "fact_correction", "old": "The client meeting is scheduled for next Thursday at 2pm.", "new": "Client rescheduled — the meeting is now the following Monday at 11am.", "question": "When is the client meeting?"}
+{"category": "fact_correction", "old": "The server is hosted on AWS us-east-1.", "new": "We migrated the server to us-west-2 last quarter for the latency improvement.", "question": "Which AWS region hosts our server?"}
+{"category": "fact_correction", "old": "The API key rotates every 30 days per policy.", "new": "Updated policy: API keys now rotate every 90 days, not 30.", "question": "How often do our API keys rotate?"}
+{"category": "fact_correction", "old": "My office address is 500 Main Street, Suite 301.", "new": "We relocated — new office is 1200 Mission Boulevard, Suite 18.", "question": "What is my office address?"}
+{"category": "fact_correction", "old": "My bank is Chase.", "new": "I switched to First Republic last year.", "question": "What bank do I use?"}
+{"category": "fact_correction", "old": "The project deadline is March 31.", "new": "Deadline moved to April 15 after the delays.", "question": "When is the project deadline?"}
+{"category": "fact_correction", "old": "I charge $150 per hour for consulting.", "new": "I raised my consulting rate to $225 per hour in January.", "question": "What is my consulting hourly rate?"}
+{"category": "fact_correction", "old": "The car battery should last 5 years.", "new": "Actually the car battery needs replacing every 3 years.", "question": "How often does the car battery need replacing?"}
+{"category": "fact_correction", "old": "I'm a size 10 in shoes.", "new": "Corrected — I'm actually size 10.5 after the professional fitting.", "question": "What is my shoe size?"}
+{"category": "goal_update", "old": "My goal this year is to run a 10K by the summer.", "new": "After finishing the 10K in April, I've upped my goal to a half-marathon in October.", "question": "What race am I training for?"}
+{"category": "goal_update", "old": "I want to hit $50K in revenue by end of year for the side project.", "new": "Blew past $50K in July; new target is $200K annual run-rate by December.", "question": "What's my revenue target for the side project?"}
+{"category": "goal_update", "old": "The plan is to launch the v1 product in Q2.", "new": "Slipping to Q3 launch — the iOS review delays forced the push.", "question": "When is the v1 product launching?"}
+{"category": "goal_update", "old": "I'm learning Spanish to get to B2 level this year.", "new": "Paused Spanish to focus on Mandarin instead — it's more useful for my work trips.", "question": "Which language am I studying?"}
+{"category": "goal_update", "old": "I'm reading 24 books this year — two per month.", "new": "Reduced to one book a month; twelve is a more realistic target.", "question": "How many books am I reading this year?"}
+{"category": "goal_update", "old": "Goal for this year: lose 20 pounds.", "new": "Revised goal: build 10 pounds of muscle instead of losing weight.", "question": "What is my body composition goal?"}
+{"category": "goal_update", "old": "Saving $20K for the down payment on the condo.", "new": "Increased the savings target to $50K for a bigger house.", "question": "What is my savings target for the home purchase?"}
+{"category": "goal_update", "old": "Learning piano for fun this year.", "new": "Switched to guitar — easier to pick up on my own.", "question": "What musical instrument am I learning?"}
+{"category": "goal_update", "old": "The plan is to retire at age 65.", "new": "New plan: retire early at 55 via passive income.", "question": "When am I retiring?"}
+{"category": "goal_update", "old": "Writing one blog post per month.", "new": "Committed to three blog posts per week now that I left the job.", "question": "How often do I blog?"}
+{"category": "state_update", "old": "Our office is fully remote.", "new": "We've moved to hybrid — 2 days in office per week.", "question": "Is the office remote or hybrid?"}
+{"category": "state_update", "old": "The product is in private beta.", "new": "We launched publicly last week — anyone can sign up now.", "question": "Is the product in beta?"}
+{"category": "state_update", "old": "Our subscription tier is Pro at $99 per month.", "new": "Upgraded to Enterprise at $499 per month last quarter.", "question": "What subscription tier do we have?"}
+{"category": "state_update", "old": "The repo is hosted on GitLab.", "new": "Migrated to GitHub last month for the Actions integration.", "question": "Where is the repo hosted?"}
+{"category": "state_update", "old": "We use Slack for team comms.", "new": "Switched the team to Discord six months ago.", "question": "What chat platform does the team use?"}
+{"category": "state_update", "old": "I'm running a 4-person team.", "new": "After two recent hires, the team is now 6 people.", "question": "How many people on my team?"}
+{"category": "state_update", "old": "The conference is virtual this year.", "new": "Conference flipped to in-person — Berlin in October.", "question": "Is the conference virtual?"}
+{"category": "state_update", "old": "The car is leased through end of 2024.", "new": "Bought it out at lease end — I own the car now.", "question": "Do I own or lease the car?"}
+{"category": "state_update", "old": "Our staging environment is on Heroku.", "new": "Migrated staging to Fly.io last month.", "question": "Where is staging hosted?"}
+{"category": "state_update", "old": "The website is built with Gatsby.", "new": "Rewrote it in Next.js last quarter.", "question": "What framework is the website built with?"}
+{"category": "preference", "old": "I prefer dark mode for everything.", "new": "Switched to light mode after eye fatigue issues.", "question": "What color theme do I use?"}
+{"category": "preference", "old": "I always cook with butter.", "new": "Switched to olive oil for everything — feels healthier.", "question": "What fat do I cook with?"}
+{"category": "preference", "old": "I love loud workspaces — gets me energized.", "new": "Need silence now to focus, can't work in noise anymore.", "question": "What's my preferred work environment?"}
+{"category": "preference", "old": "Postman is my favorite API tool.", "new": "Bruno is so much better — switched a month ago.", "question": "What API tool do I use?"}
+{"category": "preference", "old": "I prefer cocktails to wine.", "new": "Came around on wine — that's mostly what I drink now.", "question": "Do I prefer wine or cocktails?"}
+{"category": "preference", "old": "I like Italian food the most.", "new": "Japanese became my favorite cuisine after the Tokyo trip.", "question": "What's my favorite cuisine?"}
+{"category": "preference", "old": "I draft on iPad with Procreate.", "new": "I'm back to physical sketchbooks for first drafts.", "question": "What do I sketch on?"}
+{"category": "preference", "old": "I read sci-fi exclusively.", "new": "Got into literary fiction this year, less sci-fi now.", "question": "What genre do I read?"}
+{"category": "preference", "old": "I drink craft beer almost daily.", "new": "Cut out alcohol entirely six months ago.", "question": "Do I drink alcohol?"}
+{"category": "preference", "old": "I prefer mechanical keyboards for typing.", "new": "Membrane keyboards are quieter — switched at home.", "question": "What keyboard type do I use at home?"}
+{"category": "relationship", "old": "My boss is Linda; she runs the engineering org.", "new": "Linda left for Meta; my new boss is Daniel.", "question": "Who is my boss?"}
+{"category": "relationship", "old": "My financial advisor is at Vanguard.", "new": "Switched to a fee-only fiduciary, Liz at Fairfield Capital.", "question": "Who is my financial advisor?"}
+{"category": "relationship", "old": "My dentist is Dr. Park downtown.", "new": "Switched to Dr. Reeves near home for convenience.", "question": "Who is my dentist?"}
+{"category": "relationship", "old": "Marc and I co-founded the startup together.", "new": "Marc left as co-founder; I'm running the company solo now.", "question": "Am I running the startup with Marc?"}
+{"category": "relationship", "old": "Anya is my mentor at the company.", "new": "Anya retired; my new mentor is Gabriel from product.", "question": "Who is my mentor?"}
+{"category": "relationship", "old": "My personal trainer is Felix at Equinox.", "new": "Cancelled Equinox; Naomi at the local gym is my trainer now.", "question": "Who is my personal trainer?"}
+{"category": "relationship", "old": "My agent is Margot at WME.", "new": "Signed with Owen at CAA last month.", "question": "Who is my agent?"}
+{"category": "relationship", "old": "Frank is my squash partner.", "new": "Frank moved to Chicago; I play squash with Rita now.", "question": "Who is my squash partner?"}
+{"category": "relationship", "old": "My cleaning service is Greenly.", "new": "Switched to MaidPro because Greenly kept rescheduling.", "question": "What cleaning service do I use?"}
+{"category": "relationship", "old": "Erin is my book club host.", "new": "Erin handed off hosting; Naomi runs the book club now.", "question": "Who hosts the book club?"}
+{"category": "fact_correction", "old": "My laptop has 16GB of RAM.", "new": "Just confirmed — it's actually 32GB, I forgot the upgrade.", "question": "How much RAM does my laptop have?"}
+{"category": "fact_correction", "old": "The marketing budget is $50K this quarter.", "new": "Reviewed the budget — it's actually $75K, not $50K.", "question": "What's the marketing budget this quarter?"}
+{"category": "fact_correction", "old": "Our customer count is around 500.", "new": "Recounted the books — we're at 720 customers, not 500.", "question": "How many customers do we have?"}
+{"category": "fact_correction", "old": "The flight lands at LAX terminal 4.", "new": "Double-checked — it lands at terminal 7, not 4.", "question": "Which terminal does the flight land at?"}
+{"category": "fact_correction", "old": "My passport expires in 2025.", "new": "Looked at it — it expires 2027, I had the year wrong.", "question": "When does my passport expire?"}
+{"category": "fact_correction", "old": "The building has 12 floors.", "new": "Counted — there are 15 floors including the basement levels.", "question": "How many floors are in the building?"}
+{"category": "fact_correction", "old": "I thought rent was $2,400 a month.", "new": "Checked the lease — it's $2,650, I was off by $250.", "question": "How much is rent per month?"}
+{"category": "fact_correction", "old": "My credit score is around 740.", "new": "Pulled it last week — it's actually 790.", "question": "What is my credit score?"}
+{"category": "fact_correction", "old": "The client paid us $40K.", "new": "Confirmed in the books — they paid $48K, more than I remembered.", "question": "How much did the client pay?"}
+{"category": "fact_correction", "old": "The product weighs about 1kg.", "new": "Got the actual spec — it's 1.4kg, not 1kg.", "question": "What does the product weigh?"}
+{"category": "goal_update", "old": "Goal: read 50 papers this year for the literature review.", "new": "Reduced to 25 papers — quality over quantity.", "question": "How many papers am I reading this year?"}
+{"category": "goal_update", "old": "I'm aiming for an MBA at Wharton.", "new": "Switched plans — going for a PhD at Stanford instead of an MBA.", "question": "What graduate program am I pursuing?"}
+{"category": "goal_update", "old": "My target is a 4-minute mile by next summer.", "new": "Adjusted — aiming for a sub-5-minute mile, more realistic.", "question": "What's my mile time goal?"}
+{"category": "goal_update", "old": "Plan: open a second office in NYC by end of year.", "new": "Postponed NYC indefinitely; focusing on growing the SF office.", "question": "Are we opening a second office?"}
+{"category": "goal_update", "old": "Saving up for a Tesla Model 3.", "new": "Switched goals — saving for a used Porsche instead of a Tesla.", "question": "What car am I saving for?"}
+{"category": "goal_update", "old": "Goal: launch the podcast in March.", "new": "Pushed launch to August — needed more lead time.", "question": "When does the podcast launch?"}
+{"category": "goal_update", "old": "Aiming to ship 10 features per quarter.", "new": "Adjusted to 5 high-quality features per quarter.", "question": "How many features per quarter?"}
+{"category": "goal_update", "old": "Plan: spend 2 weeks in Japan this summer.", "new": "Extended the trip to a full month after the visa came through.", "question": "How long is the Japan trip?"}
+{"category": "goal_update", "old": "Working toward an Ironman by next year.", "new": "Scaled down to a half-Ironman after the knee injury.", "question": "What triathlon distance am I training for?"}
+{"category": "goal_update", "old": "Goal: hire 3 senior engineers by end of year.", "new": "Cut to one senior hire because of the budget freeze.", "question": "How many senior engineers are we hiring?"}
