@@ -53,7 +53,12 @@ async def select_replay_candidates(
 
     scored: list[tuple[Memory, float]] = []
     for m in scoped:
-        b = compute_base_level(m.access_history, now, m.created_at, params)
+        # Replay is a storage-time cognition pass — pick memories for
+        # Dream to rehearse based on their long-horizon activation, not
+        # their moment-to-moment recall rank. Use d_storage.
+        b = compute_base_level(
+            m.access_history, now, m.created_at, params, d=params.d_storage
+        )
         if min_base_level is not None and b < min_base_level:
             continue
         scored.append((m, b))

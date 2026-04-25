@@ -74,7 +74,7 @@ async def test_recall_latency_smoke(
     mem = Mnemoss(
         workspace="smoke",
         embedding_model=FakeEmbedder(dim=32),
-        formula=FormulaParams(noise_scale=0.0),
+        formula=FormulaParams(noise_scale=0.0, use_tier_cascade_recall=False),
         storage=StorageParams(root=tmp_path),
     )
     try:

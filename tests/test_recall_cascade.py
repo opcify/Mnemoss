@@ -37,7 +37,14 @@ async def _setup(tmp_path: Path, dim: int = 16):
         store=store,
         embedder=embedder,
         working=wm,
-        params=FormulaParams(noise_scale=0.0),  # deterministic tests
+        # These tests assert legacy ACT-R cascade semantics (confidence-
+        # threshold early-stop, FTS+activation scoring). Production
+        # default switched to ``use_tier_cascade_recall`` in 2026-04;
+        # opt out here so the suite continues to exercise the path it
+        # was written for.
+        params=FormulaParams(
+            noise_scale=0.0, use_tier_cascade_recall=False
+        ),
         rng=random.Random(0),
     )
     return store, engine, embedder
@@ -199,7 +206,7 @@ async def test_scoring_is_not_duplicated_across_tiers(tmp_path: Path) -> None:
         store=store2,
         embedder=embedder,
         working=WorkingMemory(capacity=10),
-        params=FormulaParams(noise_scale=0.0),
+        params=FormulaParams(noise_scale=0.0, use_tier_cascade_recall=False),
         rng=random.Random(0),
     )
 
@@ -268,4 +275,163 @@ async def test_vec_and_fts_respect_tier_filter(tmp_path: Path) -> None:
     )
     assert any(mid == m_hot.id for mid, _ in fts_hot)
     assert all(mid != m_hot.id for mid, _ in fts_warm)
+    await store.close()
+
+
+# ─── skip_fts_when_no_literal_markers ────────────────────────────
+
+
+async def _setup_with_params(tmp_path: Path, params: FormulaParams, dim: int = 16):
+    """Mirror ``_setup`` but with caller-supplied ``FormulaParams``."""
+
+    embedder = FakeEmbedder(dim=dim)
+    store = SQLiteBackend(
+        db_path=tmp_path / "mem.sqlite",
+        raw_log_path=tmp_path / "raw_log.sqlite",
+        workspace_id="ws",
+        embedding_dim=dim,
+        embedder_id=embedder.embedder_id,
+    )
+    await store.open()
+    wm = WorkingMemory(capacity=10)
+    engine = RecallEngine(
+        store=store,
+        embedder=embedder,
+        working=wm,
+        params=params,
+        rng=random.Random(0),
+    )
+    return store, engine, embedder
+
+
+async def test_skip_fts_on_plain_query_when_knob_on(tmp_path: Path) -> None:
+    """With the knob on + a plain query (``b_F == 1.0``), FTS is not called.
+
+    We verify by wrapping ``store.fts_search`` to count invocations — a
+    plain query with the knob on should record zero FTS calls while
+    still returning results via vec_search.
+    """
+
+    params = FormulaParams(
+        noise_scale=0.0,
+        skip_fts_when_no_literal_markers=True,
+        use_tier_cascade_recall=False,
+    )
+    store, engine, embedder = await _setup_with_params(tmp_path, params)
+    await _observe_at_tier(store, embedder, "alice meeting notes", IndexTier.HOT)
+
+    fts_calls = 0
+    orig_fts = store.fts_search
+
+    async def _spy(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        nonlocal fts_calls
+        fts_calls += 1
+        return await orig_fts(*args, **kwargs)
+
+    store.fts_search = _spy  # type: ignore[method-assign]
+    try:
+        results, _ = await engine.recall_with_stats("alice", agent_id=None, k=3)
+        assert len(results) > 0  # vec_search still finds it
+    finally:
+        store.fts_search = orig_fts  # type: ignore[method-assign]
+        await store.close()
+
+    assert fts_calls == 0, (
+        f"Expected FTS to be skipped on plain query with knob on; "
+        f"got {fts_calls} call(s)"
+    )
+
+
+async def test_skip_fts_still_runs_on_literal_query(tmp_path: Path) -> None:
+    """The knob only skips when ``b_F(query) == 1.0``. Quoted queries
+    (``b_F = 1.5``) must still hit FTS."""
+
+    params = FormulaParams(
+        noise_scale=0.0,
+        skip_fts_when_no_literal_markers=True,
+        use_tier_cascade_recall=False,
+    )
+    store, engine, embedder = await _setup_with_params(tmp_path, params)
+    await _observe_at_tier(store, embedder, "alice meeting notes", IndexTier.HOT)
+
+    fts_calls = 0
+    orig_fts = store.fts_search
+
+    async def _spy(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        nonlocal fts_calls
+        fts_calls += 1
+        return await orig_fts(*args, **kwargs)
+
+    store.fts_search = _spy  # type: ignore[method-assign]
+    try:
+        # Quoted query → b_F(q) = 1.5 → do not skip FTS.
+        await engine.recall_with_stats('"alice"', agent_id=None, k=3)
+    finally:
+        store.fts_search = orig_fts  # type: ignore[method-assign]
+        await store.close()
+
+    assert fts_calls >= 1, (
+        f"Literal (quoted) query should hit FTS at least once; got {fts_calls}"
+    )
+
+
+async def test_skip_fts_default_off_preserves_hybrid(tmp_path: Path) -> None:
+    """Default params → FTS always runs, even on plain queries."""
+
+    store, engine, embedder = await _setup(tmp_path)  # default params
+    await _observe_at_tier(store, embedder, "alice meeting notes", IndexTier.HOT)
+
+    fts_calls = 0
+    orig_fts = store.fts_search
+
+    async def _spy(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        nonlocal fts_calls
+        fts_calls += 1
+        return await orig_fts(*args, **kwargs)
+
+    store.fts_search = _spy  # type: ignore[method-assign]
+    try:
+        await engine.recall_with_stats("alice", agent_id=None, k=3)
+    finally:
+        store.fts_search = orig_fts  # type: ignore[method-assign]
+        await store.close()
+
+    assert fts_calls >= 1
+
+
+# ─── skip_empty_tiers ────────────────────────────────────────────
+
+
+async def test_skip_empty_tiers_drops_round_trips(tmp_path: Path) -> None:
+    """With the knob on, only non-empty tiers appear in ``tiers_scanned``.
+
+    Seed HOT only (typical bulk-ingest state) and confirm the cascade
+    doesn't bother with WARM/COLD.
+    """
+
+    params = FormulaParams(
+        noise_scale=0.0,
+        skip_empty_tiers=True,
+        use_tier_cascade_recall=False,
+    )
+    store, engine, embedder = await _setup_with_params(tmp_path, params)
+    await _observe_at_tier(store, embedder, "alice notes", IndexTier.HOT)
+
+    _, stats = await engine.recall_with_stats("alice", agent_id=None, k=3)
+    assert stats.tiers_scanned == [IndexTier.HOT]
+    await store.close()
+
+
+async def test_skip_empty_tiers_default_off_scans_all(tmp_path: Path) -> None:
+    """With the knob off (default), cascade scans HOT/WARM/COLD even
+    when WARM and COLD are empty — preserves existing behaviour."""
+
+    store, engine, embedder = await _setup(tmp_path)  # default params
+    # Put content only in COLD so the HOT / WARM scan returns empty and
+    # the cascade must fall through to COLD. This matches
+    # test_cascade_falls_through_when_hot_empty's expectations.
+    await _observe_at_tier(store, embedder, "old alice note", IndexTier.COLD)
+
+    _, stats = await engine.recall_with_stats("alice", agent_id=None, k=3)
+    assert stats.tiers_scanned == [IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]
     await store.close()
