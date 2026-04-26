@@ -140,6 +140,7 @@ class RetryingLLM:
         initial_wait: float = 4.0,
         max_wait: float = 60.0,
         min_wait_between_calls: float = 0.0,
+        per_call_timeout: float = 60.0,
     ) -> None:
         self._inner = inner
         self._max_attempts = max_attempts
@@ -151,6 +152,11 @@ class RetryingLLM:
         # 7.5s/call). 0 = no pacing.
         self._min_wait_between_calls = min_wait_between_calls
         self._last_call_at: float = 0.0
+        # Per-call wall-clock timeout. The OpenAI SDK's default is 600s
+        # (10 minutes), and OpenRouter free models occasionally hang
+        # silently — use a tighter cap so a hang surfaces as a retry,
+        # not a 10-minute black hole.
+        self._per_call_timeout = per_call_timeout
 
     @property
     def model(self) -> str:
@@ -182,14 +188,47 @@ class RetryingLLM:
             elapsed = _time.monotonic() - self._last_call_at
             need = self._min_wait_between_calls - elapsed
             if need > 0:
+                print(
+                    f"      pacing {need:.1f}s before next LLM call",
+                    flush=True,
+                )
                 await _asyncio.sleep(need)
 
         last_err: BaseException | None = None
         for attempt in range(self._max_attempts):
+            t_start = _time.monotonic()
             try:
-                result = await fn(*args, **kwargs)
+                print(
+                    f"      LLM call attempt {attempt + 1}/{self._max_attempts}...",
+                    flush=True,
+                )
+                result = await _asyncio.wait_for(
+                    fn(*args, **kwargs), timeout=self._per_call_timeout
+                )
                 self._last_call_at = _time.monotonic()
+                # Log a short fingerprint of the result so we can
+                # spot empty/garbage returns (which the model returns
+                # under some error conditions instead of raising).
+                preview = str(result)[:80].replace("\n", " ")
+                print(
+                    f"      LLM call OK ({_time.monotonic() - t_start:.1f}s) "
+                    f"-> {preview!r}{'…' if len(str(result)) > 80 else ''}",
+                    flush=True,
+                )
                 return result
+            except _asyncio.TimeoutError as e:
+                last_err = TimeoutError(
+                    f"LLM call exceeded {self._per_call_timeout:.0f}s"
+                )
+                last_err.__cause__ = e
+                if attempt == self._max_attempts - 1:
+                    break
+                print(
+                    f"    LLM hung past {self._per_call_timeout:.0f}s on "
+                    f"attempt {attempt + 1}, retrying...",
+                    flush=True,
+                )
+                continue
             except BaseException as e:  # noqa: BLE001 (re-raise below if non-retryable)
                 if not self._is_retryable(e):
                     raise
@@ -389,6 +428,7 @@ def _build_clients(cfg: dict[str, Any]) -> tuple[Embedder, LLMClient]:
         initial_wait=float(retry_cfg.get("initial_wait_seconds", 4.0)),
         max_wait=float(retry_cfg.get("max_wait_seconds", 60.0)),
         min_wait_between_calls=float(retry_cfg.get("min_wait_between_calls_seconds", 0.0)),
+        per_call_timeout=float(retry_cfg.get("per_call_timeout_seconds", 60.0)),
     )
     return embedder, llm
 
@@ -418,17 +458,21 @@ async def _seed_topology(
     inc = float(cfg["harness"]["simulated_time"]["per_observe_increment_seconds"])
 
     id_map: dict[str, str] = {}
+    n = len(corpus["memories"])
+    print(f"    seeding {n} memories...", flush=True)
     for i, m in enumerate(corpus["memories"]):
         target = anchor + timedelta(seconds=i * inc)
-        with freeze_time(target):
+        with freeze_time(target, tick=True):
             mid = await mem.observe(role="user", content=m["content"])
             if mid is None:
                 raise RuntimeError(
                     f"observe returned None for {m['id']!r}; check EncoderParams.encoded_roles"
                 )
             id_map[m["id"]] = mid
+        if (i + 1) % 10 == 0 or i == n - 1:
+            print(f"    seeded {i + 1}/{n}", flush=True)
 
-    end_time = anchor + timedelta(seconds=len(corpus["memories"]) * inc + 1)
+    end_time = anchor + timedelta(seconds=n * inc + 1)
     return id_map, end_time
 
 
@@ -447,7 +491,7 @@ async def _seed_pressure(
     end_time = anchor
     for m in corpus["memories"]:
         target = anchor + timedelta(seconds=int(m["ts_offset_seconds"]))
-        with freeze_time(target):
+        with freeze_time(target, tick=True):
             mid = await mem.observe(role="user", content=m["content"])
             if mid is None:
                 raise RuntimeError(f"observe returned None for {m['id']!r}")
@@ -499,8 +543,15 @@ async def _run_one_ablation(
             # Dream + recall happen at end_time so wall-clock variance
             # (e.g. long LLM retries) doesn't perturb the formula's
             # B_i values between ablation conditions.
-            with freeze_time(end_time):
+            # tick=True so asyncio.sleep (used by RetryingLLM pacing
+            # + retry backoffs) actually advances time. Without it,
+            # asyncio.sleep waits forever inside frozen time. The
+            # anchor still keeps `datetime.now()` close to end_time
+            # for formula consistency across ablations.
+            with freeze_time(end_time, tick=True):
+                print(f"    running dream(phases={phases or 'all'})...", flush=True)
                 report = await mem.dream(trigger="nightly", phases=phases)
+                print("    scoring queries...", flush=True)
                 per_query = await _score_queries(mem, corpus, cfg, id_map)
 
             # Aggregates.

@@ -162,23 +162,29 @@ to be more aggressive.
 
 ## Threshold Amendments
 
-### 2026-04-27 — Consolidate model swap (config, not threshold)
+### 2026-04-27 — Consolidate model swap, take 2
 
-Original `bench/ablate_dreaming.toml` pinned Consolidate's LLM to
-`tencent/hy3-preview:free` via OpenRouter. First harness run at
-`make ablate-dreaming-binary` failed with the OpenRouter provider
-(SiliconFlow) returning 400 `Json mode is not supported for this
-model`. Mnemoss's `_phase_consolidate` requires
-`response_format={"type":"json_object"}` to parse the structured
-summary/refinements/patterns response.
+Three Consolidate-model swaps before any verdict was recorded:
 
-Swapped to `meta-llama/llama-3.3-70b-instruct:free` (also free,
-JSON-mode supported) before any verdict was recorded. This is a
-config swap, not a threshold revision — the per-phase thresholds
-above are untouched. Recording here for audit-trail completeness.
+1. `tencent/hy3-preview:free` — SiliconFlow provider returned 400
+   on `response_format=json`. Mnemoss's `_phase_consolidate`
+   requires JSON mode. Failed before producing any output.
+2. `meta-llama/llama-3.3-70b-instruct:free` — JSON-capable, but
+   OpenRouter's free tier caps the model at ~8 rpm (and providers
+   like Venice impose USD spend caps on top). Even with proactive
+   pacing + exponential backoff, 4 of 4 Consolidate calls in the
+   topology binary gate hit 429 / 402. Failed before producing
+   any verifiable Consolidate output.
+3. `deepseek/deepseek-v4-flash` — current. Higher rpm, JSON-mode
+   supported. **Self-preference-bias caveat:** this is also the
+   judge model in `bench/ablate_dreaming.toml` `[llm.judge]`.
+   Before running `make gist-quality`, swap one of them so judge
+   and Consolidate aren't from the same model family — otherwise
+   the gist-quality verdict in weekend 3 is structurally biased.
 
-The judge model (`deepseek/deepseek-v4-flash`) is unchanged because
-the judge uses `complete_text` (no JSON mode required).
+These are config swaps, not threshold revisions — the per-phase
+thresholds above are untouched. Recording here for audit-trail
+completeness.
 
 ---
 

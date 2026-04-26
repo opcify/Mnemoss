@@ -23,11 +23,15 @@ model = "text-embedding-3-small"
 
 [llm.consolidate]
 kind = "openai"  # OpenRouter speaks the OpenAI protocol via base_url.
-# Original choice was tencent/hy3-preview:free, swapped 2026-04-27
-# because SiliconFlow (the OpenRouter provider) returns 400 on
-# response_format={"type":"json_object"} which Mnemoss's Consolidate
-# requires (see docs/dreaming-decision.md "Threshold Amendments").
-model = "meta-llama/llama-3.3-70b-instruct:free"
+# Model history (see docs/dreaming-decision.md "Threshold Amendments"):
+#   1. tencent/hy3-preview:free — provider returns 400 on JSON mode.
+#   2. meta-llama/llama-3.3-70b-instruct:free — 8 rpm cap, 429s.
+#   3. deepseek/deepseek-v4-flash — reasoning model, all max_tokens
+#      went to internal reasoning before any JSON; also rate-limited.
+#   4. inclusionai/ling-2.6-1t:free — current. Non-reasoning chat
+#      model, JSON-mode supported, free. Different model family from
+#      the judge so no self-preference bias when gist-quality runs.
+model = "inclusionai/ling-2.6-1t:free"
 base_url = "https://openrouter.ai/api/v1"
 # api_key is read from $OPENROUTER_API_KEY at runtime.
 
@@ -82,6 +86,10 @@ max_wait_seconds = 60.0
 # is 8 rpm (= 7.5s/call); 9.0s gives a small safety margin. Set to 0
 # when using a paid model with no rpm cap to maximize throughput.
 min_wait_between_calls_seconds = 9.0
+# Per-call wall-clock timeout. OpenRouter free models occasionally
+# hang silently; without this the OpenAI SDK waits 10 minutes by
+# default. 60s is enough for a Consolidate prompt + response.
+per_call_timeout_seconds = 60.0
 
 [harness.simulated_time]
 # Anchor for freezegun-mocked datetime.now(UTC) during the run.
