@@ -1,0 +1,83 @@
+# Pinned configuration for the dreaming-validation harness.
+#
+# The harness REFUSES TO RUN if any required field below is missing —
+# this prevents a future config default change in src/mnemoss/ from
+# silently invalidating already-recorded results.
+#
+# Per the design doc and pre-registered decision doc:
+#  - Embedder: OpenAIEmbedder("text-embedding-3-small") for speed +
+#    determinism across ablations (OpenAI returns identical vectors for
+#    identical inputs, so ablation deltas are the dream pipeline alone,
+#    not embedder noise).
+#  - LLM (Consolidate): tencent/hy3-preview:free via OpenRouter.
+#  - LLM (gist judge): deepseek/deepseek-v4-flash via OpenRouter —
+#    different model family from Consolidate to mitigate self-preference
+#    bias (per /plan-eng-review outside-voice finding).
+#  - No call/dollar budget caps. Free-tier rate limits handled with
+#    tenacity exponential backoff (5 attempts, 1-30s).
+
+[embedder]
+kind = "openai"
+model = "text-embedding-3-small"
+# api_key is read from $OPENAI_API_KEY at runtime.
+
+[llm.consolidate]
+kind = "openai"  # OpenRouter speaks the OpenAI protocol via base_url.
+model = "tencent/hy3-preview:free"
+base_url = "https://openrouter.ai/api/v1"
+# api_key is read from $OPENROUTER_API_KEY at runtime.
+
+[llm.judge]
+kind = "openai"
+model = "deepseek/deepseek-v4-flash"
+base_url = "https://openrouter.ai/api/v1"
+# api_key is read from $OPENROUTER_API_KEY at runtime (same key).
+
+[dreamer]
+# Mirrors DreamerParams defaults; pinned here so a future default
+# change doesn't silently invalidate ablation results.
+cluster_min_size = 3
+replay_limit = 100
+# replay_min_base_level intentionally absent (None / no floor).
+
+[formula]
+# All FormulaParams locked at their shipped defaults. If the formula
+# defaults change, this file must be updated explicitly so the
+# pre-registration audit trail catches it.
+d = 0.5
+tau = -1.0
+mp = 1.5
+noise_scale = 0.0  # Zero so ablation deltas aren't noise-driven.
+s_max = 2.0
+alpha = 0.5
+beta = 0.4
+gamma = 2.0
+delta = 1.0
+epsilon_max = 0.75
+t_floor_seconds = 1.0
+eta_0 = 1.0
+eta_tau_seconds = 3600.0
+
+[harness]
+# Recall-time settings.
+recall_k = 10
+# Whether recall scans tier DEEP. True for the validation study so
+# Dispose ablation can't hide tombstoned-but-still-present rows.
+include_deep = true
+# auto_expand=False so multi-hop recall@10 isolates the contribution
+# of Relations + spreading-activation, not the auto-expand BFS.
+auto_expand = false
+
+[harness.retry]
+# Tenacity-style retry config for LLM calls (free-tier rate limits).
+max_attempts = 5
+initial_wait_seconds = 1.0
+max_wait_seconds = 30.0
+
+[harness.simulated_time]
+# Anchor for freezegun-mocked datetime.now(UTC) during the run.
+# Topology corpus accumulates over a single simulated minute (no
+# pressure axis). Pressure corpus generator overrides this for the
+# 30-day accumulation.
+anchor = "2026-04-27T00:00:00Z"
+per_observe_increment_seconds = 1
