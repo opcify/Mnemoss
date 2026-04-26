@@ -15,6 +15,7 @@
 .PHONY: ablate-dreaming ablate-dreaming-binary ablate-dreaming-pareto \
         ablate-dreaming-pressure ablate-dreaming-pressure-binary \
         ablate-dreaming-pressure-plot pressure-corpus-gen \
+        gist-quality gist-quality-plot \
         bench-tests test lint typecheck
 
 # Auto-load .env if it exists. The leading dash makes the include
@@ -74,6 +75,21 @@ ablate-dreaming-pressure-plot:
 # Already-committed default is seed 42.
 pressure-corpus-gen:
 	python -m bench.fixtures.pressure_corpus_gen --seed 42
+
+# Pairwise LLM-as-judge for Consolidate's gist quality. Topology
+# corpus only (judging gists makes sense per-cluster, not at scale).
+# Uses deepseek/deepseek-v4-flash on OpenRouter as a different model
+# family from Consolidate's tencent/hy3-preview:free to mitigate
+# self-preference bias.
+gist-quality:
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	python -m bench.gist_quality
+	python -m bench.plot_gist
+
+# Render the gist-quality bar chart from existing results.
+gist-quality-plot:
+	python -m bench.plot_gist
 
 # Bench harness unit tests (ARI math, bootstrap CI, corpus shape).
 # These do NOT hit the network and ARE safe to run in CI.
