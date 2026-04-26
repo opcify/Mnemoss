@@ -130,7 +130,22 @@ class DreamRunner:
         *,
         agent_id: str | None = None,
         now: datetime | None = None,
+        phases: set[str] | None = None,
     ) -> DreamReport:
+        """Run one dream cycle.
+
+        ``phases`` (optional) is an ablation mask — a set of phase
+        ``value`` strings (e.g. ``{"replay", "cluster"}``). When provided,
+        only listed phases run; excluded phases get a ``PhaseOutcome``
+        with ``status="excluded_by_mask"``. Default ``None`` runs every
+        phase the trigger normally runs.
+
+        Dependency rules are intentionally **not** enforced by the mask
+        — downstream phases that consume empty state record their
+        existing skip reasons (``"empty replay set"``, etc.). The mask
+        only filters the iteration loop. See design doc.
+        """
+
         t0 = now if now is not None else datetime.now(UTC)
         report = DreamReport(
             trigger=trigger,
@@ -141,6 +156,15 @@ class DreamRunner:
         state = _DreamState()
 
         for phase in PHASES_BY_TRIGGER.get(trigger, []):
+            if phases is not None and phase.value not in phases:
+                report.outcomes.append(
+                    PhaseOutcome(
+                        phase=phase,
+                        status="excluded_by_mask",
+                        skip_reason="excluded by phases mask",
+                    )
+                )
+                continue
             outcome = await self._run_phase(phase, state, agent_id, t0)
             report.outcomes.append(outcome)
 

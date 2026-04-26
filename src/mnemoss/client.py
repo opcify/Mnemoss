@@ -20,6 +20,7 @@ import ulid
 
 from mnemoss.core.config import (
     SCHEMA_VERSION,
+    DreamerParams,
     EncoderParams,
     FormulaParams,
     MnemossConfig,
@@ -68,6 +69,7 @@ class Mnemoss:
         encoder: EncoderParams | None = None,
         storage: StorageParams | None = None,
         segmentation: SegmentationParams | None = None,
+        dreamer: DreamerParams | None = None,
         llm: LLMClient | None = None,
         cost_limits: CostLimits | None = None,
         rng: random.Random | None = None,
@@ -78,6 +80,7 @@ class Mnemoss:
             encoder=encoder or EncoderParams(),
             storage=storage or StorageParams(),
             segmentation=segmentation or SegmentationParams(),
+            dreamer=dreamer or DreamerParams(),
         )
         self._embedder = make_embedder(embedding_model)
         self._llm = llm
@@ -414,6 +417,7 @@ class Mnemoss:
         trigger: str = "session_end",
         *,
         agent_id: str | None = None,
+        phases: set[str] | None = None,
     ) -> DreamReport:
         """Run a dreaming cycle for ``trigger``.
 
@@ -422,6 +426,13 @@ class Mnemoss:
         phase subset (see ``dream.runner.TRIGGER_PHASES``). If no LLM is
         configured, LLM-dependent phases record ``status="skipped"``
         with an explanatory reason and the rest still run.
+
+        ``phases`` (optional) is an ablation mask used by
+        ``bench/ablate_dreaming.py``. Pass a set of phase ``value`` strings
+        (e.g. ``{"replay", "cluster"}``) to run only those phases for
+        this trigger; excluded phases record
+        ``status="excluded_by_mask"``. Default ``None`` runs the full
+        trigger pipeline.
         """
 
         await self._ensure_open()
@@ -437,10 +448,13 @@ class Mnemoss:
             self._config.formula,
             llm=self._llm,
             embedder=self._embedder,
+            replay_limit=self._config.dreamer.replay_limit,
+            replay_min_base_level=self._config.dreamer.replay_min_base_level,
+            cluster_min_size=self._config.dreamer.cluster_min_size,
             cost_limits=self._cost_limits,
             cost_ledger=self._cost_ledger,
         )
-        report = await runner.run(TriggerType(trigger), agent_id=agent_id)
+        report = await runner.run(TriggerType(trigger), agent_id=agent_id, phases=phases)
 
         # Dream Diary (§2.5) — append a Markdown audit entry for this run.
         diary_path = dream_diary_path(self._config.storage.resolve_root(), self._config.workspace)
@@ -578,9 +592,7 @@ class Mnemoss:
         cap = self._config.encoder.max_memory_chars
         if cap is None or len(memory.content) <= cap:
             # Happy path — one event, one Memory.
-            embedding = (
-                await asyncio.to_thread(self._embedder.embed, [memory.content])
-            )[0]
+            embedding = (await asyncio.to_thread(self._embedder.embed, [memory.content]))[0]
             await self._store.write_memory(memory, embedding)
             await write_cooccurrence_edges(
                 self._store,
@@ -596,9 +608,7 @@ class Mnemoss:
         if len(chunks) == 1:
             # ``split_content`` returned the content unchanged (fits
             # the cap after all). Fall back to the single-row path.
-            embedding = (
-                await asyncio.to_thread(self._embedder.embed, [memory.content])
-            )[0]
+            embedding = (await asyncio.to_thread(self._embedder.embed, [memory.content]))[0]
             await self._store.write_memory(memory, embedding)
             await write_cooccurrence_edges(
                 self._store,
@@ -740,9 +750,7 @@ class AgentHandle:
     async def pin(self, memory_id: str) -> None:
         await self._mem.pin(memory_id, agent_id=self._agent_id)
 
-    async def explain_recall(
-        self, query: str, memory_id: str
-    ) -> ActivationBreakdown | None:
+    async def explain_recall(self, query: str, memory_id: str) -> ActivationBreakdown | None:
         return await self._mem.explain_recall(query, memory_id, agent_id=self._agent_id)
 
     async def expand(
@@ -781,13 +789,8 @@ def _summarize_dream(report: DreamReport) -> dict[str, Any]:
         "finished_at": report.finished_at.isoformat(),
         "duration_seconds": report.duration_seconds(),
         "degraded": report.degraded_mode,
-        "phase_statuses": {
-            o.phase.value: o.status for o in report.outcomes
-        },
-        "errors": [
-            {"phase": o.phase.value, "error": o.error}
-            for o in report.errors()
-        ],
+        "phase_statuses": {o.phase.value: o.status for o in report.outcomes},
+        "errors": [{"phase": o.phase.value, "error": o.error} for o in report.errors()],
     }
 
 

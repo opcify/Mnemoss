@@ -86,8 +86,7 @@ class Corpus:
             missing = set(q["relevant_ids"]) - ids
             if missing:
                 raise ValueError(
-                    f"query {q['query']!r} references unknown memory "
-                    f"ids: {sorted(missing)}"
+                    f"query {q['query']!r} references unknown memory ids: {sorted(missing)}"
                 )
 
 
@@ -164,9 +163,7 @@ class ParamGrid:
     mp_values: tuple[float, ...] = (1.0, 1.5, 2.0)
 
     def combinations(self) -> list[tuple[float, float, float]]:
-        return list(
-            itertools.product(self.d_values, self.tau_values, self.mp_values)
-        )
+        return list(itertools.product(self.d_values, self.tau_values, self.mp_values))
 
 
 _FULL_GRID = ParamGrid(
@@ -211,8 +208,7 @@ async def _eval_params(
             # Relevant ids in the CORPUS are the corpus's own "m1" etc;
             # translate them to the ids Mnemoss assigned.
             id_lookup = {
-                corpus_m["id"]: content_to_id[corpus_m["content"]]
-                for corpus_m in corpus.memories
+                corpus_m["id"]: content_to_id[corpus_m["content"]] for corpus_m in corpus.memories
             }
 
             per_query: list[dict[str, Any]] = []
@@ -259,10 +255,7 @@ async def _sweep(corpus: Corpus, grid: ParamGrid) -> list[RunResult]:
 
 
 def _print_table(results: list[RunResult]) -> None:
-    header = (
-        f"  {'d':>5}  {'tau':>6}  {'mp':>5}  "
-        f"{'R@1':>6}  {'R@5':>6}  {'MRR':>6}"
-    )
+    header = f"  {'d':>5}  {'tau':>6}  {'mp':>5}  {'R@1':>6}  {'R@5':>6}  {'MRR':>6}"
     print(header)
     print("  " + "─" * (len(header) - 2))
     for r in sorted(results, key=lambda r: -r.mrr):
@@ -304,9 +297,7 @@ def _main_sync(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Sweep FormulaParams against a labeled corpus."
-    )
+    parser = argparse.ArgumentParser(description="Sweep FormulaParams against a labeled corpus.")
     parser.add_argument(
         "corpus",
         nargs="?",

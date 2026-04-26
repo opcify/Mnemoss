@@ -2,6 +2,7 @@
 
 from mnemoss.client import AgentHandle, Mnemoss
 from mnemoss.core.config import (
+    DreamerParams,
     EncoderParams,
     FormulaParams,
     MnemossConfig,
@@ -57,6 +58,7 @@ __all__ = [
     "DreamReport",
     "DreamRunner",
     "DreamScheduler",
+    "DreamerParams",
     "Embedder",
     "EmbedderFileConfig",
     "EncoderParams",
