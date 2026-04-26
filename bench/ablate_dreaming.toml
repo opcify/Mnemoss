@@ -23,7 +23,11 @@ model = "text-embedding-3-small"
 
 [llm.consolidate]
 kind = "openai"  # OpenRouter speaks the OpenAI protocol via base_url.
-model = "tencent/hy3-preview:free"
+# Original choice was tencent/hy3-preview:free, swapped 2026-04-27
+# because SiliconFlow (the OpenRouter provider) returns 400 on
+# response_format={"type":"json_object"} which Mnemoss's Consolidate
+# requires (see docs/dreaming-decision.md "Threshold Amendments").
+model = "meta-llama/llama-3.3-70b-instruct:free"
 base_url = "https://openrouter.ai/api/v1"
 # api_key is read from $OPENROUTER_API_KEY at runtime.
 
@@ -69,10 +73,15 @@ include_deep = true
 auto_expand = false
 
 [harness.retry]
-# Tenacity-style retry config for LLM calls (free-tier rate limits).
+# Retry config for LLM calls (free-tier rate limits).
 max_attempts = 5
-initial_wait_seconds = 1.0
-max_wait_seconds = 30.0
+initial_wait_seconds = 4.0
+max_wait_seconds = 60.0
+# Proactive pacing — sleep this long between consecutive LLM calls so
+# we never burst above the provider's rpm cap. OpenRouter free tier
+# is 8 rpm (= 7.5s/call); 9.0s gives a small safety margin. Set to 0
+# when using a paid model with no rpm cap to maximize throughput.
+min_wait_between_calls_seconds = 9.0
 
 [harness.simulated_time]
 # Anchor for freezegun-mocked datetime.now(UTC) during the run.

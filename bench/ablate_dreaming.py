@@ -44,6 +44,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -55,12 +56,186 @@ import tomllib
 from bench._metrics import topk_cleanliness
 from mnemoss import (
     DreamerParams,
+    Embedder,
+    FakeEmbedder,
     FormulaParams,
+    LLMClient,
     Mnemoss,
+    MockLLMClient,
     OpenAIClient,
     OpenAIEmbedder,
     StorageParams,
 )
+
+# Module-level toggle set by --mock-llm. Read inside _build_clients.
+USE_MOCK_LLM = False
+
+
+_PROMPT_MEMBER_RE = re.compile(r"^\s*\d+\.\s*\[[^\]]+\]\s*(.+?)$", re.MULTILINE)
+
+
+def _canned_consolidate_response(prompt: str) -> dict[str, Any]:
+    """Deterministic canned response for the mock Consolidate LLM.
+
+    Extracts cluster-member content from the prompt and produces a
+    summary that concatenates the first three members' content. This
+    is dumb but at least makes the synthetic summary share vocabulary
+    with the cluster — without it, the summary is pure noise that
+    pollutes top-K and torpedoes the harness's recall@k metric.
+
+    NOT a real Consolidate verdict — see bench/gist_quality.py for
+    that. The mock here is for harness validation only; the decision
+    gate is suppressed under --mock-llm.
+    """
+
+    members = _PROMPT_MEMBER_RE.findall(prompt)
+    # Prompt embeds an extracted-fields line per member; that line
+    # starts with "current extraction:". Filter those out.
+    real = [m.strip() for m in members if not m.strip().startswith("current extraction:")]
+    if real:
+        summary_text = " | ".join(real[:3])
+    else:
+        summary_text = "synthetic summary placeholder for harness mock mode"
+
+    return {
+        "summary": {
+            "memory_type": "fact",
+            "content": summary_text[:300],  # cap at ~300 chars to stay sensible
+            "abstraction_level": 0.7,
+            "aliases": [],
+        },
+        "refinements": [],
+        "patterns": [],
+    }
+
+
+# ─── retry-on-rate-limit LLM wrapper ───────────────────────────────
+
+
+class RetryingLLM:
+    """Wraps an ``LLMClient`` with exponential backoff on 429 / 5xx.
+
+    OpenRouter free models cap at ~8 req/min, and Mnemoss's
+    Consolidate phase fires one LLM call per cluster — the topology
+    corpus's 3 topics produce 3 calls, the pressure corpus's 50 high-
+    utility memories produce ~10-15 clusters → ~10-15 calls. Without
+    retry, almost every call after the first burst fails.
+
+    Strategy:
+
+      - On exception whose ``str()`` contains "429" or "rate limit",
+        wait ``initial * 2^attempt + jitter`` seconds and retry.
+      - On 5xx similarly retried.
+      - Other exceptions (auth, schema) re-raised immediately —
+        retrying a 401 just wastes time.
+      - Up to ``max_attempts`` retries; final failure re-raises so
+        ``DreamRunner`` records ``status="error"`` for the phase.
+    """
+
+    def __init__(
+        self,
+        inner: LLMClient,
+        *,
+        max_attempts: int = 5,
+        initial_wait: float = 4.0,
+        max_wait: float = 60.0,
+        min_wait_between_calls: float = 0.0,
+    ) -> None:
+        self._inner = inner
+        self._max_attempts = max_attempts
+        self._initial_wait = initial_wait
+        self._max_wait = max_wait
+        # Proactive pacing — never start a call if less than this many
+        # seconds have elapsed since the previous one. Prevents 429s on
+        # free tiers with hard rpm caps (OpenRouter free is 8 rpm =
+        # 7.5s/call). 0 = no pacing.
+        self._min_wait_between_calls = min_wait_between_calls
+        self._last_call_at: float = 0.0
+
+    @property
+    def model(self) -> str:
+        return self._inner.model
+
+    @staticmethod
+    def _is_retryable(err: BaseException) -> bool:
+        msg = str(err).lower()
+        return (
+            "429" in msg
+            or "rate limit" in msg
+            or "rate-limit" in msg
+            or "503" in msg
+            or "502" in msg
+            or "504" in msg
+            or "500" in msg
+            or "temporarily" in msg
+            or "try again" in msg
+        )
+
+    async def _retry(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
+        import asyncio as _asyncio
+        import random as _random
+        import time as _time
+
+        # Proactive pace: if a previous call landed less than
+        # min_wait_between_calls seconds ago, sleep until the gap is met.
+        if self._min_wait_between_calls > 0 and self._last_call_at > 0:
+            elapsed = _time.monotonic() - self._last_call_at
+            need = self._min_wait_between_calls - elapsed
+            if need > 0:
+                await _asyncio.sleep(need)
+
+        last_err: BaseException | None = None
+        for attempt in range(self._max_attempts):
+            try:
+                result = await fn(*args, **kwargs)
+                self._last_call_at = _time.monotonic()
+                return result
+            except BaseException as e:  # noqa: BLE001 (re-raise below if non-retryable)
+                if not self._is_retryable(e):
+                    raise
+                last_err = e
+                if attempt == self._max_attempts - 1:
+                    break
+                wait = min(self._initial_wait * (2**attempt), self._max_wait)
+                jitter = _random.uniform(0, 0.5 * wait)
+                total = wait + jitter
+                print(
+                    f"    LLM 429/5xx on attempt {attempt + 1}, "
+                    f"sleeping {total:.1f}s before retry...",
+                    flush=True,
+                )
+                await _asyncio.sleep(total)
+        assert last_err is not None
+        raise last_err
+
+    async def complete_text(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+    ) -> str:
+        return await self._retry(
+            self._inner.complete_text,
+            prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+    async def complete_json(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+    ) -> dict[str, Any]:
+        return await self._retry(
+            self._inner.complete_json,
+            prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
 
 UTC = timezone.utc
 
@@ -109,6 +284,42 @@ def _is_pressure_corpus(corpus: dict[str, Any]) -> bool:
     return bool(corpus.get("_meta", {}).get("simulated_days"))
 
 
+def _jsonable(value: Any) -> Any:
+    """Best-effort coerce a value to JSON-serializable.
+
+    Keeps primitives, lists, and dicts; drops keys whose values can't
+    be serialized (``Memory`` objects from ``_phase_replay``'s details
+    are the typical culprit). Used to keep ``results.jsonl`` rows
+    self-describing without leaking ORM-shaped objects.
+    """
+
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            try:
+                json.dumps(v)
+                out[k] = v
+            except TypeError:
+                # Try to recurse into list/dict; otherwise drop.
+                if isinstance(v, list | dict):
+                    out[k] = _jsonable(v)
+                else:
+                    out[k] = f"<{type(v).__name__}>"
+        return out
+    if isinstance(value, list):
+        out_list: list[Any] = []
+        for item in value:
+            try:
+                json.dumps(item)
+                out_list.append(item)
+            except TypeError:
+                out_list.append(_jsonable(item))
+        return out_list
+    return f"<{type(value).__name__}>"
+
+
 # ─── ablation matrix ───────────────────────────────────────────────
 
 
@@ -152,29 +363,73 @@ def _ablation_matrix(mode: str) -> list[tuple[str, set[str] | None]]:
 # ─── helpers ───────────────────────────────────────────────────────
 
 
-def _build_clients(cfg: dict[str, Any]) -> tuple[OpenAIEmbedder, OpenAIClient]:
+def _build_clients(cfg: dict[str, Any]) -> tuple[Embedder, LLMClient]:
+    if USE_MOCK_LLM:
+        # Mock mode: fully local. FakeEmbedder is deterministic
+        # (hash-based pseudo-embeddings), MockLLMClient returns the
+        # canned response. The ablation comparison stays meaningful
+        # because every condition uses the same embedder.
+        # Real Consolidate verdicts cannot come from this mode —
+        # see bench/gist_quality.py for that.
+        return FakeEmbedder(dim=64), MockLLMClient(callback=_canned_consolidate_response)
+
     embedder = OpenAIEmbedder(
         model=cfg["embedder"]["model"],
         api_key=os.environ.get("OPENAI_API_KEY"),
     )
-    llm = OpenAIClient(
+    raw_llm = OpenAIClient(
         model=cfg["llm"]["consolidate"]["model"],
         base_url=cfg["llm"]["consolidate"]["base_url"],
         api_key=os.environ.get("OPENROUTER_API_KEY"),
     )
+    retry_cfg = cfg["harness"].get("retry", {})
+    llm = RetryingLLM(
+        raw_llm,
+        max_attempts=int(retry_cfg.get("max_attempts", 5)),
+        initial_wait=float(retry_cfg.get("initial_wait_seconds", 4.0)),
+        max_wait=float(retry_cfg.get("max_wait_seconds", 60.0)),
+        min_wait_between_calls=float(retry_cfg.get("min_wait_between_calls_seconds", 0.0)),
+    )
     return embedder, llm
 
 
-async def _seed_topology(mem: Mnemoss, corpus: dict[str, Any]) -> dict[str, str]:
+async def _seed_topology(
+    mem: Mnemoss, corpus: dict[str, Any], cfg: dict[str, Any]
+) -> tuple[dict[str, str], datetime]:
+    """Seed the topology corpus with freezegun-anchored timestamps.
+
+    The topology corpus has no per-memory ts_offset_seconds, so every
+    observe gets ``anchor + i`` seconds. This is just deterministic
+    spacing — the formula's decay barely registers across 30 seconds
+    — but it removes wall-clock variance between ablation conditions.
+    Without this, a slow ablation (e.g. one retrying 429s) lets
+    memories age between observe and recall and produces different
+    recall scores even with noise_scale=0.
+
+    Returns ``(id_map, end_time)`` so the harness can run dream + recall
+    inside a freeze_time(end_time) context too.
+    """
+
+    from freezegun import freeze_time
+
+    anchor = datetime.fromisoformat(
+        cfg["harness"]["simulated_time"]["anchor"].replace("Z", "+00:00")
+    )
+    inc = float(cfg["harness"]["simulated_time"]["per_observe_increment_seconds"])
+
     id_map: dict[str, str] = {}
-    for m in corpus["memories"]:
-        mid = await mem.observe(role="user", content=m["content"])
-        if mid is None:
-            raise RuntimeError(
-                f"observe returned None for {m['id']!r}; check EncoderParams.encoded_roles"
-            )
-        id_map[m["id"]] = mid
-    return id_map
+    for i, m in enumerate(corpus["memories"]):
+        target = anchor + timedelta(seconds=i * inc)
+        with freeze_time(target):
+            mid = await mem.observe(role="user", content=m["content"])
+            if mid is None:
+                raise RuntimeError(
+                    f"observe returned None for {m['id']!r}; check EncoderParams.encoded_roles"
+                )
+            id_map[m["id"]] = mid
+
+    end_time = anchor + timedelta(seconds=len(corpus["memories"]) * inc + 1)
+    return id_map, end_time
 
 
 async def _seed_pressure(
@@ -235,17 +490,16 @@ async def _run_one_ablation(
             llm=consolidate_llm,
         )
         try:
-            if is_pressure:
-                from freezegun import freeze_time  # Lazy import.
+            from freezegun import freeze_time  # Lazy import.
 
+            if is_pressure:
                 id_map, end_time = await _seed_pressure(mem, corpus, cfg)
-                # Dream + recall happen at end_time so accumulated
-                # decay is consistent across ablations.
-                with freeze_time(end_time):
-                    report = await mem.dream(trigger="nightly", phases=phases)
-                    per_query = await _score_queries(mem, corpus, cfg, id_map)
             else:
-                id_map = await _seed_topology(mem, corpus)
+                id_map, end_time = await _seed_topology(mem, corpus, cfg)
+            # Dream + recall happen at end_time so wall-clock variance
+            # (e.g. long LLM retries) doesn't perturb the formula's
+            # B_i values between ablation conditions.
+            with freeze_time(end_time):
                 report = await mem.dream(trigger="nightly", phases=phases)
                 per_query = await _score_queries(mem, corpus, cfg, id_map)
 
@@ -267,7 +521,7 @@ async def _run_one_ablation(
                 o.phase.value: {
                     "status": o.status,
                     "skip_reason": o.skip_reason,
-                    "details": o.details,
+                    "details": _jsonable(o.details),
                 }
                 for o in report.outcomes
             }
@@ -456,7 +710,30 @@ def main() -> int:
         default=None,
         help="Where to write results.jsonl. Default: bench/results/{kind}_results.jsonl.",
     )
+    parser.add_argument(
+        "--mock-llm",
+        action="store_true",
+        help=(
+            "Use MockLLMClient instead of OpenRouter. Consolidate "
+            "returns a canned synthetic summary so the harness runs "
+            "deterministically end-to-end without network. "
+            "Useful for validating the harness when free-tier rate "
+            "limits make real runs infeasible. The Consolidate "
+            "verdict is fictional under --mock-llm; only structural "
+            "phases (Cluster, Relations, Rebalance, Dispose) "
+            "produce trustworthy ablation deltas."
+        ),
+    )
     args = parser.parse_args()
+
+    global USE_MOCK_LLM
+    USE_MOCK_LLM = args.mock_llm
+    if USE_MOCK_LLM:
+        print(
+            "warning: --mock-llm active. Consolidate's results are SYNTHETIC. "
+            "Use only to validate the harness end-to-end.",
+            flush=True,
+        )
 
     selected = [args.binary, args.full, args.pressure_binary, args.pressure_full]
     if sum(selected) != 1:
@@ -518,7 +795,14 @@ def main() -> int:
     rows = asyncio.run(_run_matrix(matrix, corpus, cfg, Path(args.out)))
 
     print()
-    if is_pressure:
+    if USE_MOCK_LLM:
+        print(
+            "DECISION GATE SUPPRESSED: --mock-llm active. The recall@k "
+            "delta under mock mode reflects synthetic summary content, "
+            "not real Consolidate behavior. Re-run without --mock-llm "
+            "(real LLM) to record a verdict in docs/dreaming-decision.md.",
+        )
+    elif is_pressure:
         print(_evaluate_pressure_gate(rows))
     else:
         print(_evaluate_topology_gate(rows))

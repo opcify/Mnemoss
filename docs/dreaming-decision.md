@@ -162,10 +162,23 @@ to be more aggressive.
 
 ## Threshold Amendments
 
-(Empty as of pre-registration commit. Any threshold revision after the
-harness has run lands here, with date, original value, new value, and
-the reasoning. Do not edit thresholds in place; appending here keeps the
-audit trail honest.)
+### 2026-04-27 — Consolidate model swap (config, not threshold)
+
+Original `bench/ablate_dreaming.toml` pinned Consolidate's LLM to
+`tencent/hy3-preview:free` via OpenRouter. First harness run at
+`make ablate-dreaming-binary` failed with the OpenRouter provider
+(SiliconFlow) returning 400 `Json mode is not supported for this
+model`. Mnemoss's `_phase_consolidate` requires
+`response_format={"type":"json_object"}` to parse the structured
+summary/refinements/patterns response.
+
+Swapped to `meta-llama/llama-3.3-70b-instruct:free` (also free,
+JSON-mode supported) before any verdict was recorded. This is a
+config swap, not a threshold revision — the per-phase thresholds
+above are untouched. Recording here for audit-trail completeness.
+
+The judge model (`deepseek/deepseek-v4-flash`) is unchanged because
+the judge uses `complete_text` (no JSON mode required).
 
 ---
 

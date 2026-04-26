@@ -18,13 +18,14 @@
         gist-quality gist-quality-plot \
         bench-tests test lint typecheck
 
-# Auto-load .env if it exists. The leading dash makes the include
-# silently no-op when .env is missing (e.g. CI). Lines must be
-# KEY=VALUE; comments and blank lines are stripped by the regex
-# below before `make` parses them.
+# Auto-load .env if it exists. ``include .env`` reads KEY=VALUE
+# lines as Make assignments; ``export`` propagates them into recipe
+# shells. We export only the keys the bench harness reads — no
+# globbing across the whole .env so a typo stays loud.
 ifneq (,$(wildcard ./.env))
 include .env
-export $(shell sed 's/=.*//' .env | grep -vE '^#|^[[:space:]]*$$')
+export OPENAI_API_KEY
+export OPENROUTER_API_KEY
 endif
 
 # ─── dreaming-validation harness ───────────────────────────────────
