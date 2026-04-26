@@ -3,9 +3,28 @@
 # The dreaming-validation harness lives under bench/ and runs on demand.
 # It hits the network (OpenAI embeddings + OpenRouter LLMs) so it's
 # never part of CI by default.
+#
+# API keys come from environment variables. The harness expects:
+#   OPENAI_API_KEY      — for the embedder
+#   OPENROUTER_API_KEY  — for the Consolidate + judge LLMs
+#
+# If a .env file exists at the repo root, the bench targets auto-load
+# it before invoking python. Copy .env.example to .env and fill in
+# values, or set the vars in your shell rc.
 
 .PHONY: ablate-dreaming ablate-dreaming-binary ablate-dreaming-pareto \
+        ablate-dreaming-pressure ablate-dreaming-pressure-binary \
+        ablate-dreaming-pressure-plot pressure-corpus-gen \
         bench-tests test lint typecheck
+
+# Auto-load .env if it exists. The leading dash makes the include
+# silently no-op when .env is missing (e.g. CI). Lines must be
+# KEY=VALUE; comments and blank lines are stripped by the regex
+# below before `make` parses them.
+ifneq (,$(wildcard ./.env))
+include .env
+export $(shell sed 's/=.*//' .env | grep -vE '^#|^[[:space:]]*$$')
+endif
 
 # ─── dreaming-validation harness ───────────────────────────────────
 
@@ -13,8 +32,8 @@
 # corpus. If recall@10 gap < 5pp, the per-phase study is moot — see
 # docs/dreaming-decision.md. Run this BEFORE the full matrix.
 ablate-dreaming-binary:
-	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set"; exit 2; fi
-	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set"; exit 2; fi
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
 	python -m bench.ablate_dreaming --binary
 	python -m bench.plot_pareto
 
@@ -22,8 +41,8 @@ ablate-dreaming-binary:
 # this if the binary gate passes. ~minutes wallclock with OpenAI
 # embedder + free-tier OpenRouter rate limits.
 ablate-dreaming:
-	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set"; exit 2; fi
-	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set"; exit 2; fi
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
 	python -m bench.ablate_dreaming --full
 	python -m bench.plot_pareto
 
@@ -31,8 +50,33 @@ ablate-dreaming:
 ablate-dreaming-pareto:
 	python -m bench.plot_pareto
 
-# Bench harness unit tests (ARI math, bootstrap CI, etc.). These do
-# NOT hit the network and ARE safe to run in CI.
+# Pressure decision gate: full vs dreaming_off on the synthetic
+# accumulating-pressure corpus. Tests Dispose + Rebalance combined
+# effect on recall@10 and top-K cleanliness.
+ablate-dreaming-pressure-binary:
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	python -m bench.ablate_dreaming --pressure-binary
+	python -m bench.plot_pressure
+
+# Pressure full matrix: 7 conditions focused on Dispose + Rebalance.
+ablate-dreaming-pressure:
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	python -m bench.ablate_dreaming --pressure-full
+	python -m bench.plot_pressure
+
+# Render the pressure-effect chart from existing results.
+ablate-dreaming-pressure-plot:
+	python -m bench.plot_pressure
+
+# (Re)generate the pressure corpus JSONL. Deterministic per --seed.
+# Already-committed default is seed 42.
+pressure-corpus-gen:
+	python -m bench.fixtures.pressure_corpus_gen --seed 42
+
+# Bench harness unit tests (ARI math, bootstrap CI, corpus shape).
+# These do NOT hit the network and ARE safe to run in CI.
 bench-tests:
 	pytest bench/tests/
 
