@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mnemoss": {
+      "command": "mnemoss-mcp",
+      "args": [],
+      "env": {
+        "MNEMOSS_WORKSPACE": "claude-cowork"
+      }
+    }
+  }
+}

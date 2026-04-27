@@ -1,0 +1,19 @@
+{
+  "name": "mnemoss",
+  "description": "ACT-R based memory for Claude — recall ranked by activation, with spreading, dreaming, and per-agent scoping. Wraps the mnemoss-mcp server plus four skills.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Mnemoss",
+    "url": "https://github.com/opcify/mnemoss"
+  },
+  "homepage": "https://github.com/opcify/mnemoss/tree/main/adapters/claude-cowork",
+  "repository": "https://github.com/opcify/mnemoss",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "act-r",
+    "recall",
+    "agents",
+    "cowork"
+  ]
+}
