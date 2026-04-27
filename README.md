@@ -203,6 +203,14 @@ wiring:
   OpenClaw's `MemorySearchManager` contract and registers as a unified 
   memory capability via `api.registerMemoryCapability`. Delegates to a 
   shared `mnemoss-server` via the `@mnemoss/sdk` TS client.
+- **[`mnemoss-claude-cowork`](./adapters/claude-cowork/)** — Plugin for 
+  [Claude Cowork](https://claude.com/blog/cowork-plugins) and 
+  [Claude Code](https://code.claude.com). Bundles the existing 
+  `mnemoss-mcp` MCP server (13 tools: observe, recall, expand, pin, 
+  dream, status, etc.) plus four skills (`/mnemoss:recall`, 
+  `/mnemoss:observe`, `/mnemoss:status`, and the auto-invoked 
+  `mnemoss:memory-aware`). Same plugin format works in both Cowork and 
+  Code.
 
 ## Design Documents
 

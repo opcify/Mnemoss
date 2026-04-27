@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mnemoss is an ACT-R based memory system for AI agents, designed from the 
 first principles of human cognition. It's a **standalone Python library** 
-plus a REST server, MCP wrapper, and framework adapters (Hermes, OpenClaw) 
-that any agent stack can integrate.
+plus a REST server, MCP wrapper, and framework adapters (Hermes, OpenClaw, 
+Claude Cowork / Claude Code) that any agent stack can integrate.
 
 (Pronunciation and naming — see the intro of `README.md`.)
 
@@ -56,7 +56,9 @@ Concretely, the repo ships:
 - Benchmark harness (`bench/bench_recall.py`, `bench/calibrate.py`) — 
   standalone scripts for recall-latency and formula-parameter sweeps.
 - Framework adapters: `adapters/hermes-agent/` (Python Hermes 
-  `MemoryProvider`) and `adapters/openclaw/` (TypeScript OpenClaw plugin).
+  `MemoryProvider`), `adapters/openclaw/` (TypeScript OpenClaw plugin),
+  and `adapters/claude-cowork/` (Claude Cowork / Claude Code plugin
+  bundling the existing `mnemoss-mcp` server plus four skills).
 
 ## Quick Commands
 
@@ -209,6 +211,7 @@ sdks/typescript/     TypeScript SDK (@mnemoss/sdk)
 adapters/
   hermes-agent/      Python Hermes MemoryProvider plugin
   openclaw/          TypeScript OpenClaw plugin (MemorySearchManager)
+  claude-cowork/     Claude Cowork / Claude Code plugin (.mcp.json + skills)
 ```
 
 **Public API** is three core methods — `observe()`, `recall()`, `pin()` — 
@@ -406,6 +409,7 @@ This is a monorepo. Changes often touch more than one package:
 | `sdks/typescript/` | `@mnemoss/sdk` | TypeScript | `npm test` in dir |
 | `adapters/hermes-agent/` | `mnemoss-hermes` | Python | `pytest` in dir |
 | `adapters/openclaw/` | `@mnemoss/openclaw-plugin` | TypeScript | `npm test` in dir |
+| `adapters/claude-cowork/` | Claude Cowork / Code plugin | JSON + Markdown | `claude plugin validate` |
 
 Python adapters depend on the core `mnemoss` package (source install during 
 dev). TypeScript adapters depend on `@mnemoss/sdk` via `file:` ref during 
