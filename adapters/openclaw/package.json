@@ -1,6 +1,6 @@
 {
   "name": "@mnemoss/openclaw-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenClaw memory plugin backed by Mnemoss — ACT-R recall with spreading activation and dreaming.",
   "license": "MIT",
   "type": "module",

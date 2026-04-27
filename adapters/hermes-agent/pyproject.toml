@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mnemoss-hermes"
-version = "0.1.0"
+version = "0.1.1"
 description = "Mnemoss memory plugin for Hermes Agent — ACT-R-based persistent recall with cross-session learning."
 readme = "README.md"
 license = { text = "MIT" }
@@ -18,15 +18,15 @@ keywords = ["mnemoss", "hermes", "hermes-agent", "memory", "agents", "llm"]
 # own sys.path; no pin is needed. For standalone development and this
 # package's own CI, ``tests/conftest.py`` supplies a stub base class.
 dependencies = [
-    "mnemoss>=0.1.0",
+    "mnemoss>=0.0.2",
 ]
 
 [project.optional-dependencies]
 # Hermes deployments can run Mnemoss two ways — embedded (in-process,
 # low-latency) or against a shared REST server (cross-process, shared
 # across agents). Pick whichever fits the deployment.
-embedded = []                     # embedded mnemoss (default)
-remote = ["mnemoss[sdk]>=0.1.0"]  # + httpx-based HTTP SDK
+embedded = []                      # embedded mnemoss (default)
+remote = ["mnemoss[sdk]>=0.0.2"]   # + httpx-based HTTP SDK
 
 dev = [
     "pytest>=7.0",
