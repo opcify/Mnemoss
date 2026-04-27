@@ -116,7 +116,11 @@ async def dispose_pass(
             stats.protected += 1
             continue
 
-        b = compute_base_level(memory.access_history, t, memory.created_at, params)
+        # Storage path — disposal uses aggressive d_storage so old
+        # unaccessed memories' B_i crosses the activation_dead threshold.
+        b = compute_base_level(
+            memory.access_history, t, memory.created_at, params, d=params.d_storage
+        )
 
         reason: str | None = None
         if b < dispose_threshold:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mnemoss"
-version = "0.1.0"
+version = "0.0.1"
 description = "ACT-R based memory system for AI agents. Recall what matters, when it matters."
 readme = "README.md"
 license = { text = "MIT" }
@@ -51,12 +51,25 @@ bench = [
     "tenacity>=8.0",
     "matplotlib>=3.7",
 ]
+# Approximate-nearest-neighbor index (HNSW). Optional — if missing,
+# vec_search falls back to sqlite-vec's linear scan. Install with
+# ``pip install mnemoss[ann]`` to get O(log N) vector recall.
+ann = ["hnswlib>=0.8"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "ruff>=0.1",
     "mypy>=1.5",
     "httpx>=0.27",
+    # ANN backend used in latency benchmarks + integration tests.
+    "hnswlib>=0.8",
+    # bench/plots.py + docs/figures.py chart generation (launch work).
+    # Plotting is dev-only — not a runtime dependency of the library.
+    "matplotlib>=3.8",
+    # .env file support for the launch CLIs (bench.launch_comparison,
+    # demo.simulate). Dev-only — Mnemoss library itself still reads
+    # os.environ directly, so plain exports work as a fallback.
+    "python-dotenv>=1.0",
 ]
 
 [project.scripts]

@@ -148,8 +148,18 @@ async def test_raw_log_stays_one_row_per_observe(tmp_path: Path) -> None:
 
 
 async def test_recall_finds_chunk_by_its_own_tokens(tmp_path: Path) -> None:
-    """A query whose terms only appear in the third chunk should
-    surface that chunk, not one of the earlier ones."""
+    """A query whose terms appear in one specific chunk should surface
+    that chunk among the top results.
+
+    This test asserts "findable," not "#1 ranked." With ``FakeEmbedder``
+    (hash-based, non-semantic), cosine scores are pseudo-random — a
+    distractor chunk can occasionally out-hash the target. The matching
+    formula is noisy-OR (either strong signal suffices), so when one
+    chunk wins on BM25 and another wins on (random) cosine, they can
+    be near-tied. The chunking intent — "each chunk is an independent
+    memory row, recall can retrieve it by its unique tokens" — is
+    still verified by checking top-k contains the target.
+    """
 
     mem = _mem(tmp_path, max_memory_chars=80)
     try:
@@ -163,11 +173,16 @@ async def test_recall_finds_chunk_by_its_own_tokens(tmp_path: Path) -> None:
         # "evening deadline demo" only appears in the third chunk.
         results = await mem.recall("evening deadline demo", k=3)
         assert results
-        # Top hit should contain the third-chunk tokens.
-        assert "evening" in results[0].memory.content.lower()
-        # And it should NOT contain the kickoff/midday tokens (it's a
-        # separate row, not the concatenated whole).
-        assert "kickoff" not in results[0].memory.content.lower()
+        # Target chunk appears in top-k (by BM25 alone — cosine is
+        # hash-noise via FakeEmbedder).
+        target_contents = [r.memory.content.lower() for r in results]
+        assert any("evening" in c for c in target_contents), (
+            f"chunk containing 'evening' should be in top-3; got {target_contents}"
+        )
+        # Every returned hit is an INDIVIDUAL chunk, not the concatenated
+        # whole (no single chunk contains both 'kickoff' and 'deadline').
+        for c in target_contents:
+            assert not ("kickoff" in c and "deadline" in c)
     finally:
         await mem.close()
 

@@ -311,6 +311,45 @@ $$
 With the default $\tau = -1.0$: HOT cuts off at $A = 1.0$, WARM at $A = 0.0$, 
 COLD at $A = -1.0$ (any above-threshold candidate).
 
+#### 1.7.1 Fast-Index Recall Mode (the async-ACT-R bet)
+
+The cascade above evaluates the full activation formula for every 
+candidate at recall time. That is **semantically faithful** but puts
+linear-in-N work (the vec/FTS scans, then $O(K)$ formula evaluations) 
+on the user-facing read path. 
+
+**Mnemoss's defining bet: the activation formula is expressive enough 
+that its *output* can be cached**. Everything A_i depends on that isn't 
+query-dependent — history-driven base level $B_i$, spreading from the 
+*persistent* relation graph, salience, emotional weight, pin status — 
+collapses into the single scalar $\text{idx\_priority}$ via §1.6. 
+Dream P7 Rebalance recomputes $\text{idx\_priority}$ async. Store 
+writes recompute it on `reconsolidate`. The read path never does.
+
+In `FormulaParams(use_fast_index_recall=True)` mode, the retrieval 
+pipeline becomes:
+
+$$
+\text{score}(m, q) = w_{\text{sem}} \cdot \cos(q, \text{emb}(m)) + w_{\text{pri}} \cdot \text{idx\_priority}(m)
+$$
+
+1. ANN top-K via HNSW: $O(\log N)$.
+2. Batch-fetch cached $\text{idx\_priority}$: one indexed SQL query, $O(K)$.
+3. Linear combine + sort: $O(K \log K)$.
+
+What's given up: query-dependent matching weights ($w_F(q)$, BM25), 
+active-set spreading at recall time, noise. For conversational workloads 
+where BM25 contributes <1pp to recall (cosine-dominant weighting) and 
+spreading is captured in `idx_priority` via Dream, this is close to 
+lossless on semantic recall while collapsing the read-path cost to 
+$O(\log N)$. Verified empirically on LoCoMo through N=20,000 (see 
+`docs/ROOT_CAUSE.md` Phase 2).
+
+Default is `False` — the full ACT-R path is the right choice for 
+agent workloads that want recency priors and literal-query boosts. 
+`mnemoss_rocket` in `bench/launch_comparison.py` turns it on as the 
+"conversational memory SDK" preset.
+
 ---
 
 ### 1.8 Derived: Disposal Criterion

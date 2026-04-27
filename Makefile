@@ -1,118 +1,271 @@
-# Mnemoss build / bench / lint targets.
+# Mnemoss launch work: common commands.
 #
-# The dreaming-validation harness lives under bench/ and runs on demand.
-# It hits the network (OpenAI embeddings + OpenRouter LLMs) so it's
-# never part of CI by default.
+# The design doc (~/.gstack/projects/opcify-Mnemoss/...-design-*.md)
+# cites `make launch-bench` as the one-command reproducibility path
+# for Chart 1. That lives here.
 #
-# API keys come from environment variables. The harness expects:
-#   OPENAI_API_KEY      — for the embedder
-#   OPENROUTER_API_KEY  — for the Consolidate + judge LLMs
+# Everything else in the file is a thin convenience wrapper around
+# `python -m ...` commands the rest of the project exposes. No magic.
 #
-# If a .env file exists at the repo root, the bench targets auto-load
-# it before invoking python. Copy .env.example to .env and fill in
-# values, or set the vars in your shell rc.
+# The dreaming-validation harness lives under bench/ablate_dreaming.py
+# and runs on demand. It hits the network (OpenAI embeddings +
+# OpenRouter LLMs) so it's never part of CI by default.
+#
+# API keys:
+#   OPENAI_API_KEY            — embedder (text-embedding-3-small)
+#   OPENROUTER_API_KEY        — Consolidate + judge LLMs
+#   GEMINI_API_KEY            — record-simulation (Gemini 2.5 Flash)
+#   GOOGLE_API_KEY            — alternate Gemini auth
+#   MNEMOSS_BENCH_BUDGET_USD  — optional spend cap
 
-.PHONY: ablate-dreaming ablate-dreaming-binary ablate-dreaming-pareto \
-        ablate-dreaming-pressure ablate-dreaming-pressure-binary \
-        ablate-dreaming-pressure-plot pressure-corpus-gen \
-        gist-quality gist-quality-plot forgetting-curves \
-        bench-tests test lint typecheck
+# ─── .env auto-load ────────────────────────────────────────────────
+#
+# Copy .env.example to .env and fill in your keys. The `-include`
+# (with the leading dash) makes it optional: `.env` missing is not
+# an error. The `export` line propagates the listed vars to every
+# recipe's subprocess (which is how Python sees them via os.environ).
+# The Python CLIs also call load_dotenv() themselves as a backstop
+# for direct invocation without `make`.
 
-# Auto-load .env if it exists. ``include .env`` reads KEY=VALUE
-# lines as Make assignments; ``export`` propagates them into recipe
-# shells. We export only the keys the bench harness reads — no
-# globbing across the whole .env so a typo stays loud.
-ifneq (,$(wildcard ./.env))
-include .env
-export OPENAI_API_KEY
-export OPENROUTER_API_KEY
-endif
+-include .env
+export OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENROUTER_API_KEY MNEMOSS_BENCH_BUDGET_USD
+
+PY ?= python
+RESULTS_DIR ?= bench/results
+FIGURES_DIR ?= docs/figures_out
+DEMO_OUT ?= demo/out
+
+.PHONY: help
+help:
+	@awk 'BEGIN { FS = ":.*## "; printf "\nUsage: make \033[36m<target>\033[0m\n\nTargets:\n" } \
+	     /^[a-zA-Z_-]+:.*?## / { printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@printf "\nMnemoss launch — quick tour:\n"
+	@printf "  1. make test                # run the full unit suite\n"
+	@printf "  2. make launch-bench-smoke  # quick sanity, no API key\n"
+	@printf "  3. make launch-bench        # real benchmark (needs OPENAI_API_KEY)\n"
+	@printf "  4. make figures chart1      # render all SVGs\n"
+	@printf "  5. make record-simulation   # record Scene 1 (needs GEMINI_API_KEY)\n\n"
+
+
+# ─── dev loop ──────────────────────────────────────────────────────
+
+.PHONY: test
+test: ## run pytest (non-integration)
+	$(PY) -m pytest -m "not integration" -q
+
+.PHONY: test-integration
+test-integration: ## run the integration-marked tests (model downloads)
+	$(PY) -m pytest -m integration -q
+
+.PHONY: lint
+lint: ## ruff check
+	ruff check src tests bench demo docs
+
+.PHONY: format
+format: ## ruff format (rewrites files)
+	ruff format src tests bench demo docs
+
+.PHONY: format-check
+format-check: ## ruff format --check (CI-style)
+	ruff format --check src tests bench demo docs
+
+.PHONY: typecheck
+typecheck: ## mypy strict on src/mnemoss
+	mypy --strict src/mnemoss
+
+
+# ─── launch comparison (Chart 1) ───────────────────────────────────
+
+.PHONY: locomo-data
+locomo-data: bench/data/locomo_memories.jsonl bench/data/locomo_queries.jsonl ## prepare the LoCoMo corpus
+
+bench/data/locomo10.json:
+	@mkdir -p bench/data
+	curl -sL -o $@ https://raw.githubusercontent.com/snap-research/locomo/main/data/locomo10.json
+
+bench/data/locomo_memories.jsonl bench/data/locomo_queries.jsonl: bench/data/locomo10.json
+	$(PY) -m bench.data.prepare_locomo
+
+.PHONY: launch-bench-smoke
+launch-bench-smoke: locomo-data ## quick sanity run (no network, ~1 min)
+	@mkdir -p $(RESULTS_DIR)
+	$(PY) -m bench.launch_comparison \
+		--backend static_file \
+		--limit-conversations 2 --limit-utterances 50 \
+		--out $(RESULTS_DIR)/chart1_static_file.json --print-summary
+	$(PY) -m bench.launch_comparison \
+		--backend raw_stack --fake-embedder \
+		--limit-conversations 2 --limit-utterances 50 \
+		--out $(RESULTS_DIR)/chart1_raw_stack_fake.json --print-summary
+	$(PY) -m bench.launch_comparison \
+		--backend mnemoss --fake-embedder \
+		--limit-conversations 2 --limit-utterances 50 \
+		--out $(RESULTS_DIR)/chart1_mnemoss_fake.json --print-summary
+	$(PY) -m bench.plots --chart 1 \
+		--results $(RESULTS_DIR)/chart1_static_file.json \
+		          $(RESULTS_DIR)/chart1_raw_stack_fake.json \
+		          $(RESULTS_DIR)/chart1_mnemoss_fake.json \
+		--out $(RESULTS_DIR)/chart1_smoke.svg
+	@echo "smoke chart: $(RESULTS_DIR)/chart1_smoke.svg"
+
+.PHONY: launch-bench
+launch-bench: locomo-data ## full Chart 1 run (needs OPENAI_API_KEY, ~$$2)
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "ERROR: OPENAI_API_KEY must be set for the full benchmark."; exit 1; \
+	fi
+	@mkdir -p $(RESULTS_DIR)
+	$(PY) -m bench.launch_comparison \
+		--backend static_file \
+		--out $(RESULTS_DIR)/chart1_static_file.json --print-summary
+	$(PY) -m bench.launch_comparison \
+		--backend raw_stack \
+		--out $(RESULTS_DIR)/chart1_raw_stack.json --print-summary
+	$(PY) -m bench.launch_comparison \
+		--backend mnemoss \
+		--out $(RESULTS_DIR)/chart1_mnemoss.json --print-summary
+	$(PY) -m bench.plots --chart 1 \
+		--results $(RESULTS_DIR)/chart1_static_file.json \
+		          $(RESULTS_DIR)/chart1_raw_stack.json \
+		          $(RESULTS_DIR)/chart1_mnemoss.json \
+		--out $(RESULTS_DIR)/chart1.svg \
+		--title "Recall@10 on LoCoMo 2024 — Mnemoss vs the stack you'd build"
+	@echo "published chart: $(RESULTS_DIR)/chart1.svg"
+
+.PHONY: chart1
+chart1: ## re-render Chart 1 SVG from existing JSON
+	@if [ -f $(RESULTS_DIR)/chart1_mnemoss.json ]; then \
+		$(PY) -m bench.plots --chart 1 \
+			--results $(RESULTS_DIR)/chart1_static_file.json \
+			          $(RESULTS_DIR)/chart1_raw_stack.json \
+			          $(RESULTS_DIR)/chart1_mnemoss.json \
+			--out $(RESULTS_DIR)/chart1.svg; \
+		echo "wrote $(RESULTS_DIR)/chart1.svg"; \
+	else \
+		$(PY) -m bench.plots --chart 1 \
+			--results $(RESULTS_DIR)/chart1_static_file.json \
+			          $(RESULTS_DIR)/chart1_raw_stack_fake.json \
+			          $(RESULTS_DIR)/chart1_mnemoss_fake.json \
+			--out $(RESULTS_DIR)/chart1_smoke.svg; \
+		echo "wrote $(RESULTS_DIR)/chart1_smoke.svg (smoke — no full run available)"; \
+	fi
+
 
 # ─── dreaming-validation harness ───────────────────────────────────
+#
+# Per-phase ablation study + final comprehensive validation. Pre-
+# registered KEEP/CUT/REBUILD verdicts live in docs/dreaming-decision.md.
 
-# Binary decision gate: full pipeline vs dreaming-off on the topology
-# corpus. If recall@10 gap < 5pp, the per-phase study is moot — see
-# docs/dreaming-decision.md. Run this BEFORE the full matrix.
-ablate-dreaming-binary:
+.PHONY: ablate-dreaming-binary
+ablate-dreaming-binary: ## binary gate: full pipeline vs dreaming-off (topology)
 	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
 	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
-	python -m bench.ablate_dreaming --binary
-	python -m bench.plot_pareto
+	$(PY) -m bench.ablate_dreaming --binary
+	$(PY) -m bench.plot_pareto
 
-# Full ablation matrix: 14 conditions on the topology corpus. Only run
-# this if the binary gate passes. ~minutes wallclock with OpenAI
-# embedder + free-tier OpenRouter rate limits.
-ablate-dreaming:
+.PHONY: ablate-dreaming
+ablate-dreaming: ## full topology ablation matrix (14 conditions)
 	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
 	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
-	python -m bench.ablate_dreaming --full
-	python -m bench.plot_pareto
+	$(PY) -m bench.ablate_dreaming --full
+	$(PY) -m bench.plot_pareto
 
-# Render the Pareto chart from existing results without re-running.
-ablate-dreaming-pareto:
-	python -m bench.plot_pareto
+.PHONY: ablate-dreaming-pareto
+ablate-dreaming-pareto: ## re-render Pareto chart from existing results
+	$(PY) -m bench.plot_pareto
 
-# Pressure decision gate: full vs dreaming_off on the synthetic
-# accumulating-pressure corpus. Tests Dispose + Rebalance combined
-# effect on recall@10 and top-K cleanliness.
-ablate-dreaming-pressure-binary:
+.PHONY: ablate-dreaming-pressure-binary
+ablate-dreaming-pressure-binary: ## pressure binary gate (Dispose + Rebalance)
 	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
 	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
-	python -m bench.ablate_dreaming --pressure-binary
-	python -m bench.plot_pressure
+	$(PY) -m bench.ablate_dreaming --pressure-binary
+	$(PY) -m bench.plot_pressure
 
-# Pressure full matrix: 7 conditions focused on Dispose + Rebalance.
-ablate-dreaming-pressure:
+.PHONY: ablate-dreaming-pressure
+ablate-dreaming-pressure: ## pressure full matrix (7 conditions)
 	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
 	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
-	python -m bench.ablate_dreaming --pressure-full
-	python -m bench.plot_pressure
+	$(PY) -m bench.ablate_dreaming --pressure-full
+	$(PY) -m bench.plot_pressure
 
-# Render the pressure-effect chart from existing results.
-ablate-dreaming-pressure-plot:
-	python -m bench.plot_pressure
+.PHONY: ablate-dreaming-pressure-plot
+ablate-dreaming-pressure-plot: ## re-render pressure chart from existing results
+	$(PY) -m bench.plot_pressure
 
-# (Re)generate the pressure corpus JSONL. Deterministic per --seed.
-# Already-committed default is seed 42.
-pressure-corpus-gen:
-	python -m bench.fixtures.pressure_corpus_gen --seed 42
+.PHONY: pressure-corpus-gen
+pressure-corpus-gen: ## (re)generate pressure corpus JSONL (seed 42)
+	$(PY) -m bench.fixtures.pressure_corpus_gen --seed 42
 
-# Pairwise LLM-as-judge for Consolidate's gist quality. Topology
-# corpus only (judging gists makes sense per-cluster, not at scale).
-# Uses deepseek/deepseek-v4-flash on OpenRouter as a different model
-# family from Consolidate's tencent/hy3-preview:free to mitigate
-# self-preference bias.
-gist-quality:
+.PHONY: gist-quality
+gist-quality: ## pairwise LLM-as-judge for Consolidate's gist quality
 	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
 	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
-	python -m bench.gist_quality
-	python -m bench.plot_gist
+	$(PY) -m bench.gist_quality
+	$(PY) -m bench.plot_gist
 
-# Render the gist-quality bar chart from existing results.
-gist-quality-plot:
-	python -m bench.plot_gist
+.PHONY: gist-quality-plot
+gist-quality-plot: ## re-render gist-quality bar chart
+	$(PY) -m bench.plot_gist
 
-# Forgetting-curves panel: B_i vs age scatter, bucketed by utility,
-# on the pressure corpus. Snapshots the formula's natural decay
-# shape and surfaces whether the dream pipeline is producing
-# differential rehearsal across utility buckets. Skips Consolidate
-# (no LLM, no network besides the embedder).
-forgetting-curves:
+.PHONY: forgetting-curves
+forgetting-curves: ## B_i vs age scatter on the pressure corpus
 	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
-	python -m bench.forgetting_curves --ablation dreaming_off
+	$(PY) -m bench.forgetting_curves --ablation dreaming_off
 
-# Bench harness unit tests (ARI math, bootstrap CI, corpus shape).
-# These do NOT hit the network and ARE safe to run in CI.
-bench-tests:
+.PHONY: comprehensive-validation
+comprehensive-validation: ## final speed+accuracy run (4 conds × 2 corpora × 3 reps)
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.comprehensive_validation
+
+.PHONY: bench-tests
+bench-tests: ## bench-harness unit tests (offline, safe in CI)
 	pytest bench/tests/
 
-# ─── core test / lint / typecheck ──────────────────────────────────
 
-test:
-	pytest
+# ─── static explainer figures ──────────────────────────────────────
 
-lint:
-	ruff check src tests bench
+.PHONY: figures
+figures: ## render the three static explainer figures (A/B/C)
+	@mkdir -p $(FIGURES_DIR)
+	$(PY) -m docs.figures --out-dir $(FIGURES_DIR)
 
-typecheck:
-	mypy --strict src/mnemoss
+
+# ─── simulation recording ──────────────────────────────────────────
+
+.PHONY: record-simulation
+record-simulation: ## record Scene 1 with Gemini (needs GEMINI_API_KEY)
+	@if [ -z "$$GEMINI_API_KEY" ] && [ -z "$$GOOGLE_API_KEY" ]; then \
+		echo "ERROR: GEMINI_API_KEY or GOOGLE_API_KEY must be set."; exit 1; \
+	fi
+	@mkdir -p $(DEMO_OUT)
+	$(PY) -m demo.simulate \
+		--scene scene1_preference_recall \
+		--backend mnemoss --llm gemini \
+		--out $(DEMO_OUT)/trace-scene1.json
+	$(PY) -m demo.render_trace $(DEMO_OUT)/trace-scene1.json \
+		--out $(DEMO_OUT)/player.html \
+		--title "Mnemoss · Scene 1 — Preference Recall"
+	@echo "committed launch asset: $(DEMO_OUT)/player.html"
+
+.PHONY: record-simulation-stub
+record-simulation-stub: ## re-record Scene 1 with StubLLM (deterministic, no API)
+	@mkdir -p $(DEMO_OUT)
+	$(PY) -m demo.simulate \
+		--scene scene1_preference_recall \
+		--backend mnemoss --llm stub \
+		--out $(DEMO_OUT)/trace-scene1.json
+	$(PY) -m demo.render_trace $(DEMO_OUT)/trace-scene1.json \
+		--out $(DEMO_OUT)/player.html \
+		--title "Mnemoss · Scene 1 — Preference Recall (stub LLM)"
+
+
+# ─── cleanup ───────────────────────────────────────────────────────
+
+.PHONY: clean
+clean: ## delete generated SVGs / JSONs (keeps committed demo/out/)
+	rm -rf $(RESULTS_DIR)
+	rm -rf $(FIGURES_DIR)
+	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -prune -exec rm -rf {} +
+	find . -type d -name ".ruff_cache" -prune -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -prune -exec rm -rf {} +

@@ -12,10 +12,18 @@ from pathlib import Path
 
 import numpy as np
 
-from mnemoss.core.config import FormulaParams
+from mnemoss.core.config import FormulaParams, TierCapacityParams
 from mnemoss.core.types import IndexTier, Memory, MemoryType
 from mnemoss.index import rebalance
 from mnemoss.store.sqlite_backend import SQLiteBackend
+
+# Tiny-tier caps used by tests that want to verify a single memory
+# *drops out* of HOT — under capacity-based bucketing, with
+# ``hot_cap=0`` no non-pinned memory can stay HOT regardless of its
+# computed ``idx_priority``. Tests asserting "memory M stays HOT" use
+# the default caps (200 / 2000 / 20000) so M's single seat is trivially
+# available.
+_DROP_HOT_CAPS = TierCapacityParams(hot_cap=0, warm_cap=0, cold_cap=0)
 
 UTC = timezone.utc
 
@@ -63,7 +71,7 @@ async def test_fresh_memory_stays_hot(tmp_path: Path) -> None:
     m = _memory("m1", "fresh", now)
     await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
 
-    stats = await rebalance(b, FormulaParams(), now=now)
+    stats = await rebalance(b, FormulaParams(), TierCapacityParams(), now=now)
     assert stats.scanned == 1
     got = await b.get_memory("m1")
     assert got is not None
@@ -81,14 +89,20 @@ async def test_aged_unused_memory_drifts_down(tmp_path: Path) -> None:
     m = _memory("old", "old stuff", creation)
     await b.write_memory(m, np.array([1, 0, 0, 0], dtype=np.float32))
 
-    # Simulate one day passing without any reconsolidation.
-    stats = await rebalance(b, FormulaParams(), now=creation + timedelta(days=1))
+    # Simulate one day passing without any reconsolidation. Use tight
+    # caps so the lone non-pinned memory must drop out of HOT — under
+    # capacity-based bucketing the default 200-seat HOT would otherwise
+    # accept any single memory regardless of its idx_priority.
+    stats = await rebalance(
+        b, FormulaParams(), _DROP_HOT_CAPS, now=creation + timedelta(days=1)
+    )
     assert stats.scanned == 1
     got = await b.get_memory("old")
     assert got is not None
-    # With default η₀=1.0, τ_η=3600s, 86400s later the grace has collapsed
-    # and B_i is dominated by ln(86400^-0.5) ≈ -5.68 → σ(-5.68) ≈ 0.003 → DEEP.
-    assert got.index_tier in (IndexTier.COLD, IndexTier.DEEP)
+    # With d=0.5, η₀=1.0, τ_η=3600s, 86400s later the grace has collapsed
+    # and B_i is dominated by ln(86400^-0.5) ≈ -5.68 → σ(-5.68) ≈ 0.003.
+    # Capacity-rule with hot/warm/cold all 0 → DEEP.
+    assert got.index_tier is IndexTier.DEEP
     assert got.idx_priority < 0.3
     await b.close()
 
@@ -110,7 +124,9 @@ async def test_pin_lifts_priority_vs_unpinned_twin(tmp_path: Path) -> None:
     await b.write_memory(pinned, np.array([0, 1, 0, 0], dtype=np.float32))
     await b.pin("pinned", agent_id="alice")
 
-    await rebalance(b, FormulaParams(), now=creation + timedelta(days=30))
+    await rebalance(
+        b, FormulaParams(), TierCapacityParams(), now=creation + timedelta(days=30)
+    )
     u = await b.get_memory("unpinned")
     p = await b.get_memory("pinned")
     assert u is not None and p is not None
@@ -136,7 +152,9 @@ async def test_pin_boost_recent_memory_to_hot(tmp_path: Path) -> None:
     # B ≈ -1.93. σ(-1.93 + 2) = σ(0.07) ≈ 0.52 → WARM. Still not HOT.
     # Even 1-minute-old pinned memory: grace ≈ 0.98, history ln(60^-0.5) ≈ -2.05.
     # B ≈ -1.07. σ(-1.07 + 2) = σ(0.93) ≈ 0.72 → HOT.
-    await rebalance(b, FormulaParams(), now=creation + timedelta(seconds=60))
+    await rebalance(
+        b, FormulaParams(), TierCapacityParams(), now=creation + timedelta(seconds=60)
+    )
     got = await b.get_memory("p")
     assert got is not None
     assert got.index_tier is IndexTier.HOT
@@ -167,7 +185,7 @@ async def test_recently_accessed_memory_stays_warmer(tmp_path: Path) -> None:
     await b.write_memory(untouched, np.array([1, 0, 0, 0], dtype=np.float32))
     await b.write_memory(rehearsed, np.array([0, 1, 0, 0], dtype=np.float32))
 
-    await rebalance(b, FormulaParams(), now=now)
+    await rebalance(b, FormulaParams(), TierCapacityParams(), now=now)
     u = await b.get_memory("untouched")
     r = await b.get_memory("rehearsed")
     assert u is not None and r is not None
@@ -188,8 +206,12 @@ async def test_tier_distribution_changes(tmp_path: Path) -> None:
     counts_before = await b.tier_counts()
     assert counts_before[IndexTier.HOT] == 5
 
-    stats = await rebalance(b, FormulaParams(), now=creation + timedelta(days=14))
-    assert stats.migrated == 5  # all 5 leave HOT at 2-week age
+    # Use tight caps so all 5 must drop out of HOT — under capacity-based
+    # bucketing default 200-seat HOT would otherwise hold all 5.
+    stats = await rebalance(
+        b, FormulaParams(), _DROP_HOT_CAPS, now=creation + timedelta(days=14)
+    )
+    assert stats.migrated == 5  # all 5 leave HOT
     counts_after = await b.tier_counts()
     assert counts_after[IndexTier.HOT] == 0
     await b.close()

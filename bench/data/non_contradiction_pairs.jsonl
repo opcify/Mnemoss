@@ -1,0 +1,25 @@
+{"category": "same_entity_attrs", "a": "Alice lives in New York City.", "b": "Alice works at Goldman Sachs as a VP.", "question": "Tell me about Alice."}
+{"category": "same_entity_attrs", "a": "Tom is the CEO of our company.", "b": "Tom graduated from Stanford with an MBA in 2010.", "question": "What do I know about Tom?"}
+{"category": "same_entity_attrs", "a": "Our dog Charlie is a golden retriever.", "b": "Charlie loves running on the beach.", "question": "Tell me about Charlie."}
+{"category": "same_entity_attrs", "a": "Sarah is my project manager on Project Atlas.", "b": "Sarah's office is on the 5th floor near the window.", "question": "Where can I find Sarah?"}
+{"category": "same_entity_attrs", "a": "Marcus is our new hire from the design team.", "b": "Marcus came from a boutique agency in Brooklyn.", "question": "Who is Marcus?"}
+{"category": "related_events", "a": "I had coffee with Jen on Tuesday morning at Blue Bottle.", "b": "I had lunch with Mike on Thursday at the Italian place downtown.", "question": "Who did I meet this week?"}
+{"category": "related_events", "a": "The Q3 review is scheduled for this Friday at 2pm.", "b": "The Q4 planning session is next Monday at 10am.", "question": "What planning meetings are coming up?"}
+{"category": "related_events", "a": "I went to the doctor on Wednesday for my back pain.", "b": "I went to the dentist on Friday for a routine cleaning.", "question": "What doctor visits did I have?"}
+{"category": "related_events", "a": "The team retro is Thursday at 3pm in the main conference room.", "b": "The engineering all-hands is Friday at 10am on Zoom.", "question": "What team events are scheduled?"}
+{"category": "related_events", "a": "I sent the contract draft to legal yesterday for review.", "b": "I sent the budget proposal to finance this morning.", "question": "What did I send out this week?"}
+{"category": "compatible_prefs", "a": "I like hiking on weekends when the weather is good.", "b": "I prefer indoor yoga and reading during the winter months.", "question": "What do I like to do for recreation?"}
+{"category": "compatible_prefs", "a": "I enjoy classic rock from the 70s, especially Led Zeppelin.", "b": "I also love jazz, particularly Miles Davis and Coltrane.", "question": "What music do I listen to?"}
+{"category": "compatible_prefs", "a": "For backend work I prefer Python for its readability.", "b": "For frontend I use TypeScript and React for type safety.", "question": "What languages do I prefer?"}
+{"category": "compatible_prefs", "a": "I like dark chocolate, especially 85% cocoa or higher.", "b": "I also enjoy artisan cheeses, particularly aged gouda.", "question": "What are my food preferences?"}
+{"category": "compatible_prefs", "a": "I love reading sci-fi, particularly Asimov and Le Guin.", "b": "I also read a lot of business biographies and histories.", "question": "What genres do I read?"}
+{"category": "sequential", "a": "Sam joined the design team in March 2025.", "b": "Sam was promoted to senior designer in September 2025.", "question": "Tell me about Sam's career."}
+{"category": "sequential", "a": "We launched the MVP in May with 50 early users.", "b": "We hit $10K MRR by August after the growth push.", "question": "What milestones did we hit?"}
+{"category": "sequential", "a": "I started learning Spanish in January of this year.", "b": "I reached B1 level by October after daily practice.", "question": "What's my Spanish learning progress?"}
+{"category": "sequential", "a": "We moved into the new Mission Street office in June.", "b": "We hosted the first team event at the new office in July.", "question": "What happened after we moved offices?"}
+{"category": "sequential", "a": "I bought the new Specialized ebike in March.", "b": "I've ridden it over 500 miles around Marin by August.", "question": "Tell me about the ebike."}
+{"category": "diff_aspects", "a": "The team standup is every weekday at 10am for 15 minutes.", "b": "Sprint planning happens on Mondays at 1pm for an hour.", "question": "What's our team meeting schedule?"}
+{"category": "diff_aspects", "a": "Our CI runs on GitHub Actions with parallel test shards.", "b": "Our deploy pipeline uses Fly.io with blue-green rollouts.", "question": "What's our devops stack?"}
+{"category": "diff_aspects", "a": "The product roadmap focuses on enterprise features this year.", "b": "We're also investing in mobile apps for Q4 launch.", "question": "What's the product strategy?"}
+{"category": "diff_aspects", "a": "Our main office is in San Francisco's Mission District.", "b": "Our engineering team is distributed across 3 timezones.", "question": "Where is the team located?"}
+{"category": "diff_aspects", "a": "Revenue grew 40% last quarter year-over-year.", "b": "Our paying customer count grew 25% in the same period.", "question": "How did the business grow last quarter?"}

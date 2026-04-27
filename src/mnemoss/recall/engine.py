@@ -23,9 +23,10 @@ from typing import Literal
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
 from mnemoss.encoder import Embedder
+from mnemoss.encoder.embedder import embed_query_or_embed
 from mnemoss.encoder.extraction import ExtractionFields, extract_heuristic
 from mnemoss.formula.activation import ActivationBreakdown, compute_activation
-from mnemoss.formula.query_bias import has_deep_cue
+from mnemoss.formula.query_bias import compute_query_bias, has_deep_cue
 from mnemoss.recall.expand import expand_from_seeds, hops_for_streak
 from mnemoss.recall.history import PastQuery, RecallHistory, is_same_topic
 from mnemoss.store.sqlite_backend import SQLiteBackend
@@ -86,6 +87,7 @@ class RecallEngine:
         pool_size: int = 32,
         include_deep: bool = False,
         auto_expand: bool = True,
+        reconsolidate: bool = True,
     ) -> list[RecallResult]:
         """Score candidates tier-by-tier; return the top-k whose A > tau.
 
@@ -95,6 +97,13 @@ class RecallEngine:
         additionally surfaces spreading-reached memories ranked by the
         full activation formula. See ``recall/expand.py`` for the
         algorithm and ``recall/history.py`` for the detection rule.
+
+        ``reconsolidate=True`` (default) updates access history, rehearsal
+        counts, working memory, and DEEP→WARM reminiscence on every
+        returned memory — the ACT-R "recall strengthens memory" story.
+        Set ``reconsolidate=False`` for read-only paths (benchmarks,
+        independent evaluation runs, audits) that must not mutate
+        memory state. See Mnemoss.recall() for the full rationale.
         """
 
         top, _ = await self._recall_with_stats(
@@ -104,6 +113,7 @@ class RecallEngine:
             pool_size=pool_size,
             include_deep=include_deep,
             auto_expand=auto_expand,
+            reconsolidate=reconsolidate,
         )
         return top
 
@@ -116,6 +126,7 @@ class RecallEngine:
         pool_size: int = 32,
         include_deep: bool = False,
         auto_expand: bool = True,
+        reconsolidate: bool = True,
     ) -> tuple[list[RecallResult], CascadeStats]:
         """Same as ``recall`` but also returns cascade telemetry."""
 
@@ -126,6 +137,7 @@ class RecallEngine:
             pool_size=pool_size,
             include_deep=include_deep,
             auto_expand=auto_expand,
+            reconsolidate=reconsolidate,
         )
 
     async def _recall_with_stats(
@@ -137,9 +149,43 @@ class RecallEngine:
         pool_size: int,
         include_deep: bool,
         auto_expand: bool,
+        reconsolidate: bool,
     ) -> tuple[list[RecallResult], CascadeStats]:
-        query_vec = (await asyncio.to_thread(self._embedder.embed, [query]))[0]
+        # ``embed_query_or_embed`` routes through the embedder's query
+        # path when one is available (Nomic v2 MoE, BGE-M3, etc. use
+        # asymmetric prompts for query vs document). Falls back to
+        # ``embed`` for symmetric embedders like MiniLM / FakeEmbedder.
+        query_vec = (await asyncio.to_thread(embed_query_or_embed, self._embedder, [query]))[0]
         now = datetime.now(UTC)
+
+        # Fast-index mode: the defining Mnemoss architectural bet —
+        # expensive cognition is async, recall is a pure index lookup.
+        # ANN top-K + cached idx_priority, no ACT-R math in the hot path.
+        if self._params.use_fast_index_recall:
+            return await self._fast_index_recall(
+                query_vec=query_vec,
+                now=now,
+                agent_id=agent_id,
+                k=k,
+                pool_size=pool_size,
+                reconsolidate=reconsolidate,
+            )
+
+        # Tier cascade + pure cosine — the production default. Trusts
+        # Dream's tier classification and uses cosine for ranking
+        # within tiers; no per-candidate activation math at recall.
+        if self._params.use_tier_cascade_recall:
+            effective_include_deep = include_deep or has_deep_cue(query)
+            return await self._tier_cascade_recall(
+                query_vec=query_vec,
+                now=now,
+                agent_id=agent_id,
+                k=k,
+                pool_size=pool_size,
+                include_deep=effective_include_deep,
+                reconsolidate=reconsolidate,
+            )
+
         active_set = self._working.active_set(agent_id)
         tau = self._params.tau
 
@@ -147,9 +193,30 @@ class RecallEngine:
         bm25_by_id: dict[str, float] = {}
         scored: dict[str, RecallResult] = {}
 
+        # Latency knob: plain English queries where ``b_F(q) == 1.0``
+        # get almost no lift from BM25 under cosine-dominant matching
+        # weights (BM25 contributes ~7% of the matching term max).
+        # Skipping FTS removes a linear-in-N trigram scan per tier.
+        # Opt-in via ``FormulaParams.skip_fts_when_no_literal_markers``.
+        skip_fts = (
+            self._params.skip_fts_when_no_literal_markers
+            and compute_query_bias(query) == 1.0
+        )
+
         # Auto-include DEEP when the query has a temporal-distance marker.
         effective_include_deep = include_deep or has_deep_cue(query)
         tier_plan = _tier_plan(self._params, include_deep=effective_include_deep)
+
+        # Latency knob: on bulk-ingest workloads every memory lands in
+        # HOT (initial idx_priority ≈ 0.73). Each empty-tier cascade
+        # scan costs a wasted SQL round-trip. Drop them from the plan
+        # when ``skip_empty_tiers`` is on. We still honor DEEP's inclusion
+        # rule — the auto-include-on-deep-cue check happens above and
+        # _tier_plan puts DEEP in the plan only when asked.
+        if self._params.skip_empty_tiers:
+            counts = await self._store.tier_counts()
+            tier_plan = [(tier, thr) for tier, thr in tier_plan if counts.get(tier, 0) > 0]
+
         tiers_scanned: list[IndexTier] = []
         stopped_at: IndexTier | None = None
 
@@ -157,10 +224,14 @@ class RecallEngine:
             vec_task = asyncio.create_task(
                 self._store.vec_search(query_vec, pool_size, agent_id, tier_filter={tier})
             )
-            fts_task = asyncio.create_task(
-                self._store.fts_search(query, pool_size, agent_id, tier_filter={tier})
-            )
-            vec_hits, fts_hits = await asyncio.gather(vec_task, fts_task)
+            if skip_fts:
+                vec_hits = await vec_task
+                fts_hits: list[tuple[str, float]] = []
+            else:
+                fts_task = asyncio.create_task(
+                    self._store.fts_search(query, pool_size, agent_id, tier_filter={tier})
+                )
+                vec_hits, fts_hits = await asyncio.gather(vec_task, fts_task)
             tiers_scanned.append(tier)
 
             for mid, cos in vec_hits:
@@ -283,26 +354,34 @@ class RecallEngine:
             ),
         )
 
-        for result in top:
-            await self._store.reconsolidate(result.memory.id, now)
-            result.memory.access_history.append(now)
-            result.memory.rehearsal_count += 1
-            result.memory.last_accessed_at = now
-            # Reminiscence (§1.9 footnote): a DEEP memory that is reactivated
-            # jumps to WARM and bumps reminisced_count. The next rebalance
-            # will recompute idx_priority exactly, but we set it to
-            # mid-WARM here so the state stays consistent in the interim.
-            if result.memory.index_tier is IndexTier.DEEP:
-                await self._store.reminisce_to_warm(result.memory.id)
-                result.memory.reminisced_count += 1
-                result.memory.index_tier = IndexTier.WARM
-                result.memory.idx_priority = 0.5
-        self._working.extend(agent_id, (r.memory.id for r in top))
+        if reconsolidate:
+            # ACT-R behavior: recall strengthens memory (Anderson 1996).
+            # Updates access_history → B_i grows on next recall; bumps
+            # rehearsal_count; refreshes last_accessed_at; extends working
+            # memory; moves DEEP→WARM for reactivated deep memories.
+            # Skipped on read-only paths (benchmarks, audits).
+            for result in top:
+                await self._store.reconsolidate(result.memory.id, now)
+                result.memory.access_history.append(now)
+                result.memory.rehearsal_count += 1
+                result.memory.last_accessed_at = now
+                # Reminiscence (§1.9 footnote): a DEEP memory that is
+                # reactivated jumps to WARM and bumps reminisced_count.
+                # The next rebalance will recompute idx_priority exactly,
+                # but we set it to mid-WARM here so the state stays
+                # consistent in the interim.
+                if result.memory.index_tier is IndexTier.DEEP:
+                    await self._store.reminisce_to_warm(result.memory.id)
+                    result.memory.reminisced_count += 1
+                    result.memory.index_tier = IndexTier.WARM
+                    result.memory.idx_priority = 0.5
+            self._working.extend(agent_id, (r.memory.id for r in top))
 
-        # Lazy heuristic extraction on the returned top-k (Stage 3 §9.541).
-        # Only runs once per memory — extraction_level=1 skips re-extraction
-        # until Stage 4's LLM refinement upgrades to level=2.
-        await self._apply_lazy_extraction(top)
+            # Lazy heuristic extraction on the returned top-k (Stage 3 §9.541).
+            # Only runs once per memory — extraction_level=1 skips re-extraction
+            # until Stage 4's LLM refinement upgrades to level=2.
+            # Also a state mutation, so gated by reconsolidate.
+            await self._apply_lazy_extraction(top)
 
         stats = CascadeStats(
             tiers_scanned=tiers_scanned,
@@ -310,6 +389,254 @@ class RecallEngine:
             candidates_scored=len(scored),
         )
         return top, stats
+
+    async def _fast_index_recall(
+        self,
+        *,
+        query_vec,  # type: ignore[no-untyped-def]
+        now: datetime,
+        agent_id: str | None,
+        k: int,
+        pool_size: int,
+        reconsolidate: bool,
+    ) -> tuple[list[RecallResult], CascadeStats]:
+        """Pure-index recall path — no ACT-R math, no FTS, no cascade.
+
+        This is the read-side expression of Mnemoss's async-cognition
+        architecture: ``idx_priority`` is already the compact summary
+        of everything ACT-R has learned about a memory (B_i + salience
+        + emotional_weight + pinning), maintained on write and during
+        Dream. At recall time we combine it with the ANN similarity
+        and sort. O(log N) ANN + O(K) SQL lookup + O(K log K) ranking
+        where K = pool_size.
+
+        The returned ``ActivationBreakdown`` is a lightweight, fast-
+        path-flavored version — total = combined score, matching =
+        weighted cos_sim, base_level = weighted idx_priority. Keeps
+        ``explain_recall`` calls and JSON serialization working.
+        """
+
+        sem_w = self._params.fast_index_semantic_weight
+        pri_w = self._params.fast_index_priority_weight
+
+        # Over-scan so the agent-scope filter still leaves enough
+        # candidates to return k survivors.
+        over_scan = max(pool_size, k * 4, 32)
+
+        # One ANN query. Tier filter is None — fast mode ignores tiers
+        # (they're a Rebalance-driven optimization, not a semantic
+        # barrier). DEEP memories participate too; if the caller wanted
+        # them excluded they'd use the full ACT-R path.
+        hits = await self._store.vec_search(query_vec, over_scan, agent_id, tier_filter=None)
+        if not hits:
+            return (
+                [],
+                CascadeStats(tiers_scanned=[], stopped_at=None, candidates_scored=0),
+            )
+
+        ids = [mid for mid, _ in hits]
+        priorities = await self._store.get_idx_priorities(ids, agent_id)
+        cos_by_id = {mid: sim for mid, sim in hits}
+
+        combined: list[tuple[str, float, float, float]] = []  # (id, score, cos, pri)
+        for mid in ids:
+            if mid not in priorities:
+                # Filtered out by agent scope (or vanished between
+                # queries — race safety).
+                continue
+            cos = cos_by_id[mid]
+            pri = priorities[mid]
+            score = sem_w * cos + pri_w * pri
+            combined.append((mid, score, cos, pri))
+
+        combined.sort(key=lambda t: t[1], reverse=True)
+        top_ids = [t[0] for t in combined[:k]]
+
+        # Materialize just the top-k for the return contract. ACT-R
+        # callers get a full Memory per result, so fast-index preserves
+        # that shape even though it didn't need the full row to rank.
+        memories = await self._store.materialize_memories(top_ids)
+        mem_by_id = {m.id: m for m in memories}
+
+        results: list[RecallResult] = []
+        for mid, score, cos, pri in combined[: k]:
+            memory = mem_by_id.get(mid)
+            if memory is None:
+                continue
+            breakdown = ActivationBreakdown(
+                base_level=pri_w * pri,
+                spreading=0.0,
+                matching=sem_w * cos,
+                noise=0.0,
+                total=score,
+                idx_priority=pri,
+                w_f=0.0,
+                w_s=sem_w,
+                query_bias=1.0,
+            )
+            results.append(
+                RecallResult(memory=memory, score=score, breakdown=breakdown, source="direct")
+            )
+
+        if reconsolidate and results:
+            # ACT-R's "recall strengthens memory" still applies — the
+            # async paths recompute idx_priority from the fresh access
+            # history and the next recall picks up the updated value.
+            for r in results:
+                await self._store.reconsolidate(r.memory.id, now)
+                r.memory.access_history.append(now)
+                r.memory.rehearsal_count += 1
+                r.memory.last_accessed_at = now
+                if r.memory.index_tier is IndexTier.DEEP:
+                    await self._store.reminisce_to_warm(r.memory.id)
+                    r.memory.reminisced_count += 1
+                    r.memory.index_tier = IndexTier.WARM
+                    r.memory.idx_priority = 0.5
+            self._working.extend(agent_id, (r.memory.id for r in results))
+            await self._apply_lazy_extraction(results)
+
+        stats = CascadeStats(
+            tiers_scanned=[],  # no tier cascade
+            stopped_at=None,
+            candidates_scored=len(combined),
+        )
+        return results, stats
+
+    async def _tier_cascade_recall(
+        self,
+        *,
+        query_vec,  # type: ignore[no-untyped-def]
+        now: datetime,
+        agent_id: str | None,
+        k: int,
+        pool_size: int,
+        include_deep: bool,
+        reconsolidate: bool,
+    ) -> tuple[list[RecallResult], CascadeStats]:
+        """Tier cascade with pure cosine — the production default path.
+
+        Mnemoss's async-cognition split as architecture: Dream/Rebalance
+        already encoded each memory's "worth retrieving" signal into its
+        ``idx_priority`` and ``index_tier`` columns. At recall we trust
+        that classification and use pure cosine for ranking within
+        tiers. Cascade scans HOT first, expands to WARM/COLD/DEEP only
+        when needed, and ranks by cosine across whatever it collected.
+
+        Compared to the legacy ACT-R recall:
+
+        - No ``compute_base_level`` or ``compute_activation`` per candidate
+        - No τ floor filter (HOT/WARM membership is the gate)
+        - No FTS scoring layer (cosine alone)
+        - No spreading at recall (Dream computes static spreading-driven
+          features into ``idx_priority`` instead)
+        - No noise term
+
+        Trade-off: relies on Dream having recently re-classified memories.
+        Between Rebalances the tier cache can be stale; reminiscence
+        (DEEP→WARM on hit) keeps it self-correcting at recall.
+        """
+
+        tier_plan = [IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]
+        if include_deep:
+            tier_plan.append(IndexTier.DEEP)
+
+        if self._params.skip_empty_tiers:
+            counts = await self._store.tier_counts()
+            tier_plan = [t for t in tier_plan if counts.get(t, 0) > 0]
+
+        candidates: dict[str, float] = {}  # memory_id → cosine
+        tiers_scanned: list[IndexTier] = []
+        stopped_at: IndexTier | None = None
+
+        over_scan = max(pool_size, k * 4, 32)
+        min_cos = self._params.cascade_min_cosine
+
+        for tier in tier_plan:
+            hits = await self._store.vec_search(
+                query_vec, over_scan, agent_id, tier_filter={tier}
+            )
+            tiers_scanned.append(tier)
+            for mid, cos in hits:
+                # First-write-wins: a memory could appear in multiple
+                # tiers' over-scan results if the ANN index is shared
+                # across tier filters. Keep the cosine from the first
+                # tier we see it in — that's the highest-priority tier.
+                if mid not in candidates:
+                    candidates[mid] = cos
+
+            # Early-stop: if we already have k candidates whose lowest
+            # cosine clears the threshold, lower tiers can't improve
+            # the ranking.
+            if len(candidates) >= k:
+                kth_cos = sorted(candidates.values(), reverse=True)[k - 1]
+                if kth_cos >= min_cos:
+                    stopped_at = tier
+                    break
+
+        if not candidates:
+            return [], CascadeStats(
+                tiers_scanned=tiers_scanned,
+                stopped_at=stopped_at,
+                candidates_scored=0,
+            )
+
+        top_pairs = sorted(candidates.items(), key=lambda x: x[1], reverse=True)[:k]
+        top_ids = [mid for mid, _ in top_pairs]
+        memories = await self._store.materialize_memories(top_ids)
+        mem_by_id = {m.id: m for m in memories}
+
+        results: list[RecallResult] = []
+        for mid, cos in top_pairs:
+            memory = mem_by_id.get(mid)
+            if memory is None:
+                continue
+            # Lightweight breakdown: only cosine carries signal in this
+            # path. ``base_level`` / ``spreading`` / ``noise`` are zero
+            # because the path doesn't compute them. ``idx_priority`` is
+            # the cached value from the last Rebalance — informational
+            # for the explain surface; not used in this path's ranking.
+            breakdown = ActivationBreakdown(
+                base_level=0.0,
+                spreading=0.0,
+                matching=cos,
+                noise=0.0,
+                total=cos,
+                idx_priority=memory.idx_priority,
+                w_f=0.0,
+                w_s=1.0,
+                query_bias=1.0,
+            )
+            results.append(
+                RecallResult(
+                    memory=memory, score=cos, breakdown=breakdown, source="direct"
+                )
+            )
+
+        if reconsolidate and results:
+            # Gate: only reconsolidate memories whose cosine to the query
+            # clears the threshold. ``r.score == cos`` in this path.
+            # See ``FormulaParams.reconsolidate_min_cosine`` for rationale.
+            min_cos = self._params.reconsolidate_min_cosine
+            for r in results:
+                if r.score < min_cos:
+                    continue
+                await self._store.reconsolidate(r.memory.id, now)
+                r.memory.access_history.append(now)
+                r.memory.rehearsal_count += 1
+                r.memory.last_accessed_at = now
+                if r.memory.index_tier is IndexTier.DEEP:
+                    await self._store.reminisce_to_warm(r.memory.id)
+                    r.memory.reminisced_count += 1
+                    r.memory.index_tier = IndexTier.WARM
+                    r.memory.idx_priority = 0.5
+            self._working.extend(agent_id, (r.memory.id for r in results))
+            await self._apply_lazy_extraction(results)
+
+        return results, CascadeStats(
+            tiers_scanned=tiers_scanned,
+            stopped_at=stopped_at,
+            candidates_scored=len(candidates),
+        )
 
     async def _apply_lazy_extraction(self, results: list[RecallResult]) -> None:
         """Fill ``extracted_*`` fields on any top-k memory at level 0."""
@@ -393,7 +720,9 @@ class RecallEngine:
         memory = await self._store.get_memory(memory_id)
         if memory is None:
             return None
-        query_vec = (await asyncio.to_thread(self._embedder.embed, [query]))[0]
+        query_vec = (
+            await asyncio.to_thread(embed_query_or_embed, self._embedder, [query])
+        )[0]
         cos_hits = await self._store.vec_search(query_vec, k=200, agent_id=agent_id)
         fts_hits = await self._store.fts_search(query, k=200, agent_id=agent_id)
         cos_by_id = dict(cos_hits)

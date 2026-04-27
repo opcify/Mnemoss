@@ -1,0 +1,58 @@
+{
+  "chart": "stale_fact",
+  "embedder": "local",
+  "distractors": 300,
+  "sleep_seconds": 60.0,
+  "k": 10,
+  "timestamp": "2026-04-24T15:48:05.521734+00:00",
+  "results": [
+    {
+      "n_pairs": 25,
+      "new_top1": 20,
+      "old_top1": 0,
+      "neither_top1": 5,
+      "new_in_topk": 24,
+      "old_in_topk": 19,
+      "both_in_topk": 19,
+      "new_above_old_when_both": 19,
+      "per_category": {
+        "state_update": {
+          "n": 5,
+          "new_top1": 4,
+          "new_above_old": 2,
+          "both_in_topk": 2
+        },
+        "preference": {
+          "n": 5,
+          "new_top1": 3,
+          "new_above_old": 3,
+          "both_in_topk": 3
+        },
+        "relationship": {
+          "n": 5,
+          "new_top1": 5,
+          "new_above_old": 5,
+          "both_in_topk": 5
+        },
+        "fact_correction": {
+          "n": 5,
+          "new_top1": 5,
+          "new_above_old": 4,
+          "both_in_topk": 4
+        },
+        "goal_update": {
+          "n": 5,
+          "new_top1": 3,
+          "new_above_old": 5,
+          "both_in_topk": 5
+        }
+      },
+      "rate_new_top1": 0.8,
+      "rate_old_top1": 0.0,
+      "rate_supersession_when_both": 1.0,
+      "rate_both_recalled": 0.76,
+      "arm": "mnemoss_supersede",
+      "embedder": "local"
+    }
+  ]
+}

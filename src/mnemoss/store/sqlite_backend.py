@@ -21,6 +21,8 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import functools
+import logging
+import struct
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
@@ -33,8 +35,9 @@ import sqlite_vec
 from mnemoss.core.config import SCHEMA_VERSION
 from mnemoss.core.types import IndexTier, Memory, RawMessage, Tombstone
 from mnemoss.store import _graph_ops, _memory_ops, _raw_log_ops
-from mnemoss.store._sql_helpers import build_trigram_query  # re-export
+from mnemoss.store._sql_helpers import build_trigram_query, filter_by_agent_and_tier
 from mnemoss.store._workspace_lock import WorkspaceLock, WorkspaceLockError
+from mnemoss.store.ann_index import HNSWLIB_AVAILABLE, ANNIndex
 from mnemoss.store.migrations import (
     MigrationError,
     apply_migrations,
@@ -47,6 +50,8 @@ from mnemoss.store.schema import (
     RAW_LOG_DDL_STATEMENTS,
     vec_ddl,
 )
+
+_log = logging.getLogger(__name__)
 
 __all__ = [
     "SQLiteBackend",
@@ -83,6 +88,8 @@ class SQLiteBackend:
         workspace_id: str,
         embedding_dim: int,
         embedder_id: str,
+        *,
+        use_ann_index: bool = True,
     ) -> None:
         self._db_path = db_path
         self._raw_log_path = raw_log_path
@@ -93,6 +100,13 @@ class SQLiteBackend:
         self._raw_conn: apsw.Connection | None = None
         self._write_lock = asyncio.Lock()
         self._memory_columns: list[str] = []
+        self._use_ann_index = use_ann_index
+        # ANN index: built on open, populated from memory_vec, updated
+        # on write_memory / delete_memory_completely. See
+        # mnemoss/store/ann_index.py for the HNSW design rationale.
+        # None means "fall back to sqlite-vec linear scan" — either
+        # because use_ann_index=False or hnswlib isn't installed.
+        self._ann: ANNIndex | None = None
         # Cross-process advisory lock on the workspace directory.
         # Acquired in _open_sync and released in close(), so a second
         # process trying to open the same workspace fails fast.
@@ -181,6 +195,62 @@ class SQLiteBackend:
         else:
             self._validate_raw_meta(raw_conn)
         self._raw_conn = raw_conn
+
+        # Build the ANN index last — after both DBs are open so
+        # rehydrate sees a valid memory_vec table. A no-op on fresh
+        # workspaces (memory_vec is empty).
+        self._maybe_build_ann_index(conn)
+
+    def _maybe_build_ann_index(self, conn: apsw.Connection) -> None:
+        """Initialize the HNSW index and rehydrate from memory_vec.
+
+        Honours the ``use_ann_index`` flag and falls back silently (but
+        with a one-line log notice) if ``hnswlib`` isn't installed.
+        Safe on an empty workspace — just creates an empty index ready
+        to receive the first write.
+        """
+
+        if not self._use_ann_index:
+            return
+        if not HNSWLIB_AVAILABLE:
+            _log.info(
+                "mnemoss: hnswlib not installed; vec_search will use "
+                "sqlite-vec linear scan. `pip install mnemoss[ann]` for "
+                "O(log N) vector recall."
+            )
+            return
+
+        # Start the index sized to current workspace; grows on demand.
+        n_rows = int(
+            conn.execute("SELECT COUNT(*) FROM memory_vec").fetchone()[0]
+        )
+        initial_capacity = max(1024, n_rows * 2)
+        self._ann = ANNIndex(
+            dim=self._embedding_dim,
+            initial_capacity=initial_capacity,
+        )
+
+        if n_rows == 0:
+            return
+
+        # Rehydrate: pull all (memory_id, embedding) rows and batch-add.
+        # vec0 stores embeddings as little-endian float32 blobs — the
+        # same pack_vec format we wrote on insert, so decoding is a
+        # single struct.unpack per row.
+        batch_ids: list[str] = []
+        batch_emb: list[np.ndarray] = []
+        for mid, blob in conn.execute(
+            "SELECT memory_id, embedding FROM memory_vec"
+        ):
+            vec = np.array(
+                struct.unpack(f"{self._embedding_dim}f", bytes(blob)),
+                dtype=np.float32,
+            )
+            batch_ids.append(str(mid))
+            batch_emb.append(vec)
+
+        if batch_ids:
+            self._ann.add_batch(batch_ids, np.vstack(batch_emb))
 
     def _create_schema(self, conn: apsw.Connection) -> None:
         with conn:
@@ -280,6 +350,11 @@ class SQLiteBackend:
                 embedding,
                 self._embedding_dim,
             )
+            # Mirror into the ANN index so vec_search returns this
+            # memory on the very next recall. Done on the DB worker
+            # thread to keep hnswlib confined to a single thread.
+            if self._ann is not None:
+                await self._run(self._ann.add, memory.id, embedding)
 
     async def delete_memory_completely(self, memory_id: str) -> None:
         """Remove a memory from ``memory``, ``memory_vec``, ``memory_fts``,
@@ -289,6 +364,8 @@ class SQLiteBackend:
             await self._run(
                 _memory_ops.delete_memory_completely, self._require_conn(), memory_id
             )
+            if self._ann is not None:
+                await self._run(self._ann.remove, memory_id)
 
     async def update_idx_priority(
         self, memory_id: str, idx_priority: float, tier: IndexTier
@@ -358,6 +435,25 @@ class SQLiteBackend:
         async with self._write_lock:
             await self._run(
                 _memory_ops.reconsolidate, self._require_conn(), memory_id, now
+            )
+
+    async def mark_superseded(
+        self, old_id: str, new_id: str, at: datetime
+    ) -> None:
+        """Mark an existing memory as superseded by a newer one.
+
+        Used by the contradiction-aware observe path. ``old_id`` stays
+        in storage (for audit / dispose trail / future un-supersede)
+        but is filtered out of recall by default.
+        """
+
+        async with self._write_lock:
+            await self._run(
+                _memory_ops.mark_superseded,
+                self._require_conn(),
+                old_id,
+                new_id,
+                at,
             )
 
     async def reminisce_to_warm(self, memory_id: str) -> None:
@@ -464,6 +560,26 @@ class SQLiteBackend:
 
         return await self._run(_memory_ops.tier_counts, self._require_conn())
 
+    async def get_idx_priorities(
+        self,
+        memory_ids: Iterable[str],
+        agent_id: str | None,
+    ) -> dict[str, float]:
+        """``{memory_id: idx_priority}`` for ids passing agent scope.
+
+        Backs the fast-index recall path: after ANN returns the top-K
+        candidates, we batch-fetch their cached priority in a single
+        indexed SQL round-trip. O(K) — not O(N) — so it stays fast as
+        the workspace grows.
+        """
+
+        return await self._run(
+            _memory_ops.get_idx_priorities,
+            self._require_conn(),
+            list(memory_ids),
+            agent_id,
+        )
+
     async def cluster_size(self, cluster_id: str) -> int:
         """Number of memories currently registered in ``cluster_id``."""
 
@@ -483,17 +599,60 @@ class SQLiteBackend:
         Filters by agent scope: ``agent_id`` means ``WHERE memory.agent_id
         = id OR memory.agent_id IS NULL``; ``None`` means ambient-only.
         ``tier_filter`` lets cascade retrieval scan one tier at a time.
+
+        Uses the HNSW ANN index when available (O(log N)); falls back to
+        ``sqlite-vec``'s linear scan otherwise. Behavior and return
+        contract are identical either way — ANN is approximate but with
+        default config the recall@10 vs exact is >0.99.
         """
 
+        if self._ann is None:
+            return await self._run(
+                _memory_ops.vec_search,
+                self._require_conn(),
+                query_embedding,
+                k,
+                agent_id,
+                tier_filter,
+                self._embedding_dim,
+            )
         return await self._run(
-            _memory_ops.vec_search,
-            self._require_conn(),
+            self._ann_vec_search_sync,
             query_embedding,
             k,
             agent_id,
             tier_filter,
-            self._embedding_dim,
         )
+
+    def _ann_vec_search_sync(
+        self,
+        query_embedding: np.ndarray,
+        k: int,
+        agent_id: str | None,
+        tier_filter: set[IndexTier] | None,
+    ) -> list[tuple[str, float]]:
+        """HNSW top-K + agent/tier filter in one SQL round-trip.
+
+        Over-scans by the same factor as ``_memory_ops.vec_search`` so
+        the filter stage still has enough candidates to find ``k``
+        survivors when scope filtering removes some.
+        """
+
+        assert self._ann is not None
+        over_scan = max(k * 8, 64) if tier_filter is not None else max(k * 4, 32)
+        hits = self._ann.query(query_embedding, over_scan)
+        if not hits:
+            return []
+        ids = [mid for mid, _ in hits]
+        conn = self._require_conn()
+        allowed = filter_by_agent_and_tier(conn, ids, agent_id, tier_filter)
+        out: list[tuple[str, float]] = []
+        for mid, sim in hits:
+            if mid in allowed:
+                out.append((mid, sim))
+                if len(out) >= k:
+                    break
+        return out
 
     async def fts_search(
         self,

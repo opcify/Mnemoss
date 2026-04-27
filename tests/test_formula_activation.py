@@ -126,6 +126,11 @@ def test_spreading_contributes_when_relations_active() -> None:
 
 
 def test_noise_changes_across_seeds() -> None:
+    # Explicit noise_scale=0.25 — this test asserts that noise actually
+    # varies across RNG seeds, which requires non-zero noise. The shipped
+    # default is noise_scale=0.0 (deterministic recall); callers that
+    # want stochastic Luce-choice sampling opt in by setting this.
+    noisy_params = FormulaParams(noise_scale=0.25)
     memory = _make_memory()
     now = memory.created_at
     args = dict(
@@ -138,7 +143,7 @@ def test_noise_changes_across_seeds() -> None:
         bm25_raw=-5.0,
         cos_sim=0.8,
         pinned=False,
-        params=PARAMS,
+        params=noisy_params,
     )
     samples = {
         compute_activation(rng=random.Random(s), **args).noise  # type: ignore[arg-type]

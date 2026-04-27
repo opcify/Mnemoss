@@ -1,0 +1,231 @@
+# Launch-comparison benchmark CI.
+#
+# Two modes:
+#
+# - **smoke** (on every PR + push to main): runs Chart 1 at N=50 with
+#   `static_file` and `mnemoss`-plus-FakeEmbedder backends. Zero network
+#   calls, zero cost, finishes in under a minute. Guards against
+#   schema drift and the harness not being able to run end-to-end.
+#
+# - **full** (manual dispatch + nightly cron): runs Chart 1 at the full
+#   default size against Mnemoss with `text-embedding-3-small` +
+#   `static_file` baseline. Requires the `OPENAI_API_KEY` repository
+#   secret. Results uploaded as artifacts (JSON + SVG) so trend drift
+#   is visible on the Actions page.
+#
+# The full-mode run is what the launch post's "reproducible via
+# `make launch-bench`" claim rests on: anyone can kick it off from the
+# GitHub UI with their own key and reproduce the numbers we published.
+
+name: bench-ci
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      # Only trigger on changes that could affect benchmark numbers or
+      # the harness itself.
+      - "src/mnemoss/**"
+      - "bench/**"
+      - "demo/**"
+      - "pyproject.toml"
+      - ".github/workflows/bench-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/mnemoss/**"
+      - "bench/**"
+      - "demo/**"
+      - "pyproject.toml"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "smoke (no network) or full (OpenAI, ~$1)"
+        required: true
+        default: "smoke"
+        type: choice
+        options: [smoke, full]
+      limit_conversations:
+        description: "Cap conversations (full mode; empty = all 10)"
+        required: false
+        default: ""
+        type: string
+      limit_utterances:
+        description: "Cap utterances per conversation (full mode; empty = all)"
+        required: false
+        default: ""
+        type: string
+  schedule:
+    # 07:30 UTC daily — early enough to finish before US mornings, late
+    # enough that the repo has settled from the previous day's merges.
+    - cron: "30 7 * * *"
+
+concurrency:
+  group: bench-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Chart 1 smoke (no network)
+    # Run smoke unconditionally on PR + push. On workflow_dispatch,
+    # only run smoke if the user asked for smoke mode. On schedule,
+    # skip smoke — full mode runs instead.
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package with dev extras
+        run: pip install -e ".[dev,openai,gemini]"
+
+      - name: Prepare LoCoMo corpus
+        run: |
+          if [ ! -f bench/data/locomo10.json ]; then
+            curl -sL -o bench/data/locomo10.json \
+              https://raw.githubusercontent.com/snap-research/locomo/main/data/locomo10.json
+          fi
+          python -m bench.data.prepare_locomo
+
+      - name: Chart 1 smoke — static_file baseline
+        run: |
+          python -m bench.launch_comparison \
+            --backend static_file \
+            --limit-conversations 2 \
+            --limit-utterances 50 \
+            --out bench/results/chart1_static_file.json \
+            --print-summary
+
+      - name: Chart 1 smoke — raw_stack (FakeEmbedder, no network)
+        run: |
+          python -m bench.launch_comparison \
+            --backend raw_stack \
+            --fake-embedder \
+            --limit-conversations 2 \
+            --limit-utterances 50 \
+            --out bench/results/chart1_raw_stack_fake.json \
+            --print-summary
+
+      - name: Chart 1 smoke — Mnemoss (FakeEmbedder, no network)
+        run: |
+          python -m bench.launch_comparison \
+            --backend mnemoss \
+            --fake-embedder \
+            --limit-conversations 2 \
+            --limit-utterances 50 \
+            --out bench/results/chart1_mnemoss_fake.json \
+            --print-summary
+
+      - name: Render Chart 1 SVG
+        run: |
+          python -m bench.plots --chart 1 \
+            --results bench/results/chart1_static_file.json \
+                      bench/results/chart1_raw_stack_fake.json \
+                      bench/results/chart1_mnemoss_fake.json \
+            --out bench/results/chart1_smoke.svg
+
+      - name: Render explainer figures A / B / C
+        run: python -m docs.figures --out-dir docs/figures_out
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-smoke-${{ github.sha }}
+          path: |
+            bench/results/*.json
+            bench/results/*.svg
+            docs/figures_out/*.svg
+          retention-days: 14
+
+  full:
+    name: Chart 1 full (OpenAI text-embedding-3-small)
+    # Only run full mode on schedule (nightly) or explicit workflow_dispatch.
+    # Skipped on PRs — we never want to spend tokens on every push.
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package with dev extras
+        run: pip install -e ".[dev,openai,gemini]"
+
+      - name: Prepare LoCoMo corpus
+        run: |
+          if [ ! -f bench/data/locomo10.json ]; then
+            curl -sL -o bench/data/locomo10.json \
+              https://raw.githubusercontent.com/snap-research/locomo/main/data/locomo10.json
+          fi
+          python -m bench.data.prepare_locomo
+
+      - name: Build limit args
+        id: limits
+        run: |
+          LC="${{ inputs.limit_conversations }}"
+          LU="${{ inputs.limit_utterances }}"
+          ARGS=""
+          [ -n "$LC" ] && ARGS="$ARGS --limit-conversations $LC"
+          [ -n "$LU" ] && ARGS="$ARGS --limit-utterances $LU"
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
+
+      - name: Chart 1 — static_file baseline
+        run: |
+          python -m bench.launch_comparison \
+            --backend static_file \
+            ${{ steps.limits.outputs.args }} \
+            --out bench/results/chart1_static_file.json \
+            --print-summary
+
+      - name: Chart 1 — raw_stack (OpenAI text-embedding-3-small)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MNEMOSS_BENCH_BUDGET_USD: "5"
+        run: |
+          python -m bench.launch_comparison \
+            --backend raw_stack \
+            ${{ steps.limits.outputs.args }} \
+            --out bench/results/chart1_raw_stack.json \
+            --print-summary
+
+      - name: Chart 1 — Mnemoss (OpenAI text-embedding-3-small)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MNEMOSS_BENCH_BUDGET_USD: "5"
+        run: |
+          python -m bench.launch_comparison \
+            --backend mnemoss \
+            ${{ steps.limits.outputs.args }} \
+            --out bench/results/chart1_mnemoss.json \
+            --print-summary
+
+      - name: Render Chart 1 SVG
+        run: |
+          python -m bench.plots --chart 1 \
+            --results bench/results/chart1_static_file.json \
+                      bench/results/chart1_raw_stack.json \
+                      bench/results/chart1_mnemoss.json \
+            --out bench/results/chart1.svg \
+            --title "Recall@10 on LoCoMo 2024 — Mnemoss vs the stack you'd build"
+
+      - name: Upload full-run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-full-${{ github.sha }}
+          path: |
+            bench/results/*.json
+            bench/results/*.svg
+          retention-days: 90

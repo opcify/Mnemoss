@@ -26,6 +26,7 @@ from mnemoss.core.config import (
     MnemossConfig,
     SegmentationParams,
     StorageParams,
+    TierCapacityParams,
 )
 from mnemoss.core.types import RawMessage, Tombstone
 from mnemoss.dream.cost import CostLedger, CostLimits
@@ -70,6 +71,7 @@ class Mnemoss:
         storage: StorageParams | None = None,
         segmentation: SegmentationParams | None = None,
         dreamer: DreamerParams | None = None,
+        tier_capacity: TierCapacityParams | None = None,
         llm: LLMClient | None = None,
         cost_limits: CostLimits | None = None,
         rng: random.Random | None = None,
@@ -81,6 +83,7 @@ class Mnemoss:
             storage=storage or StorageParams(),
             segmentation=segmentation or SegmentationParams(),
             dreamer=dreamer or DreamerParams(),
+            tier_capacity=tier_capacity or TierCapacityParams(),
         )
         self._embedder = make_embedder(embedding_model)
         self._llm = llm
@@ -221,7 +224,25 @@ class Mnemoss:
         agent_id: str | None = None,
         include_deep: bool = False,
         auto_expand: bool = True,
+        reconsolidate: bool = True,
     ) -> list[RecallResult]:
+        """Retrieve the top-k memories for ``query``.
+
+        ``reconsolidate`` (default ``True``) follows the ACT-R story:
+        every returned memory gets its access history extended, rehearsal
+        count bumped, last-accessed timestamp refreshed, and (if in DEEP)
+        promoted to WARM. This is the whole point of ACT-R's "recall
+        strengthens memory" design — the more often you fetch a memory,
+        the more accessible it becomes for future recalls.
+
+        Set ``reconsolidate=False`` for read-only callers that must not
+        mutate memory state: benchmark harnesses (every query otherwise
+        boosts early-recalled memories' ``B_i`` and biases later
+        queries), audit / explain paths, external evaluation runs, or
+        any scenario where "does Mnemoss return the right top-k for
+        THIS query in isolation" is the only question being asked.
+        """
+
         await self._ensure_open()
         assert self._engine is not None
         results = await self._engine.recall(
@@ -230,6 +251,7 @@ class Mnemoss:
             k=k,
             include_deep=include_deep,
             auto_expand=auto_expand,
+            reconsolidate=reconsolidate,
         )
         _log.info(
             "recalled",
@@ -391,7 +413,9 @@ class Mnemoss:
 
         await self._ensure_open()
         assert self._store is not None
-        stats = await _rebalance(self._store, self._config.formula)
+        stats = await _rebalance(
+            self._store, self._config.formula, self._config.tier_capacity
+        )
         self._last_rebalance_at = datetime.now(UTC)
         _log.info(
             "rebalance",
@@ -446,6 +470,7 @@ class Mnemoss:
         runner = DreamRunner(
             self._store,
             self._config.formula,
+            tier_capacity=self._config.tier_capacity,
             llm=self._llm,
             embedder=self._embedder,
             replay_limit=self._config.dreamer.replay_limit,
@@ -594,6 +619,7 @@ class Mnemoss:
             # Happy path — one event, one Memory.
             embedding = (await asyncio.to_thread(self._embedder.embed, [memory.content]))[0]
             await self._store.write_memory(memory, embedding)
+            await self._mark_semantic_supersession(memory, embedding)
             await write_cooccurrence_edges(
                 self._store,
                 memory.id,
@@ -635,6 +661,46 @@ class Mnemoss:
             )
             self._working.append(chunk_memory.agent_id, chunk_memory.id)
 
+    async def _mark_semantic_supersession(
+        self, new_memory: Any, embedding: Any
+    ) -> None:
+        """Mark any existing near-duplicate memory as superseded by ``new_memory``.
+
+        No-op when ``encoder.supersede_on_observe`` is False. Otherwise
+        runs one ANN query (same scope as the new memory's agent_id),
+        picks matches whose cosine ≥ ``encoder.supersede_cosine_threshold``,
+        and marks each older memory's ``superseded_by`` = ``new_memory.id``.
+
+        The feature is intentionally conservative:
+        - Matches are scoped to the same agent (cross-agent supersession
+          would leak through agent isolation).
+        - The new memory itself is excluded (vec_search will return it
+          as self-match with cosine ≈ 1.0).
+        - Already-superseded rows are skipped (they live under
+          ``superseded_by IS NOT NULL`` in the filter helper).
+        """
+
+        if not self._config.encoder.supersede_on_observe:
+            return
+        assert self._store is not None
+
+        threshold = self._config.encoder.supersede_cosine_threshold
+        # Small candidate pool — we don't need the full corpus, just
+        # the handful of memories semantically nearest to the new one.
+        candidates = await self._store.vec_search(
+            embedding, 10, new_memory.agent_id, tier_filter=None
+        )
+        now = datetime.now(UTC)
+        for mid, cos in candidates:
+            if mid == new_memory.id:
+                continue
+            if cos < threshold:
+                # vec_search returns in descending cosine order — once
+                # we cross the threshold, remaining candidates are all
+                # below it and we can stop.
+                break
+            await self._store.mark_superseded(mid, new_memory.id, now)
+
     def _chunk_memory(
         self,
         template: Any,
@@ -675,6 +741,20 @@ class Mnemoss:
         async with self._open_lock:
             if self._store is not None:
                 return
+            # Warm the embedder BEFORE constructing the SQLite backend.
+            # The backend pins ``embedding_dim`` at open time; for
+            # embedders whose dim is only known after the first
+            # ``embed()`` call (e.g. custom SentenceTransformer models,
+            # OpenAI with a custom dim, Gemini MRL), calling warmup
+            # first resolves ``embedder.dim`` to the real value.
+            #
+            # ``"warmup"`` is deliberately boring — the returned vector
+            # is discarded so its semantic content doesn't matter. Must
+            # be a non-empty, non-whitespace token: OpenAI's embeddings
+            # API rejects empty strings with a 400, and future
+            # tokenizers may normalize pure whitespace to empty.
+            await asyncio.to_thread(self._embedder.embed, ["warmup"])
+
             db_path = workspace_db_path(self._config.storage.root, self._config.workspace)
             raw_path = raw_log_db_path(self._config.storage.root, self._config.workspace)
             store = SQLiteBackend(
@@ -683,6 +763,7 @@ class Mnemoss:
                 workspace_id=self._config.workspace,
                 embedding_dim=self._embedder.dim,
                 embedder_id=self._embedder.embedder_id,
+                use_ann_index=self._config.storage.use_ann_index,
             )
             await store.open()
             # Warm the embedder before we start writing memories.
@@ -741,6 +822,7 @@ class AgentHandle:
         k: int = 5,
         include_deep: bool = False,
         auto_expand: bool = True,
+        reconsolidate: bool = True,
     ) -> list[RecallResult]:
         return await self._mem.recall(
             query,
@@ -748,6 +830,7 @@ class AgentHandle:
             agent_id=self._agent_id,
             include_deep=include_deep,
             auto_expand=auto_expand,
+            reconsolidate=reconsolidate,
         )
 
     async def pin(self, memory_id: str) -> None:

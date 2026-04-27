@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mnemoss · Scene 1 — Preference Recall</title>
+<style>
+:root {
+  --bg: #0f1115;
+  --fg: #e6e9ef;
+  --fg-dim: #9aa3b2;
+  --panel: #151821;
+  --panel-border: #242938;
+  --user: #3b82f6;
+  --assistant: #10b981;
+  --accent: #f59e0b;
+  --breakdown-base: #4f46e5;
+  --breakdown-spread: #06b6d4;
+  --breakdown-match: #10b981;
+  --breakdown-noise: #6b7280;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 24px;
+  background: var(--bg); color: var(--fg);
+  min-height: 100vh;
+}
+h1 { font-size: 20px; margin: 0 0 4px 0; font-weight: 600; }
+.subtitle { color: var(--fg-dim); font-size: 13px; margin-bottom: 20px; }
+
+.controls {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.controls button {
+  background: var(--panel); color: var(--fg);
+  border: 1px solid var(--panel-border);
+  padding: 6px 14px; border-radius: 6px;
+  cursor: pointer; font-size: 13px;
+  font-family: inherit;
+}
+.controls button:hover { background: var(--panel-border); }
+.controls button.active { border-color: var(--accent); color: var(--accent); }
+.progress {
+  flex: 1; height: 6px; background: var(--panel);
+  border-radius: 3px; overflow: hidden; min-width: 120px;
+}
+.progress-bar {
+  height: 100%; background: var(--accent);
+  width: 0%; transition: width 120ms linear;
+}
+.progress-label {
+  color: var(--fg-dim); font-size: 12px;
+  font-variant-numeric: tabular-nums; min-width: 80px;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  min-height: 500px;
+}
+@media (max-width: 760px) { .stage { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+.panel h2 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg-dim); margin: 0 0 12px 0; font-weight: 600;
+}
+
+.chat-row {
+  margin-bottom: 12px; opacity: 0;
+  transition: opacity 220ms ease-in;
+}
+.chat-row.visible { opacity: 1; }
+.chat-role {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg-dim); margin-bottom: 2px;
+}
+.chat-role.user { color: var(--user); }
+.chat-role.assistant { color: var(--assistant); }
+.chat-bubble { font-size: 14px; line-height: 1.5; }
+
+.memory-row {
+  border-top: 1px solid var(--panel-border);
+  padding: 10px 0; font-size: 13px;
+  opacity: 0; transition: opacity 220ms;
+}
+.memory-row.visible { opacity: 1; }
+.memory-row:first-child { border-top: none; padding-top: 0; }
+.memory-role {
+  font-size: 11px; color: var(--fg-dim);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.memory-text { color: var(--fg); margin-top: 2px; }
+.memory-row.recalled { background: rgba(245, 158, 11, 0.08); padding-left: 8px; padding-right: 8px; border-radius: 4px; }
+
+.recall-panel {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 10px 12px; border-radius: 6px;
+  margin-bottom: 12px;
+  opacity: 0; transition: opacity 220ms;
+}
+.recall-panel.visible { opacity: 1; }
+.recall-panel .label {
+  font-size: 11px; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.recall-panel .query { font-size: 13px; color: var(--fg); margin-bottom: 8px; }
+.recall-panel .hit { font-size: 12px; color: var(--fg-dim); margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+.recall-panel .hit-rank { color: var(--accent); font-weight: 600; min-width: 20px; }
+.recall-panel .hit-score { color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+
+.breakdown {
+  display: flex; height: 8px; border-radius: 4px; overflow: hidden;
+  margin-top: 6px;
+}
+.breakdown-seg {
+  height: 100%;
+}
+.breakdown-legend {
+  display: flex; gap: 10px; font-size: 10px; color: var(--fg-dim);
+  margin-top: 4px; flex-wrap: wrap;
+}
+.breakdown-legend .swatch {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: 4px; vertical-align: middle;
+}
+
+footer {
+  margin-top: 20px; color: var(--fg-dim); font-size: 11px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<h1>Mnemoss · Scene 1 — Preference Recall</h1>
+<div class="subtitle">backend: mnemoss · llm: stub · 32 events · 2.05s recording</div>
+<div class="subtitle">A user chats across several turns. Early turns drop long-lived preferences (diet, meeting style, timezone). Later turns wander through unrelated small talk. The critical turn asks the agent to set up a team lunch — which should recall the earlier preferences and use them in the response. Demonstrates ACT-R recall on conversational memory.</div>
+
+<div class="controls">
+  <button id="play">Play</button>
+  <button id="restart">Restart</button>
+  <button data-speed="1">1x</button>
+  <button data-speed="2">2x</button>
+  <button data-speed="4">4x</button>
+  <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+  <div id="progress-label" class="progress-label">0.0s / 0.0s</div>
+</div>
+
+<div class="stage">
+  <div id="chat" class="panel"><h2>conversation</h2></div>
+  <div id="memory" class="panel"><h2>memory</h2></div>
+</div>
+
+<footer>
+  Mnemoss · <a href="https://github.com/opcify/mnemoss" style="color:var(--fg-dim)">github.com/opcify/mnemoss</a>
+</footer>
+
+<script id="trace-data" type="application/json">{"scenario":{"name":"scene1_preference_recall","description":"A user chats across several turns. Early turns drop long-lived preferences (diet, meeting style, timezone). Later turns wander through unrelated small talk. The critical turn asks the agent to set up a team lunch — which should recall the earlier preferences and use them in the response. Demonstrates ACT-R recall on conversational memory.","recall_k":5,"turns":[{"user":"Quick heads-up — I've gone vegan as of this month, so please factor that into any food-related stuff going forward.","stub_response":"Noted — I'll keep that in mind for anything food-adjacent from here on out.","recall_before_response":true},{"user":"Also, I strongly prefer morning meetings over afternoon ones. Afternoons kill my focus.","stub_response":"Got it. I'll default to morning slots when I'm scheduling things for you.","recall_before_response":true},{"user":"And for context — I'm based in Taipei, so that's UTC+8. Worth mentioning for scheduling.","stub_response":"Perfect, I'll use UTC+8 as your reference timezone.","recall_before_response":true},{"user":"Totally different topic — what's a good workflow for reviewing a long PR diff?","stub_response":"I usually split it into logical commits, read each one top-down, and leave inline comments as I go.","recall_before_response":true},{"user":"Yeah, that helps. How about when the PR description is sparse?","stub_response":"Push back — ask the author for a 3-bullet 'what / why / risks' summary before reviewing.","recall_before_response":true},{"user":"Cool. Can we circle back to the Q3 roadmap?","stub_response":"Sure, what's the biggest open question on it right now?","recall_before_response":true},{"user":"Set up a team lunch for tomorrow — find a slot that works for everyone.","stub_response":"I'll aim for a morning-friendly slot (noon local Taipei time, UTC+8) and line up a restaurant with good vegan options. Sending the invite now.","recall_before_response":true},{"user":"Perfect. Send the invite.","stub_response":"Invite out.","recall_before_response":true}]},"backend":"mnemoss","llm":"stub","duration_seconds":2.053924833991914,"events":[{"t":0.0,"kind":"observe","role":"user","content":"Quick heads-up — I've gone vegan as of this month, so please factor that into any food-related stuff going forward.","memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS"},{"t":0.0,"kind":"recall","query":"Quick heads-up — I've gone vegan as of this month, so please factor that into any food-related stuff going forward.","hits":[{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":1,"score":1.2838420536248414,"breakdown":{"base_level":1.5363560649575008,"spreading":0.0,"matching":0.2340562621149562,"noise":0.0,"total":1.770412327072457,"idx_priority":0.8437443456561721,"w_f":0.843981249198185,"w_s":0.15601875080181504,"query_bias":1.5}}]},{"t":2.0,"kind":"agent_response","role":"assistant","content":"Noted — I'll keep that in mind for anything food-adjacent from here on out."},{"t":2.0,"kind":"observe","role":"assistant","content":"Noted — I'll keep that in mind for anything food-adjacent from here on out.","memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR"},{"t":4.0,"kind":"observe","role":"user","content":"Also, I strongly prefer morning meetings over afternoon ones. Afternoons kill my focus.","memory_id":"01KPWV8HKPKJYR49DRF5F271J0"},{"t":4.0,"kind":"recall","query":"Also, I strongly prefer morning meetings over afternoon ones. Afternoons kill my focus.","hits":[{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":1,"score":3.3704329196752996,"breakdown":{"base_level":1.69307160008296,"spreading":0.8712352129600364,"matching":1.4991248561567827,"noise":0.0,"total":4.063431669199779,"idx_priority":0.8691053559214938,"w_f":0.7214632135528962,"w_s":0.2785367864471038,"query_bias":1.0}},{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":2,"score":2.529120626134138,"breakdown":{"base_level":1.9398975281510857,"spreading":0.8712352129600364,"matching":0.11085434031058047,"noise":0.0,"total":2.9219870814217024,"idx_priority":0.889917387442218,"w_f":0.7339504324653308,"w_s":0.26604956753466924,"query_bias":1.0}},{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":3,"score":1.977055975785909,"breakdown":{"base_level":1.6930706201575092,"spreading":0.8712352129600364,"matching":0.08667952618638147,"noise":0.0,"total":2.650985359303927,"idx_priority":0.8633114596890128,"w_f":0.7179868758134076,"w_s":0.2820131241865924,"query_bias":1.0}}]},{"t":6.0,"kind":"agent_response","role":"assistant","content":"Got it. I'll default to morning slots when I'm scheduling things for you."},{"t":6.0,"kind":"observe","role":"assistant","content":"Got it. I'll default to morning slots when I'm scheduling things for you.","memory_id":"01KPWV8HW9530MEQ12NB3TSENJ"},{"t":8.0,"kind":"observe","role":"user","content":"And for context — I'm based in Taipei, so that's UTC+8. Worth mentioning for scheduling.","memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM"},{"t":8.0,"kind":"recall","query":"And for context — I'm based in Taipei, so that's UTC+8. Worth mentioning for scheduling.","hits":[{"memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM","rank":1,"score":2.9909533097376446,"breakdown":{"base_level":1.6930936831020964,"spreading":0.49096451110408756,"matching":1.4999888322831847,"noise":0.0,"total":3.6840470264893685,"idx_priority":0.8713663082850857,"w_f":0.854385808346078,"w_s":0.14561419165392198,"query_bias":1.5}},{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":2,"score":2.8411310137318244,"breakdown":{"base_level":2.2450699091290667,"spreading":0.49096451110408756,"matching":0.40940992518244856,"noise":0.0,"total":3.1454443454156027,"idx_priority":0.9164505860413582,"w_f":0.8708900273559216,"w_s":0.12910997264407842,"query_bias":1.5}},{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":3,"score":2.5545489382877093,"breakdown":{"base_level":2.09848099145501,"spreading":0.49096451110408756,"matching":0.3708292610739426,"noise":0.0,"total":2.96027476363304,"idx_priority":0.9045194279841191,"w_f":0.8665786482771235,"w_s":0.1334213517228765,"query_bias":1.5}},{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":4,"score":2.3470709610433236,"breakdown":{"base_level":2.0984809397951283,"spreading":0.49096451110408756,"matching":0.156555945544337,"noise":0.0,"total":2.746001396443553,"idx_priority":0.9087511529119982,"w_f":0.8681123731633429,"w_s":0.1318876268366571,"query_bias":1.5}},{"memory_id":"01KPWV8HW9530MEQ12NB3TSENJ","rank":5,"score":2.1787400988448047,"breakdown":{"base_level":1.6930917501518228,"spreading":0.49096451110408756,"matching":0.7059215496339654,"noise":0.0,"total":2.8899778108898757,"idx_priority":0.8633139531102706,"w_f":0.8513761325920344,"w_s":0.14862386740796563,"query_bias":1.5}}]},{"t":10.0,"kind":"agent_response","role":"assistant","content":"Perfect, I'll use UTC+8 as your reference timezone."},{"t":10.0,"kind":"observe","role":"assistant","content":"Perfect, I'll use UTC+8 as your reference timezone.","memory_id":"01KPWV8J2HHXB3GGZBK7WBNCQG"},{"t":12.0,"kind":"observe","role":"user","content":"Totally different topic — what's a good workflow for reviewing a long PR diff?","memory_id":"01KPWV8J2KSQ074CXAWWZ3J6BW"},{"t":12.0,"kind":"recall","query":"Totally different topic — what's a good workflow for reviewing a long PR diff?","hits":[{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":1,"score":2.9019015887416644,"breakdown":{"base_level":2.3861369315687786,"spreading":0.23058375688851138,"matching":0.5742366921589211,"noise":0.0,"total":3.190957380616211,"idx_priority":0.9299640294009041,"w_f":0.8757253221897727,"w_s":0.12427467781022727,"query_bias":1.5}},{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":2,"score":2.7509688067412736,"breakdown":{"base_level":2.386136176410189,"spreading":0.23058375688851138,"matching":0.42113603708798514,"noise":0.0,"total":3.0378559703866856,"idx_priority":0.9266365917484662,"w_f":0.8745393959568261,"w_s":0.12546060404317394,"query_bias":1.5}},{"memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM","rank":3,"score":2.704600074276578,"breakdown":{"base_level":2.0985307206060764,"spreading":0.23058375688851138,"matching":0.7859786806995892,"noise":0.0,"total":3.1150931581941768,"idx_priority":0.9104001612849262,"w_f":0.8687086675561052,"w_s":0.1312913324438948,"query_bias":1.5}},{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":4,"score":2.702090450314909,"breakdown":{"base_level":2.4892130371460865,"spreading":0.14874323626567504,"matching":0.30949195898930737,"noise":0.0,"total":2.947448232401069,"idx_priority":0.9333430211482302,"w_f":0.8769265163711714,"w_s":0.12307348362882864,"query_bias":1.5}},{"memory_id":"01KPWV8J2KSQ074CXAWWZ3J6BW","rank":5,"score":2.648742564419444,"breakdown":{"base_level":1.6931203811968323,"spreading":0.14874323626567504,"matching":1.4999998582398972,"noise":0.0,"total":3.3418634757024046,"idx_priority":0.8672032615172572,"w_f":0.8528322021169694,"w_s":0.14716779788303058,"query_bias":1.5}}]},{"t":14.0,"kind":"agent_response","role":"assistant","content":"I usually split it into logical commits, read each one top-down, and leave inline comments as I go."},{"t":14.0,"kind":"observe","role":"assistant","content":"I usually split it into logical commits, read each one top-down, and leave inline comments as I go.","memory_id":"01KPWV8J5KW5H1AFR6FP3WN72R"},{"t":16.0,"kind":"observe","role":"user","content":"Yeah, that helps. How about when the PR description is sparse?","memory_id":"01KPWV8J5P6TG6QM5BVYXBFQEQ"},{"t":16.0,"kind":"recall","query":"Yeah, that helps. How about when the PR description is sparse?","hits":[{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":1,"score":3.1255307426821606,"breakdown":{"base_level":2.6917514423538647,"spreading":0.002667306297458285,"matching":0.6358210512730006,"noise":0.0,"total":3.3302397999243234,"idx_priority":0.9448907348295948,"w_f":0.766934440897757,"w_s":0.23306555910224303,"query_bias":1.0}},{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":2,"score":3.0653776089080305,"breakdown":{"base_level":2.609275442022736,"spreading":0.028935240490640668,"matching":0.6526000745858169,"noise":0.0,"total":3.2908107570991936,"idx_priority":0.940435059439382,"w_f":0.7642610356636292,"w_s":0.23573896433637076,"query_bias":1.0}},{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":3,"score":2.9830665955963545,"breakdown":{"base_level":2.609275342316721,"spreading":0.06920093055721879,"matching":0.5283433431301243,"noise":0.0,"total":3.206819616004064,"idx_priority":0.9431749929626727,"w_f":0.7659049957776036,"w_s":0.23409500422239637,"query_bias":1.0}},{"memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM","rank":4,"score":2.884268112113528,"breakdown":{"base_level":2.386208122338668,"spreading":0.12743353946726574,"matching":0.662129693905543,"noise":0.0,"total":3.175771355711477,"idx_priority":0.9312600567087295,"w_f":0.7587560340252377,"w_s":0.24124396597476228,"query_bias":1.0}},{"memory_id":"01KPWV8HW9530MEQ12NB3TSENJ","rank":5,"score":2.722772073001705,"breakdown":{"base_level":2.098525190239176,"spreading":0.12743353946726574,"matching":0.9179174983942128,"noise":0.0,"total":3.1438762281006545,"idx_priority":0.9045232451010982,"w_f":0.742713947060659,"w_s":0.25728605293934104,"query_bias":1.0}}]},{"t":18.0,"kind":"agent_response","role":"assistant","content":"Push back — ask the author for a 3-bullet 'what / why / risks' summary before reviewing."},{"t":18.0,"kind":"observe","role":"assistant","content":"Push back — ask the author for a 3-bullet 'what / why / risks' summary before reviewing.","memory_id":"01KPWV8J63QYFAWYG4V2G3VJGC"},{"t":20.0,"kind":"observe","role":"user","content":"Cool. Can we circle back to the Q3 roadmap?","memory_id":"01KPWV8J653PVM0X31NWTDW0H0"},{"t":20.0,"kind":"recall","query":"Cool. Can we circle back to the Q3 roadmap?","hits":[{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":1,"score":3.2002249724991962,"breakdown":{"base_level":2.85857840643133,"spreading":-0.00143357372994235,"matching":0.5114043737635482,"noise":0.0,"total":3.368549206464936,"idx_priority":0.9529601694451519,"w_f":0.7717761016670912,"w_s":0.2282238983329088,"query_bias":1.0}},{"memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM","rank":2,"score":2.898188172506142,"breakdown":{"base_level":2.60934185593671,"spreading":0.055911519030327234,"matching":0.4580172546008996,"noise":0.0,"total":3.123270629567937,"idx_priority":0.9442409609364875,"w_f":0.7665445765618926,"w_s":0.23345542343810743,"query_bias":1.0}},{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":3,"score":2.7231704019197966,"breakdown":{"base_level":2.7915862633965842,"spreading":0.004547038030573415,"matching":0.10682263868032539,"noise":0.0,"total":2.902955940107483,"idx_priority":0.9521925716568911,"w_f":0.7713155429941347,"w_s":0.22868445700586526,"query_bias":1.0}},{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":4,"score":2.6836160623447958,"breakdown":{"base_level":2.7915855668508267,"spreading":-0.0029238757841688404,"matching":0.07541255552391775,"noise":0.0,"total":2.8640742465905755,"idx_priority":0.9498642887490182,"w_f":0.7699185732494109,"w_s":0.23008142675058907,"query_bias":1.0}},{"memory_id":"01KPWV8J653PVM0X31NWTDW0H0","rank":5,"score":2.4985657042859852,"breakdown":{"base_level":1.6931371822765953,"spreading":-0.00143357372994235,"matching":1.499999884635872,"noise":0.0,"total":3.191703493182525,"idx_priority":0.8672051963473154,"w_f":0.7203231178083893,"w_s":0.2796768821916107,"query_bias":1.0}}]},{"t":22.0,"kind":"agent_response","role":"assistant","content":"Sure, what's the biggest open question on it right now?"},{"t":22.0,"kind":"observe","role":"assistant","content":"Sure, what's the biggest open question on it right now?","memory_id":"01KPWV8J79CT8JKXX9FTENS6B7"},{"t":24.0,"kind":"observe","role":"user","content":"Set up a team lunch for tomorrow — find a slot that works for everyone.","memory_id":"01KPWV8J7BR5RG7SAP60WT82TZ"},{"t":24.0,"kind":"recall","query":"Set up a team lunch for tomorrow — find a slot that works for everyone.","hits":[{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":1,"score":3.5535538712125367,"breakdown":{"base_level":3.002300285545324,"spreading":-0.0014335737299423484,"matching":0.6983570827422938,"noise":0.0,"total":3.6992237945576756,"idx_priority":0.9589992638384349,"w_f":0.7753995583030608,"w_s":0.22460044169693916,"query_bias":1.0}},{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":2,"score":3.443087918911224,"breakdown":{"base_level":2.945730627671206,"spreading":0.01679858194945312,"matching":0.6363168388566718,"noise":0.0,"total":3.5988460484773306,"idx_priority":0.9567162937104564,"w_f":0.7740297762262738,"w_s":0.22597022377372622,"query_bias":1.0}},{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":3,"score":3.429093777319099,"breakdown":{"base_level":2.945730346055144,"spreading":0.03221364993217895,"matching":0.6061820440538546,"noise":0.0,"total":3.584126040041177,"idx_priority":0.9587401555133087,"w_f":0.7752440933079852,"w_s":0.22475590669201484,"query_bias":1.0}},{"memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM","rank":4,"score":3.3231259920886247,"breakdown":{"base_level":2.7916558148783164,"spreading":0.029678480858664043,"matching":0.6850293734653035,"noise":0.0,"total":3.506363669202284,"idx_priority":0.9530979285577325,"w_f":0.7718587571346394,"w_s":0.22814124286536064,"query_bias":1.0}},{"memory_id":"01KPWV8HW9530MEQ12NB3TSENJ","rank":5,"score":3.1731380164715017,"breakdown":{"base_level":2.3861897060410597,"spreading":0.02584433146100924,"matching":1.0624324327707821,"noise":0.0,"total":3.474466470272851,"idx_priority":0.9266402306748974,"w_f":0.7559841384049384,"w_s":0.2440158615950616,"query_bias":1.0}}]},{"t":26.0,"kind":"agent_response","role":"assistant","content":"I'll aim for a morning-friendly slot (noon local Taipei time, UTC+8) and line up a restaurant with good vegan options. Sending the invite now."},{"t":26.0,"kind":"observe","role":"assistant","content":"I'll aim for a morning-friendly slot (noon local Taipei time, UTC+8) and line up a restaurant with good vegan options. Sending the invite now.","memory_id":"01KPWV8J82M8X6EHTMX82SJB1Y"},{"t":28.0,"kind":"observe","role":"user","content":"Perfect. Send the invite.","memory_id":"01KPWV8J8475503PRWD4SQ0802"},{"t":28.0,"kind":"recall","query":"Perfect. Send the invite.","hits":[{"memory_id":"01KPWV8HKNJB1VW5G0FQ8XHKWR","rank":1,"score":3.240443627829439,"breakdown":{"base_level":3.079257889101591,"spreading":0.01679858194945312,"matching":0.2770228573782295,"noise":0.0,"total":3.3730793284292737,"idx_priority":0.961920579184308,"w_f":0.7771523475105848,"w_s":0.22284765248941518,"query_bias":1.0}},{"memory_id":"01KPWV8G8X7AG859VRS3BSJ5NS","rank":2,"score":3.1844478048109357,"breakdown":{"base_level":3.1281151765378654,"spreading":-0.0014335737299423484,"matching":0.18300041528959116,"noise":0.0,"total":3.309682018097514,"idx_priority":0.9636703539654004,"w_f":0.7782022123792403,"w_s":0.22179778762075975,"query_bias":1.0}},{"memory_id":"01KPWV8HWB77SVXGXJJ3QRT7WM","rank":3,"score":3.110454768812752,"breakdown":{"base_level":2.9458027837082734,"spreading":0.05734509276026958,"matching":0.26041493390330417,"noise":0.0,"total":3.2635628103718473,"idx_priority":0.9595268995775956,"w_f":0.7757161397465573,"w_s":0.2242838602534427,"query_bias":1.0}},{"memory_id":"01KPWV8HKPKJYR49DRF5F271J0","rank":4,"score":3.0932501978525333,"breakdown":{"base_level":3.0792571211873856,"spreading":0.03221364993217895,"matching":0.11377843509461322,"noise":0.0,"total":3.2252492062141775,"idx_priority":0.96371031206086,"w_f":0.7782261872365159,"w_s":0.22177381276348407,"query_bias":1.0}},{"memory_id":"01KPWV8HW9530MEQ12NB3TSENJ","rank":5,"score":2.896940621464686,"breakdown":{"base_level":2.6093294458170293,"spreading":0.045566789194631196,"matching":0.4642314171396834,"noise":0.0,"total":3.1191276521513442,"idx_priority":0.940438084495729,"w_f":0.7642628506974374,"w_s":0.23573714930256262,"query_bias":1.0}}]},{"t":30.0,"kind":"agent_response","role":"assistant","content":"Invite out."},{"t":30.0,"kind":"observe","role":"assistant","content":"Invite out.","memory_id":"01KPWV8J8GSK9HZ7SVED1QG0Z5"}]}</script>
+<script>
+(function() {
+  const el = document.getElementById('trace-data');
+  const trace = JSON.parse(el.textContent);
+  const events = trace.events;
+  const total_t = events.length ? events[events.length - 1].t + 1 : 1;
+
+  const chatPane = document.getElementById('chat');
+  const memPane = document.getElementById('memory');
+  const progBar = document.getElementById('progress-bar');
+  const progLabel = document.getElementById('progress-label');
+  const btnPlay = document.getElementById('play');
+  const btnRestart = document.getElementById('restart');
+  const speedButtons = [...document.querySelectorAll('[data-speed]')];
+
+  let playing = false;
+  let speed = 1;
+  let nextIdx = 0;
+  let simulatedTime = 0;
+  let lastWall = 0;
+  let rafId = null;
+  const memoryIds = new Set();
+
+  function reset() {
+    nextIdx = 0;
+    simulatedTime = 0;
+    chatPane.innerHTML = '';
+    memPane.innerHTML = '';
+    memoryIds.clear();
+    progBar.style.width = '0%';
+    progLabel.textContent = `0.0s / ${total_t.toFixed(1)}s`;
+  }
+
+  function renderMemoryRow(ev) {
+    if (memoryIds.has(ev.memory_id)) return;
+    memoryIds.add(ev.memory_id);
+    const row = document.createElement('div');
+    row.className = 'memory-row';
+    row.dataset.memoryId = ev.memory_id;
+    row.innerHTML = `
+      <div class="memory-role">${ev.role || 'memory'}</div>
+      <div class="memory-text"></div>
+    `;
+    row.querySelector('.memory-text').textContent = ev.content || '';
+    memPane.appendChild(row);
+    requestAnimationFrame(() => row.classList.add('visible'));
+  }
+
+  function renderChatRow(role, content) {
+    const row = document.createElement('div');
+    row.className = 'chat-row';
+    row.innerHTML = `
+      <div class="chat-role ${role}">${role}</div>
+      <div class="chat-bubble"></div>
+    `;
+    row.querySelector('.chat-bubble').textContent = content;
+    chatPane.appendChild(row);
+    requestAnimationFrame(() => row.classList.add('visible'));
+    chatPane.scrollTop = chatPane.scrollHeight;
+  }
+
+  function renderRecall(ev) {
+    const top = ev.hits && ev.hits.length ? ev.hits[0] : null;
+    const panel = document.createElement('div');
+    panel.className = 'recall-panel';
+    let breakdownHtml = '';
+    if (top && top.breakdown) {
+      const b = top.breakdown;
+      // Keys from ActivationBreakdown.to_dict(): base_level, spreading,
+      // matching, noise, total, idx_priority, w_f, w_s, query_bias.
+      const base = Math.max(0, b.base_level || 0);
+      const spread = Math.max(0, b.spreading || 0);
+      const match = Math.max(0, b.matching || 0);
+      const noise = Math.abs(b.noise || 0);
+      const sum = base + spread + match + noise || 1;
+      const pct = (x) => (100 * x / sum).toFixed(1);
+      breakdownHtml = `
+        <div class="breakdown">
+          <div class="breakdown-seg" style="width:${pct(base)}%;background:var(--breakdown-base)"></div>
+          <div class="breakdown-seg" style="width:${pct(spread)}%;background:var(--breakdown-spread)"></div>
+          <div class="breakdown-seg" style="width:${pct(match)}%;background:var(--breakdown-match)"></div>
+          <div class="breakdown-seg" style="width:${pct(noise)}%;background:var(--breakdown-noise)"></div>
+        </div>
+        <div class="breakdown-legend">
+          <span><span class="swatch" style="background:var(--breakdown-base)"></span>B_i ${base.toFixed(2)}</span>
+          <span><span class="swatch" style="background:var(--breakdown-spread)"></span>spread ${spread.toFixed(2)}</span>
+          <span><span class="swatch" style="background:var(--breakdown-match)"></span>match ${match.toFixed(2)}</span>
+          <span><span class="swatch" style="background:var(--breakdown-noise)"></span>noise ${noise.toFixed(2)}</span>
+        </div>
+      `;
+    }
+    const hitsHtml = (ev.hits || []).slice(0, 3).map(h => {
+      const s = (h.score == null) ? '-' : Number(h.score).toFixed(3);
+      return `<div class="hit"><span class="hit-rank">#${h.rank}</span><span class="hit-score">A=${s}</span></div>`;
+    }).join('');
+    panel.innerHTML = `
+      <div class="label">recall</div>
+      <div class="query"></div>
+      ${hitsHtml}
+      ${breakdownHtml}
+    `;
+    panel.querySelector('.query').textContent = ev.query || '';
+    chatPane.appendChild(panel);
+    requestAnimationFrame(() => panel.classList.add('visible'));
+
+    // Highlight the recalled memories in the right pane briefly.
+    (ev.hits || []).forEach(h => {
+      const m = memPane.querySelector(`[data-memory-id="${h.memory_id}"]`);
+      if (m) {
+        m.classList.add('recalled');
+        setTimeout(() => m.classList.remove('recalled'), 2400 / speed);
+      }
+    });
+    chatPane.scrollTop = chatPane.scrollHeight;
+  }
+
+  function processEvent(ev) {
+    if (ev.kind === 'observe') {
+      // Observe populates the memory list (right). Chat transcript
+      // is driven by agent_response events + user observe.
+      if (ev.role === 'user') {
+        renderChatRow('user', ev.content || '');
+      }
+      renderMemoryRow(ev);
+    } else if (ev.kind === 'agent_response') {
+      renderChatRow('assistant', ev.content || '');
+    } else if (ev.kind === 'recall') {
+      renderRecall(ev);
+    }
+  }
+
+  function tick(wallNow) {
+    if (!playing) { rafId = null; return; }
+    const dt = (wallNow - lastWall) / 1000;
+    lastWall = wallNow;
+    simulatedTime += dt * speed;
+
+    while (nextIdx < events.length && events[nextIdx].t <= simulatedTime) {
+      processEvent(events[nextIdx]);
+      nextIdx += 1;
+    }
+
+    const ratio = Math.min(1, simulatedTime / total_t);
+    progBar.style.width = (ratio * 100).toFixed(2) + '%';
+    progLabel.textContent = `${simulatedTime.toFixed(1)}s / ${total_t.toFixed(1)}s`;
+
+    if (nextIdx >= events.length && simulatedTime >= total_t) {
+      playing = false;
+      btnPlay.textContent = 'Replay';
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (nextIdx >= events.length) reset();
+    playing = true;
+    btnPlay.textContent = 'Pause';
+    lastWall = performance.now();
+    rafId = requestAnimationFrame(tick);
+  }
+  function pause() {
+    playing = false;
+    btnPlay.textContent = 'Play';
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  btnPlay.addEventListener('click', () => playing ? pause() : start());
+  btnRestart.addEventListener('click', () => { pause(); reset(); start(); });
+  speedButtons.forEach(b => {
+    b.addEventListener('click', () => {
+      speed = parseFloat(b.dataset.speed);
+      speedButtons.forEach(x => x.classList.toggle('active', x === b));
+    });
+  });
+  // Default speed button "1x" active.
+  const def = speedButtons.find(b => b.dataset.speed === '1');
+  if (def) def.classList.add('active');
+
+  // Auto-start after a tiny delay so the layout settles.
+  reset();
+  setTimeout(start, 150);
+})();
+</script>
+</body>
+</html>

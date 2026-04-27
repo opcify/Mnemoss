@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from mnemoss.core.config import FormulaParams
+from mnemoss.core.config import FormulaParams, TierCapacityParams
 from mnemoss.core.types import Memory
 from mnemoss.dream.cluster import ClusterAssignment, cluster_embeddings, group_by_cluster
 from mnemoss.dream.consolidate import (
@@ -101,6 +101,7 @@ class DreamRunner:
         store: SQLiteBackend,
         params: FormulaParams,
         *,
+        tier_capacity: TierCapacityParams | None = None,
         llm: LLMClient | None = None,
         embedder: Embedder | None = None,
         replay_limit: int = 100,
@@ -111,6 +112,7 @@ class DreamRunner:
     ) -> None:
         self._store = store
         self._params = params
+        self._tier_capacity = tier_capacity if tier_capacity is not None else TierCapacityParams()
         self._llm = llm
         self._embedder = embedder
         self._replay_limit = replay_limit
@@ -404,7 +406,9 @@ class DreamRunner:
     # ─── P7 Rebalance ──────────────────────────────────────────────
 
     async def _phase_rebalance(self, now: datetime) -> PhaseOutcome:
-        stats = await _rebalance(self._store, self._params, now=now)
+        stats = await _rebalance(
+            self._store, self._params, self._tier_capacity, now=now
+        )
         return PhaseOutcome(
             phase=PhaseName.REBALANCE,
             status="ok",

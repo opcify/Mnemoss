@@ -1,0 +1,225 @@
+{
+  "chart": "multi_step_supersession",
+  "embedder": "openai",
+  "distractors": 300,
+  "gap_seconds": 60.0,
+  "k": 10,
+  "timestamp": "2026-04-24T17:19:56.793946+00:00",
+  "results": [
+    {
+      "n_sequences": 20,
+      "max_versions": 4,
+      "latest_at_1": 4,
+      "any_older_at_1": 11,
+      "latest_in_topk": 17,
+      "rate_latest_at_1": 0.2,
+      "rate_any_older_at_1": 0.55,
+      "rate_latest_in_topk": 0.85,
+      "mean_latest_rank": 2.2941176470588234,
+      "per_category": {
+        "career": {
+          "n": 4,
+          "latest_at_1": 1
+        },
+        "relationship": {
+          "n": 3,
+          "latest_at_1": 0
+        },
+        "address": {
+          "n": 3,
+          "latest_at_1": 0
+        },
+        "preference": {
+          "n": 4,
+          "latest_at_1": 1
+        },
+        "project": {
+          "n": 3,
+          "latest_at_1": 1
+        },
+        "health": {
+          "n": 2,
+          "latest_at_1": 1
+        },
+        "possession": {
+          "n": 1,
+          "latest_at_1": 0
+        }
+      },
+      "arm": "raw_stack",
+      "embedder": "openai"
+    },
+    {
+      "n_sequences": 20,
+      "max_versions": 4,
+      "latest_at_1": 6,
+      "any_older_at_1": 1,
+      "latest_in_topk": 19,
+      "rate_latest_at_1": 0.3,
+      "rate_any_older_at_1": 0.05,
+      "rate_latest_in_topk": 0.95,
+      "mean_latest_rank": 1.631578947368421,
+      "per_category": {
+        "career": {
+          "n": 4,
+          "latest_at_1": 0
+        },
+        "relationship": {
+          "n": 3,
+          "latest_at_1": 3
+        },
+        "address": {
+          "n": 3,
+          "latest_at_1": 0
+        },
+        "preference": {
+          "n": 4,
+          "latest_at_1": 0
+        },
+        "project": {
+          "n": 3,
+          "latest_at_1": 2
+        },
+        "health": {
+          "n": 2,
+          "latest_at_1": 1
+        },
+        "possession": {
+          "n": 1,
+          "latest_at_1": 0
+        }
+      },
+      "arm": "mnemoss_default",
+      "embedder": "openai"
+    },
+    {
+      "n_sequences": 20,
+      "max_versions": 4,
+      "latest_at_1": 7,
+      "any_older_at_1": 0,
+      "latest_in_topk": 19,
+      "rate_latest_at_1": 0.35,
+      "rate_any_older_at_1": 0.0,
+      "rate_latest_in_topk": 0.95,
+      "mean_latest_rank": 1.1578947368421053,
+      "per_category": {
+        "career": {
+          "n": 4,
+          "latest_at_1": 0
+        },
+        "relationship": {
+          "n": 3,
+          "latest_at_1": 3
+        },
+        "address": {
+          "n": 3,
+          "latest_at_1": 0
+        },
+        "preference": {
+          "n": 4,
+          "latest_at_1": 0
+        },
+        "project": {
+          "n": 3,
+          "latest_at_1": 2
+        },
+        "health": {
+          "n": 2,
+          "latest_at_1": 1
+        },
+        "possession": {
+          "n": 1,
+          "latest_at_1": 1
+        }
+      },
+      "arm": "mnemoss_decay",
+      "embedder": "openai"
+    },
+    {
+      "n_sequences": 20,
+      "max_versions": 4,
+      "latest_at_1": 7,
+      "any_older_at_1": 1,
+      "latest_in_topk": 19,
+      "rate_latest_at_1": 0.35,
+      "rate_any_older_at_1": 0.05,
+      "rate_latest_in_topk": 0.95,
+      "mean_latest_rank": 1.5789473684210527,
+      "per_category": {
+        "career": {
+          "n": 4,
+          "latest_at_1": 1
+        },
+        "relationship": {
+          "n": 3,
+          "latest_at_1": 3
+        },
+        "address": {
+          "n": 3,
+          "latest_at_1": 0
+        },
+        "preference": {
+          "n": 4,
+          "latest_at_1": 0
+        },
+        "project": {
+          "n": 3,
+          "latest_at_1": 2
+        },
+        "health": {
+          "n": 2,
+          "latest_at_1": 1
+        },
+        "possession": {
+          "n": 1,
+          "latest_at_1": 0
+        }
+      },
+      "arm": "mnemoss_supersede",
+      "embedder": "openai"
+    },
+    {
+      "n_sequences": 20,
+      "max_versions": 4,
+      "latest_at_1": 6,
+      "any_older_at_1": 1,
+      "latest_in_topk": 20,
+      "rate_latest_at_1": 0.3,
+      "rate_any_older_at_1": 0.05,
+      "rate_latest_in_topk": 1.0,
+      "mean_latest_rank": 1.6,
+      "per_category": {
+        "career": {
+          "n": 4,
+          "latest_at_1": 1
+        },
+        "relationship": {
+          "n": 3,
+          "latest_at_1": 2
+        },
+        "address": {
+          "n": 3,
+          "latest_at_1": 0
+        },
+        "preference": {
+          "n": 4,
+          "latest_at_1": 0
+        },
+        "project": {
+          "n": 3,
+          "latest_at_1": 2
+        },
+        "health": {
+          "n": 2,
+          "latest_at_1": 1
+        },
+        "possession": {
+          "n": 1,
+          "latest_at_1": 0
+        }
+      },
+      "arm": "mnemoss_supersede_aggressive",
+      "embedder": "openai"
+    }
+  ]
+}

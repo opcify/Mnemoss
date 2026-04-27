@@ -1,0 +1,81 @@
+# Unit + integration-style (no-network) test run for every PR and push.
+# Matrix over Python 3.10 / 3.11 / 3.12 — matches the project classifiers
+# in pyproject.toml. Zero external API calls, zero secrets.
+#
+# Integration tests that download the multilingual sentence-transformer
+# (~470MB) are gated behind `-m "integration"` and intentionally skipped
+# here; they run locally on demand, not on every PR.
+
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  # Cancel superseded runs on the same PR / branch to save cycles.
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff + format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install lint tooling
+        run: pip install "ruff>=0.1"
+
+      # ruff check runs on the full tree — the project is ruff-clean
+      # repo-wide.
+      - name: ruff check (all)
+        run: ruff check src tests bench demo docs
+
+      # ruff format --check is narrowed to the launch-work tree for now.
+      # Pre-existing `src/mnemoss/` and earlier test files have historical
+      # format drift we don't want to bundle into the launch PR; a
+      # separate formatting-only PR can widen this check later.
+      - name: ruff format --check (launch scope)
+        run: |
+          ruff format --check \
+            bench/backends/ bench/data/ bench/launch_comparison.py bench/plots.py \
+            demo/ docs/__init__.py docs/figures.py \
+            tests/test_bench_backends_mnemoss.py \
+            tests/test_bench_backends_static_file.py \
+            tests/test_bench_launch_comparison.py \
+            tests/test_bench_locomo_ingest.py \
+            tests/test_bench_plots.py \
+            tests/test_docs_figures.py \
+            tests/test_demo_simulate.py \
+            tests/test_demo_render_trace.py
+
+  pytest:
+    name: pytest (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install package with dev extras
+        # Editable install so mnemoss + bench/ + demo/ + docs/ all
+        # resolve against the working tree, not a snapshot.
+        run: pip install -e ".[dev,openai,gemini]"
+
+      - name: Run tests (skip integration — model downloads excluded from CI)
+        run: pytest -m "not integration" -q --color=yes

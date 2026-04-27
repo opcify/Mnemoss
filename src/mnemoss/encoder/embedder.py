@@ -36,6 +36,14 @@ class Embedder(Protocol):
 
     Implementations must return ``float32`` ndarrays. ``embedder_id`` is
     pinned into the workspace schema so mixed-embedder reads raise.
+
+    ``embed_query`` is optional — retrieval-trained dual-encoder models
+    (Nomic v2 MoE, BGE, E5, etc.) use asymmetric prompts on the query
+    side vs the document side. When present, the recall path calls
+    ``embed_query`` for user queries; ``embed`` stays the canonical
+    method for document / memory content. Embedders without asymmetric
+    prompts may omit ``embed_query`` entirely — callers fall back to
+    ``embed`` (see ``embed_query_or_embed``).
     """
 
     dim: int
@@ -44,11 +52,40 @@ class Embedder(Protocol):
     def embed(self, texts: list[str]) -> np.ndarray: ...
 
 
+def embed_query_or_embed(embedder: Any, texts: list[str]) -> np.ndarray:
+    """Call ``embed_query`` if the embedder exposes it, else ``embed``.
+
+    Single point of indirection for the asymmetric-prompt case. Keeps
+    call sites in ``recall/engine.py`` and bench backends terse.
+    """
+
+    fn = getattr(embedder, "embed_query", None)
+    if callable(fn):
+        return fn(texts)  # type: ignore[no-any-return]
+    return embedder.embed(texts)  # type: ignore[no-any-return]
+
+
 class LocalEmbedder:
     """sentence-transformers embedder. Lazy model load on first ``embed``."""
 
-    def __init__(self, model_name: str = DEFAULT_LOCAL_MODEL) -> None:
+    def __init__(
+        self,
+        model_name: str = DEFAULT_LOCAL_MODEL,
+        *,
+        trust_remote_code: bool = False,
+        text_prefix: str = "",
+        query_prefix: str | None = None,
+    ) -> None:
         self._model_name = model_name
+        self._trust_remote_code = trust_remote_code
+        self._text_prefix = text_prefix
+        # Dual-encoder retrieval models (Nomic v2 MoE, BGE, E5, ...)
+        # expect asymmetric prefixes — e.g. "search_query: " on queries,
+        # "search_document: " on documents. When ``query_prefix`` is
+        # None, we fall back to ``text_prefix`` for queries too (safe
+        # default for symmetric models like MiniLM). The recall path
+        # uses ``embed_query`` which respects this split.
+        self._query_prefix = query_prefix if query_prefix is not None else text_prefix
         # Kept untyped to avoid an import-time dependency on
         # sentence_transformers (which is heavy). Resolved to a real
         # SentenceTransformer instance inside ``_ensure_model``.
@@ -59,25 +96,62 @@ class LocalEmbedder:
             self.dim = DEFAULT_LOCAL_DIM
         else:
             self.dim = -1  # resolved at first embed
-        self.embedder_id = f"local:{model_name}"
+        # Include prefixes in embedder_id so a workspace opened with
+        # one prefix config can't be reopened with a different one
+        # (silent vector-space drift would tank recall).
+        prefix_tag = ""
+        if text_prefix or self._query_prefix != text_prefix:
+            prefix_tag = (
+                f":doc={text_prefix}:qry={self._query_prefix}"
+                if self._query_prefix != text_prefix
+                else f":prefix={text_prefix}"
+            )
+        self.embedder_id = f"local:{model_name}{prefix_tag}"
 
     def _ensure_model(self) -> None:
         if self._model is not None:
             return
         from sentence_transformers import SentenceTransformer
 
-        model = SentenceTransformer(self._model_name)
+        kwargs: dict[str, Any] = {}
+        if self._trust_remote_code:
+            kwargs["trust_remote_code"] = True
+        model = SentenceTransformer(self._model_name, **kwargs)
         self._model = model
         if self.dim < 0:
             self.dim = int(model.get_sentence_embedding_dimension() or 0)
 
-    def embed(self, texts: list[str]) -> np.ndarray:
+    def _encode_with_prefix(self, texts: list[str], prefix: str) -> np.ndarray:
         if not texts:
             return np.zeros((0, self.dim), dtype=np.float32)
         self._ensure_model()
         assert self._model is not None
-        vectors = self._model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
+        encoded_texts = [f"{prefix}{t}" for t in texts] if prefix else texts
+        vectors = self._model.encode(
+            encoded_texts, convert_to_numpy=True, normalize_embeddings=True
+        )
         return np.asarray(vectors, dtype=np.float32)
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        """Document-side embedding. Uses ``text_prefix`` (if set).
+
+        Called at observe time (memory content), Dream P3 consolidate,
+        and every other document-side path.
+        """
+
+        return self._encode_with_prefix(texts, self._text_prefix)
+
+    def embed_query(self, texts: list[str]) -> np.ndarray:
+        """Query-side embedding. Uses ``query_prefix`` (if set).
+
+        For symmetric embedders (MiniLM default), ``query_prefix ==
+        text_prefix`` so this returns the same vectors as ``embed``.
+        For asymmetric models (Nomic v2 MoE, BGE-M3, E5), the two
+        sides are trained with different prefixes and cosine similarity
+        is only well-defined when each side uses the matching prefix.
+        """
+
+        return self._encode_with_prefix(texts, self._query_prefix)
 
 
 class OpenAIEmbedder:

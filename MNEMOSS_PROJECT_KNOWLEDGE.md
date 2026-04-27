@@ -79,7 +79,7 @@ Every design decision in Mnemoss maps to a published cognitive theory:
 
 ## 3. Core Design Principles (Non-Negotiable)
 
-These eight principles govern every decision. If a proposed change violates one, 
+These nine principles govern every decision. If a proposed change violates one, 
 reject it or revise the principles explicitly.
 
 **Principle 1: Formula drives everything.** 
@@ -117,6 +117,30 @@ Four index tiers (HOT/WARM/COLD/DEEP) with latency gradient from <10ms to
 A memory is dropped only when `max_A_i < τ - δ` — meaning it cannot be 
 retrieved even under the most favorable conditions. Plus geometric methods 
 (clustering, cosine coverage) for redundancy. Zero LLM decisions.
+
+**Principle 9: `idx_priority` is for ranking, not search.**
+`idx_priority` is the ACT-R activation formula compressed into a single
+scalar — a memory's intrinsic *importance* / *lifecycle classification*.
+It drives **tier membership** (HOT/WARM/COLD/DEEP), **disposal**,
+**export filtering**, and **rebalance ordering**. It is **not** a
+relevance signal for "does this memory answer the query I'm asking
+right now?" — that's what cosine similarity is for. The two axes are
+orthogonal: a memory can be high-priority (recently active, pinned)
+but irrelevant to the current query, or low-priority (dormant, old)
+but the only correct answer.
+
+The default recall path (`use_tier_cascade_recall=True`) reads the
+tier classification (which idx_priority drove at the last Rebalance)
+to decide *which subset* to scan first, then ranks **purely by
+cosine** within each tier. Mixing idx_priority into the per-candidate
+score at recall time creates the failure modes documented in §17:
+high-cosine-low-priority gold answers get filtered out by the activation
+gate, and the system underperforms raw cosine baselines on aged corpora.
+
+The cognitive analog: working memory's "this is currently primed" is
+separate from "this answers the question I'm asking." Humans don't
+filter retrieval by intrinsic importance — they retrieve by relevance,
+and importance only governs *what stays primed* between retrievals.
 
 ---
 
@@ -932,10 +956,342 @@ These are known unknowns. Document answers here as they're settled.
 - **Homepage:** https://github.com/opcify/mnemoss
 - **Repository:** https://github.com/opcify/mnemoss
 - **PyPI package:** `mnemoss`
-- **Current version:** 0.1.0 (Alpha — MVP feature-complete across Stages 1–6)
+- **Current version:** 0.0.1 (First formal alpha — capacity-based tiers + tier-cascade-pure-cosine recall + supersede-on-observe by default; beats raw_stack on recall and latency on realistic aged corpora)
 - **Maintainer:** Guangyang Qi ([@opcify](https://github.com/opcify))
 - **Started:** 2026
 - **Built on top of:** Opcify's internal memory needs + broader agent ecosystem
+
+---
+
+## 17. Q&A — Implementation Verification
+
+Concrete answers to common questions about how the documented architecture
+maps to actual code. Each answer is sourced from a code audit; line numbers
+are stable as of the post-MVP production-readiness pass. Treat them as a
+shortcut, not a source of truth — the code itself wins if a citation rots.
+
+### Architecture update — April 2026
+
+Five default changes shipped together based on empirical findings from
+`bench/bench_tier_lifecycle.py`, `bench/bench_rebalance_lift.py`,
+`bench/bench_tier_oracle.py`, and `bench/bench_multi_step.py`:
+
+1. **Capacity-based tier bucketing** (replaces threshold-based).
+   `Rebalance` ranks memories by ``idx_priority`` and fills HOT
+   (200 cap), WARM (2000), COLD (20000), DEEP (rest) top-down.
+   The original `idx_priority > 0.7 → HOT` threshold rule
+   degenerated under any aged corpus — 99%+ of memories collapsed
+   into DEEP and the cascade became useless. Capacity caps are
+   structurally bounded and self-calibrate to any corpus age.
+   Cognitively grounded: working memory is hard-capped (Miller
+   1956, Cowan 2001), not threshold-gated.
+
+2. **Tier-cascade-pure-cosine** is the new default recall path
+   (`use_tier_cascade_recall=True`). Recall reads tier classifications
+   that Dream/Rebalance computed off the read path; ranking within a
+   tier is pure cosine. No per-candidate ``B_i``, no spreading
+   activation, no matching ``idx_priority`` gate, no ``τ`` floor at
+   recall. The legacy ACT-R recall remains opt-in via
+   ``use_tier_cascade_recall=False``.
+
+3. **Cascade short-circuit disabled** (`cascade_min_cosine=0.99`).
+   Real-world cosines rarely reach 0.99, so the cascade exhausts every
+   populated tier on each query. The earlier 0.5 default caused a 4.7pp
+   recall regression because realistic Rebalance can't reliably put
+   every gold answer in HOT. With short-circuit off, recall matches
+   raw_stack while latency stays 2× faster.
+
+4. **Reconsolidation gated on cosine** (`reconsolidate_min_cosine=0.7`).
+   Only memories whose query-time cosine clears the threshold get
+   ``access_history`` bumps. Reduces "popular distractor" promotion
+   in Rebalance — at threshold 0.7 the test-phase recall lifts from
+   0.3737 (ungated) to 0.3882 (+1.45pp), at +7ms p50 cost.
+
+5. **`supersede_on_observe=True`** is the new default (was opt-in).
+   At the 0.85 cosine threshold, the mechanism filters near-duplicate
+   memories from recall. Empirically: combined with the four other
+   changes above, this is the first config under which mnemoss
+   *cleanly beats raw_stack* on a realistic aged corpus —
+   recall@10 = 0.4622 vs raw_stack 0.4205 (+4.17pp) on N=20K MiniLM.
+
+Empirical headline (N=20K LoCoMo + 600 chain memories, MiniLM,
+all five defaults shipped, `bench_multi_step` with rebalance after
+each phase):
+
+| Configuration | recall@10 | p50 latency |
+|---|---:|---:|
+| **mnemoss (all five defaults)** | **0.4622** | ~25 ms |
+| raw_stack baseline | 0.4205 | 54 ms |
+| Oracle ceiling (gold in HOT) | 0.7122 | 18 ms |
+
+mnemoss now beats raw_stack on **both axes** simultaneously:
+**+4.17pp recall, 2× faster latency**. The 25pp gap to the oracle
+ceiling is the headroom available with better classification signal
+(selective reconsolidation API, query-aware classification — both
+on the post-MVP roadmap).
+
+After Rebalance, mnemoss is **3.3× faster than raw_stack at recall**
+because the cascade short-circuits at HOT (200 memories) for most
+queries. The 4.7pp recall trade comes from "popular distractors"
+getting promoted into HOT alongside genuine gold answers — a
+reconsolidation-discipline issue, not an architectural one.
+
+What this trades away: fresh-ingest supersession (the
+``bench_multi_step`` win) **collapses to raw_stack-level** under
+pure-cosine recall, and **Rebalance does not recover it**. We
+verified this with a follow-up run of `bench_multi_step` that
+explicitly calls `mem.rebalance()` between observing all chain
+versions and scoring the queries. Both axes of the bench (latest@1,
+older@1) match the no-rebalance numbers exactly across all five
+arms. Two compounding reasons:
+
+1. **Tier differentiation is too coarse for fresh chains.** With
+   `d_storage=0.5` and 60s observe gaps, the latest version's
+   ``idx_priority`` is only ~0.045 above older versions. With
+   capacity caps 200/2000/20000 and ~900 total memories in the
+   bench, all chain versions land in the same tier most of the
+   time — Rebalance can't separate them.
+
+2. **Within-tier ranking is pure cosine.** Even when the latest
+   version is the highest-priority entry in HOT, generic queries
+   like "where do you work now?" produce similar cosines for all
+   chain versions (and for some unrelated distractors). The ACT-R
+   recall path's per-candidate ``B_i`` term acted as a recency
+   tiebreak; tier-cascade-pure-cosine doesn't have it.
+
+So the win actually came from the per-candidate `B_i` math at
+recall, not from the tier classification. Tier cascade at recall
+is the right read-side architecture for warm-cache historical
+recall, but not for fresh-ingest within-session supersession.
+
+Supersession instead has to be handled by orthogonal mechanisms
+that don't depend on read-time activation math:
+
+- ``supersede_on_observe`` — immediate within-session, fires when
+  cosine to an existing memory exceeds the threshold (default 0.85).
+  Filters the old fact's `superseded_by` at SQL level so recall
+  never sees it. Works regardless of Dream cadence or recall path.
+- Disposal — old facts below the activation floor get tombstoned
+  by Dream. Slow, depends on Dream cadence; bulk hygiene rather
+  than session-level supersession.
+- Legacy ACT-R recall path — set `use_tier_cascade_recall=False`
+  to opt back into per-candidate `B_i` scoring. Trades the 3.3×
+  latency win for the supersession win. Right call for workloads
+  where within-session contradictions matter more than warm-cache
+  speed.
+
+Where the trade points the architecture: optimize for **the
+warm-cache regime** (long-running agent with regular Dream cadence
+and accumulated history). The fresh-ingest within-session
+supersession case is a known weakness of the read path; either run
+Dream more aggressively, rely on `supersede_on_observe`, or accept
+that the latest version of a chain may not always rank first until
+the next Rebalance.
+
+### Q1. How is `idx_priority` created and updated through a memory's lifecycle?
+
+**Created** during ingest in `src/mnemoss/encoder/event_encoder.py:45-46`. The
+initial value is `sigmoid(η_0)` ≈ 0.731 (with default `η_0 = 1.0`), computed
+by `initial_idx_priority()` at `src/mnemoss/formula/idx_priority.py:65-73`.
+The schema column has a fallback default of 0.5
+(`src/mnemoss/store/schema.py:50`) but the observe-path always overrides it.
+
+**Read by the recall path** depends on which mode is active:
+
+- **Tier-cascade-pure-cosine** (default, `use_tier_cascade_recall=True`):
+  `idx_priority` is **not** read at recall. Tier membership (computed
+  from idx_priority by Rebalance) drives cascade scan order; ranking
+  within a tier is pure cosine.
+- **Fast-index** (`use_fast_index_recall=True`): the cached value is
+  combined with cosine — `score = sem_w·cos + pri_w·idx_priority`.
+- **Legacy ACT-R** (both flags False): live-recomputed at recall via
+  `compute_idx_priority(B_i, ...)` and used to gate matching weights.
+
+Other readers (all modes): export filter
+(`src/mnemoss/export/markdown.py:59`), store queries
+(`src/mnemoss/store/_memory_ops.py:280-281`).
+
+**Updated** only by the **Rebalance** dream phase
+(`src/mnemoss/index/rebalance.py:103-160`) — now a two-stage rank-
+and-bucket pass:
+
+1. Recompute each memory's value from `B_i + α·salience + β·emotional + γ·pinned`
+   (using `d_storage` for aggressive decay).
+2. Sort all memories by `idx_priority` desc; pinned go to HOT first;
+   fill HOT/WARM/COLD top-down by capacity caps from
+   `TierCapacityParams`. Whatever doesn't fit goes to DEEP.
+
+Triggered by nightly dream, manual `mem.rebalance()`, or
+`dream(trigger="nightly")`. **Not updated on every recall** — it's
+a cached snapshot until the next rebalance. Reminiscence
+(DEEP→WARM on hit) is the only mid-recall write, and it bumps the
+single hit memory to a soft-WARM-cap state without re-bucketing
+the whole index.
+
+**One exception**: when recall hits a DEEP memory, that single memory gets
+bumped to WARM in-place (`src/mnemoss/recall/engine.py:291-298`) — the
+"reminiscence" path — without waiting for rebalance.
+
+### Q2. How is the HOT / WARM / COLD / DEEP memory amount managed?
+
+**Capacity-bounded, ranked at Rebalance.** Defaults
+(`src/mnemoss/core/config.py:TierCapacityParams`):
+
+- HOT — top 200 by `idx_priority` (fixed cap; cognitively grounded
+  in working-memory size)
+- WARM — next 2,000 (easily-accessible long-term analogue)
+- COLD — next 20,000 (recallable-with-effort analogue)
+- DEEP — everything else (dormant long-term)
+
+At Rebalance (`src/mnemoss/index/rebalance.py:_bucket_by_capacity`),
+memories are sorted by `idx_priority` descending. Pinned memories take
+the top of HOT regardless of rank (pin = "force into working memory"
+with capacity displacement). The remaining seats fill top-down across
+HOT, WARM, COLD; the residual goes to DEEP.
+
+**Why capacity, not threshold.** The earlier
+`idx_priority_to_tier()` function (still in code at
+`formula/idx_priority.py:46-62`, used for *initial* tier of a fresh
+observe — see `event_encoder.py:61, 112`) maps a single value to a
+tier by fixed thresholds. This rule degenerates under any aged
+corpus: `B_i = ln(Σ (t-t_k)^-d)` collapses for memories older than ~1
+hour with default parameters; >99% of memories fall to
+`idx_priority < 0.1` and the cascade has nothing to short-circuit at.
+Capacity-based ranking is structurally bounded — HOT, WARM, COLD
+stay constant-size regardless of formula tuning or corpus age.
+
+**Recall** still cascades HOT → WARM → COLD (and DEEP if asked) but
+the new default uses pure cosine within each tier, no per-candidate
+activation math.
+
+**Cascade early-stop is effectively disabled by default**
+(`cascade_min_cosine = 0.99`). Real-world cosines rarely reach 0.99,
+so the cascade exhausts every populated tier on each query. Empirical
+finding from the rebalance-lift bench at N=20K MiniLM:
+
+| `cascade_min_cosine` | recall@10 | p50 |
+|---:|---:|---:|
+| 0.5 (short-circuit at HOT) | 0.3737 | 16 ms |
+| **0.99** (no short-circuit, shipped) | **0.4205** | 26 ms |
+| raw_stack baseline | 0.4205 | 54 ms |
+
+Short-circuit at 0.5 caused a 4.7pp recall regression vs raw_stack
+because realistic Rebalance can't reliably put every gold answer in
+HOT. Disabling short-circuit recovers full recall while keeping the
+2× latency win — per-tier ANN with `tier_filter` is still cheaper
+than a flat scan, even when scanning every populated tier.
+
+**This default may be revisited.** When the Rebalance signal
+improves (selective reconsolidation API, query-aware classification,
+or higher-quality embedders), HOT becomes a high-precision pre-filter
+and short-circuit at e.g. 0.6-0.8 could buy back latency without a
+recall cost. The tier-oracle bench is the canonical measurement
+gate: if its gap between realistic Rebalance and the oracle ceiling
+(0.7122 on MiniLM, 0.7683 on Nomic) closes meaningfully, lower this
+default. Until then, no early-stop.
+
+**Migration runs only at Rebalance.** No live migration during
+observe or recall, except the DEEP → WARM reminiscence bump on
+recall hit. Soft cap: reminiscence may temporarily push WARM above
+`warm_cap` until the next Rebalance enforces the limits.
+
+### Q3. Does `export_markdown` scope by `agent_id` or by workspace?
+
+**Both.** It honors whichever scope the caller binds.
+
+The public API (`src/mnemoss/client.py:468-488`) accepts an `agent_id`
+keyword argument. `AgentHandle.export_markdown()`
+(`src/mnemoss/client.py:764-765`) automatically forwards the bound
+`agent_id` from `mem.for_agent(id)`.
+
+The store filter (`src/mnemoss/store/_memory_ops.py:270-294`) implements
+the standard scope rule:
+
+- `agent_id=None` → `WHERE agent_id IS NULL` (workspace-ambient memories only)
+- `agent_id="A"` → `WHERE (agent_id = 'A' OR agent_id IS NULL)` (A's private + ambient)
+
+This matches the recall scope rule from §5.3 ("workspace = gateway,
+`agent_id` is a private filter"). Pinned IDs are scoped consistently
+(`src/mnemoss/store/_graph_ops.py:166-178`).
+
+### Q4. How is dreaming triggered?
+
+The **5 triggers** are defined as a string enum in
+`src/mnemoss/dream/types.py:12-24` (`IDLE`, `SESSION_END`, `SURPRISE`,
+`COGNITIVE_LOAD`, `NIGHTLY`) and each has a phase-list mapping in
+`src/mnemoss/dream/runner.py:50-82`. The light triggers (`idle`,
+`session_end`) run only the encode-side phases; `surprise` /
+`cognitive_load` skip replay/cluster and go straight to consolidate;
+`nightly` runs everything plus rebalance and dispose.
+
+**Auto-fired by the scheduler:**
+
+- **NIGHTLY** — fires daily at `nightly_at` (default 03:00 UTC) — `src/mnemoss/scheduler/scheduler.py:118-121, 148-153`
+- **IDLE** — fires when `now − last_observe > idle_after_seconds` (default 600s) AND a new observe has occurred since the last idle fire — `scheduler.py:123-126, 155-166`
+
+**Caller-driven only — no auto-fire path in the codebase:**
+
+- **SESSION_END** — caller must `await mem.dream(trigger="session_end")` after a session ends
+- **SURPRISE** — no threshold or auto-trigger defined anywhere
+- **COGNITIVE_LOAD** — no counter or auto-trigger defined anywhere
+
+This is by design — see the explicit comment in
+`src/mnemoss/scheduler/__init__.py:10-11`: *"The three remaining triggers
+(session_end, surprise, cognitive_load) stay caller-driven because they
+reflect semantic [signals only the caller knows]."*
+
+**The scheduler is opt-in.** It is NOT always running. Users explicitly
+call `await scheduler.start()` after constructing `Mnemoss(...)`
+(`src/mnemoss/scheduler/scheduler.py:72-85`). It can also be disabled
+entirely with `SchedulerConfig(enabled=False)`.
+
+### Gaps flagged by the audit
+
+These are doc/code disagreements found during the verification, kept here
+so a future reader can see the work is not done:
+
+1. **`SURPRISE` and `COGNITIVE_LOAD` have no auto-fire signal.** They
+   exist as enum values and phase mappings, but no code path watches for
+   "high surprise activation" or "high cognitive load" and fires the
+   dream. §6.3 lists them as triggers alongside the working two — that
+   reads as if all five fire automatically. Either the scheduler grows
+   detection logic, or the doc is reworded to say "caller-driven".
+2. ~~**No tier capacity caps.**~~ **Resolved (April 2026).**
+   `TierCapacityParams` was added; Rebalance now buckets memories by
+   capacity rank instead of by threshold. See the architecture-update
+   block above.
+3. ~~**Reconsolidation discipline.**~~ **Partially shipped (April 2026).**
+   `FormulaParams.reconsolidate_min_cosine = 0.7` (default) gates the
+   reconsolidation bump on cosine similarity. Empirical sweep on the
+   rebalance-lift bench (N=20K LoCoMo, MiniLM):
+
+   | Threshold | Test recall@10 | p50 |
+   |---:|---:|---:|
+   | ungated (-1.0) | 0.3737 | 16 ms |
+   | 0.5 | 0.3737 | 16 ms |
+   | **0.7** (shipped) | **0.3882** | 23 ms |
+   | 0.8 | 0.3975 | 23 ms |
+
+   The gate provides a small but real lift (+1.45pp at 0.7, +2.38pp
+   at 0.8). It does not close most of the 33.85pp gap to the oracle
+   ceiling (0.7122) — that gap is structural, not noise-driven, and
+   needs a stronger signal than cosine for which retrieved memories
+   actually answered the query. A selective-reconsolidation API
+   (`mem.reinforce([m1, m3])` after the agent acted) remains on the
+   roadmap.
+4. **Fresh-ingest supersession does not recover from Rebalance.**
+   Under tier-cascade-pure-cosine, the per-candidate `B_i` recency
+   tiebreak that delivered fresh-ingest supersession is gone from
+   the read path. Empirically (`bench_multi_step` with explicit
+   `mem.rebalance()` between observe and score), Rebalance does
+   not bring it back: tier differentiation is too coarse and
+   within-tier ranking is pure cosine. The fix isn't tier-side —
+   it's the orthogonal mechanisms. `supersede_on_observe` filters
+   stale facts at SQL level for within-session contradictions;
+   disposal removes them in bulk during Dream. For workloads
+   where the chain-version supersession win matters more than the
+   warm-cache speed, opt back into the legacy ACT-R recall path
+   via `use_tier_cascade_recall=False`.
 
 ---
 
