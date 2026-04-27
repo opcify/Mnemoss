@@ -766,15 +766,6 @@ class Mnemoss:
                 use_ann_index=self._config.storage.use_ann_index,
             )
             await store.open()
-            # Warm the embedder before we start writing memories.
-            # Otherwise the first observe() pays the full model-load cost
-            # (seconds) and ends up "older" than subsequent memories at
-            # recall time — which skews B_i. A short non-empty string is
-            # enough to trigger lazy model loads. We can't pass [""]
-            # because OpenAI's text-embedding-3-* endpoints reject empty
-            # strings with a 400 BadRequest; LocalEmbedder happily accepts
-            # them but the API path doesn't.
-            await asyncio.to_thread(self._embedder.embed, ["warmup"])
             self._engine = RecallEngine(
                 store=store,
                 embedder=self._embedder,
