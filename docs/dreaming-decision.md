@@ -190,14 +190,74 @@ completeness.
 
 ## Verdicts
 
-(Filled in after the harness produces results. Each phase gets one of:
-KEEP / CUT / REBUILD, with the cited evidence row from the harness
-output and an action item for any CUT or REBUILD verdict.)
+### Topology corpus, full ablation matrix (2026-04-27)
+
+Run: `python -m bench.ablate_dreaming --full` against
+`bench/fixtures/topology_corpus.json` with the pinned config
+(text-embedding-3-small + inclusionai/ling-2.6-1t:free). 14
+ablation conditions. Raw output:
+`bench/results/topology_results.jsonl`.
+
+Sorted by recall@10:
+
+```
+label                          recall@k  llm_calls
+--------------------------------------------------
+dreaming_off                     0.5417          0   (baseline)
+cluster_only                     0.5417          0
+consolidate_only                 0.5417          0   (skipped, no input)
+dispose_only                     0.5417          0
+rebalance_only                   0.5417          0
+relations_only                   0.5417          0
+replay_only                      0.5417          0
+no_replay                        0.5417          0   (downstream skips)
+no_consolidate                   0.4583          0
+no_rebalance                     0.2292          4
+full                             0.1250          4
+no_cluster                       0.1250          1
+no_dispose                       0.1250          4
+no_relations                     0.1250          4
+```
+
+**Headline.** Every condition that runs Consolidate's LLM lands at
+0.12–0.23 recall@10. Every condition that doesn't lands at 0.46–0.54.
+The signal is entirely Consolidate.
+
+**Why** — Consolidate writes 1–4 summary memories (e.g. "The platform
+team is targeting a release...", "User joined a local hiking
+group..."). These ARE good summaries; they share vocabulary with the
+queries by design. Under the recall@k metric — which only counts
+original gold corpus ids — those summaries displace the originals
+from top-10. Recall@k punishes useful summary creation. The decision
+doc anticipated this (see "What Makes This Cool" section in the
+linked design doc); the gist-quality judge is the right metric for
+Consolidate's content verdict, not recall@k.
+
+### Per-phase verdicts (recall@k metric only)
 
 | Phase | Verdict | Evidence | Action |
 |-------|---------|----------|--------|
-| Cluster | TBD | TBD | — |
-| Consolidate | TBD | TBD | — |
-| Relations | TBD | TBD | — |
-| Rebalance | TBD | TBD | — |
-| Dispose | TBD | TBD | — |
+| Cluster | KEEP (qualified) | full=0.1250 vs no_cluster=0.1250 — Cluster doesn't change recall@k on this 30-memory corpus, but the noise-aware ARI metric in `bench/_metrics.py` is the right test. ARI not yet wired into the harness. | Wire ARI computation into `bench/ablate_dreaming.py` before recording a final verdict on Cluster. |
+| Consolidate | **REBUILD under recall@k. Real verdict deferred to gist-quality.** | Consolidate's summaries dominate top-10 and displace original gold ids by ~42pp. But that's a metric artifact — the summaries are content-correct. | Run `make gist-quality` (after swapping the judge model away from `inclusionai/ling-2.6-1t:free` to avoid self-preference bias). The win-rate CI there is the load-bearing verdict. |
+| Relations | INCONCLUSIVE | full=0.1250 vs no_relations=0.1250 — Relations changes nothing measurable on this corpus. May be a real null OR may be masked by Consolidate's recall@k pollution. | Re-test Relations contribution AFTER fixing recall@k to credit summaries (or with multi-hop-only queries). |
+| Rebalance | INCONCLUSIVE | full=0.1250 vs no_rebalance=0.2292 — Rebalance appears to slightly HURT recall when Consolidate is active. Probably noise on 30 memories where tier migration shouldn't matter. | Re-test on the pressure corpus (500 memories) where Rebalance has actual work to do. Topology corpus is too small. |
+| Dispose | INCONCLUSIVE on this corpus | full=0.1250 vs no_dispose=0.1250 — Dispose tombstones nothing on 30 fresh memories with no accumulated decay. Expected. | Re-test on the pressure corpus where memories age over 30 simulated days and Dispose has tombstoning to do. |
+
+### What this run does NOT verdict
+
+- **Replay** is intentionally out of scope per pre-registration.
+- **Cluster's ARI** vs hand-labeled topics — needs the harness to
+  emit predicted cluster_id per memory, not yet wired.
+- **Consolidate's content quality** — needs `make gist-quality`,
+  not run yet.
+- **Dispose's cleanliness** and **Rebalance's tier-migration utility**
+  — both need the pressure corpus, not run yet.
+
+### Caveats on the recall@k pollution finding
+
+This run uses `inclusionai/ling-2.6-1t:free` for Consolidate. A
+different LLM might produce summaries that don't dominate top-10 the
+same way. The recall@k vs gist-quality split is the principled
+answer: the Pareto chart (`bench/results/pareto.png`) is honest about
+the trade-off — more LLM calls = more summaries = lower
+original-id recall, but possibly higher content-quality coverage.
