@@ -156,7 +156,8 @@ async def test_dream_e2e_runs_phases_and_diary(tmp_path: Path) -> None:
         report = await ws.dream(trigger="idle")
         assert report.trigger.value == "idle"
         phases = [o.phase.value for o in report.outcomes]
-        assert phases == ["replay", "cluster", "consolidate", "relations"]
+        # Relations removed 2026-04-27 per dreaming-validation study.
+        assert phases == ["replay", "cluster", "consolidate"]
         # Diary path comes back as a proper Path, not None.
         assert report.diary_path is not None
         assert str(report.diary_path).endswith(".md")

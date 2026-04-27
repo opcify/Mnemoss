@@ -60,8 +60,9 @@ async def test_phases_none_runs_full_trigger_pipeline(tmp_path: Path) -> None:
         await _seed(mem)
         report = await mem.dream(trigger="idle")
         statuses = {o.phase.value: o.status for o in report.outcomes}
-        # idle trigger = replay + cluster + consolidate + relations
-        assert set(statuses.keys()) == {"replay", "cluster", "consolidate", "relations"}
+        # idle trigger = replay + cluster + consolidate (Relations
+        # removed 2026-04-27 per dreaming-validation study).
+        assert set(statuses.keys()) == {"replay", "cluster", "consolidate"}
         # None of them are excluded_by_mask in the baseline run.
         assert "excluded_by_mask" not in statuses.values()
     finally:
@@ -73,7 +74,7 @@ async def test_phases_none_runs_full_trigger_pipeline(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "kept_phase",
-    ["replay", "cluster", "consolidate", "relations"],
+    ["replay", "cluster", "consolidate"],
 )
 async def test_single_phase_mask_excludes_others(tmp_path: Path, kept_phase: str) -> None:
     """``phases={X}`` runs X (or skips it on empty input) and marks every
@@ -159,8 +160,8 @@ async def test_consolidate_only_mask_skips_naturally_with_no_clusters(
         # Consolidate runs but skips because upstream state is empty.
         assert consolidate.status == "skipped"
         assert consolidate.skip_reason is not None
-        # Replay + cluster + relations are excluded by the mask.
-        for phase_value in ("replay", "cluster", "relations"):
+        # Replay + cluster are excluded by the mask.
+        for phase_value in ("replay", "cluster"):
             outcome = next(o for o in report.outcomes if o.phase.value == phase_value)
             assert outcome.status == "excluded_by_mask"
     finally:

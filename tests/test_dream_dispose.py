@@ -146,8 +146,16 @@ async def test_redundant_cluster_member_disposed(tmp_path: Path) -> None:
     now = datetime(2026, 4, 21, tzinfo=UTC)
     # Recent accesses keep B_i above the activation_dead floor so the
     # *redundant* branch is what fires. Without these, the long idle time
-    # would make every member activation_dead first.
-    recent_access = [now - timedelta(minutes=1)]
+    # would make every member activation_dead first. Bumped from a single
+    # access to four recent accesses on 2026-04-27 because the dispose
+    # criterion was rebuilt to drop the +ceiling term — single recent
+    # access is no longer enough to lift B_i above the new threshold.
+    recent_access = [
+        now - timedelta(minutes=1),
+        now - timedelta(minutes=2),
+        now - timedelta(minutes=3),
+        now - timedelta(minutes=4),
+    ]
 
     for i in range(5):
         m = _mem(

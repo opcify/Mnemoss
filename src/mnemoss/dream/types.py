@@ -25,17 +25,22 @@ class TriggerType(str, Enum):
 
 
 class PhaseName(str, Enum):
-    """Names of the six dream phases.
+    """Names of the five dream phases.
 
     Consolidate collapses the former Extract / Refine / Generalize trio
-    into one LLM call per cluster — see ``dream/consolidate.py``. The
-    dream pipeline is therefore six phases, not eight.
+    into one LLM call per cluster — see ``dream/consolidate.py``.
+
+    The former Relations phase was removed in 2026-04-27 after the
+    dreaming-validation study found it actively hurt multi-hop recall
+    on small dense corpora (full-clique ``similar_to`` edges caused
+    spreading activation to surface peripheral cluster members).
+    ``derived_from`` edges are still written inline by Consolidate's
+    ``_persist_derived``. See docs/dreaming-decision.md.
     """
 
     REPLAY = "replay"
     CLUSTER = "cluster"
     CONSOLIDATE = "consolidate"
-    RELATIONS = "relations"
     REBALANCE = "rebalance"
     DISPOSE = "dispose"
 

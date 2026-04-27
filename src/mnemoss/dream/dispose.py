@@ -42,7 +42,6 @@ from mnemoss.store.sqlite_backend import SQLiteBackend
 UTC = timezone.utc
 log = logging.getLogger(__name__)
 
-MIN_AGE_DAYS = 30
 SALIENCE_FLOOR = 0.8
 EMOTIONAL_FLOOR = 0.7
 REDUNDANT_CLUSTER_MIN = 5
@@ -98,20 +97,29 @@ async def dispose_pass(
         if m.cluster_id and m.cluster_id not in cluster_sizes:
             cluster_sizes[m.cluster_id] = await store.cluster_size(m.cluster_id)
 
-    ceiling = params.s_max + params.mp + params.epsilon_max
-    dispose_threshold = params.tau - params.delta  # max A_i strictly below → dispose
+    # 2026-04-27 rebuild: dropped the `+ ceiling` (s_max + mp +
+    # epsilon_max) term that made the criterion structurally
+    # unreachable on accumulating workloads. The original spec said
+    # "even in the best case (max spreading + max matching + max
+    # noise), would this surface?" That ceiling-test never fired —
+    # see the dreaming-validation study at docs/dreaming-decision.md.
+    # New criterion: B_i < tau - delta directly. Memories whose
+    # base-level activation alone has fallen below the threshold get
+    # disposed; spreading and matching are query-time amplifications,
+    # not survival mechanisms.
+    dispose_threshold = params.tau - params.delta
 
     for memory in candidates:
         stats.scanned += 1
 
-        if _is_protected(memory, t, pinned_set):
+        if _is_protected(memory, t, pinned_set, params.min_age_days):
             stats.protected += 1
             continue
 
         b = compute_base_level(memory.access_history, t, memory.created_at, params)
 
         reason: str | None = None
-        if b + ceiling < dispose_threshold:
+        if b < dispose_threshold:
             reason = "activation_dead"
         elif _is_redundant_static(memory, cluster_sizes):
             reason = "redundant"
@@ -142,7 +150,9 @@ async def dispose_pass(
     return stats
 
 
-def _is_protected(memory: Memory, now: datetime, pinned: set[str]) -> bool:
+def _is_protected(
+    memory: Memory, now: datetime, pinned: set[str], min_age_days: int
+) -> bool:
     if memory.id in pinned:
         return True
     if memory.salience > SALIENCE_FLOOR:
@@ -150,7 +160,7 @@ def _is_protected(memory: Memory, now: datetime, pinned: set[str]) -> bool:
     if memory.emotional_weight > EMOTIONAL_FLOOR:
         return True
     age_days = (now - memory.created_at).total_seconds() / 86400.0
-    return age_days < MIN_AGE_DAYS
+    return age_days < min_age_days
 
 
 def _is_redundant_static(memory: Memory, cluster_sizes: dict[str, int]) -> bool:

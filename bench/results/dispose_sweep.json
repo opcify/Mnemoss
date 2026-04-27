@@ -8,7 +8,7 @@
       "medium": 0,
       "low": 0
     },
-    "cleanliness": 0.2917,
+    "cleanliness": 0.25,
     "dispose_phase_status": "excluded_by_mask",
     "dispose_details": {
       "scanned": null,
@@ -34,7 +34,7 @@
       "disposed": 0,
       "activation_dead": 0,
       "redundant": 0,
-      "protected": 100
+      "protected": 0
     }
   },
   {
@@ -53,7 +53,7 @@
       "disposed": 0,
       "activation_dead": 0,
       "redundant": 0,
-      "protected": 100
+      "protected": 0
     }
   },
   {
@@ -72,7 +72,7 @@
       "disposed": 0,
       "activation_dead": 0,
       "redundant": 0,
-      "protected": 100
+      "protected": 0
     }
   },
   {
@@ -91,7 +91,7 @@
       "disposed": 0,
       "activation_dead": 0,
       "redundant": 0,
-      "protected": 100
+      "protected": 0
     }
   }
 ]

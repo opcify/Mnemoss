@@ -81,11 +81,11 @@ async def test_nightly_runs_all_six_phases(tmp_path: Path) -> None:
         report = await mem.dream(trigger="nightly")
 
         phases = [o.phase for o in report.outcomes]
+        # Relations removed 2026-04-27 per dreaming-validation study.
         assert phases == [
             PhaseName.REPLAY,
             PhaseName.CLUSTER,
             PhaseName.CONSOLIDATE,
-            PhaseName.RELATIONS,
             PhaseName.REBALANCE,
             PhaseName.DISPOSE,
         ]
@@ -106,14 +106,17 @@ async def test_nightly_runs_all_six_phases(tmp_path: Path) -> None:
         await mem.close()
 
 
-async def test_surprise_trigger_runs_consolidate_and_relations(tmp_path: Path) -> None:
+async def test_surprise_trigger_runs_consolidate_only(tmp_path: Path) -> None:
+    """Relations removed 2026-04-27; surprise now runs Consolidate only,
+    matching the cognitive_load trigger."""
+
     mock = MockLLMClient(callback=_canned)
     mem = _mnemoss(tmp_path, llm=mock)
     try:
         await mem.observe(role="user", content="x")
         report = await mem.dream(trigger="surprise")
         phases = [o.phase for o in report.outcomes]
-        assert phases == [PhaseName.CONSOLIDATE, PhaseName.RELATIONS]
+        assert phases == [PhaseName.CONSOLIDATE]
     finally:
         await mem.close()
 
@@ -144,7 +147,6 @@ async def test_nightly_diary_records_all_phases(tmp_path: Path) -> None:
             "REPLAY",
             "CLUSTER",
             "CONSOLIDATE",
-            "RELATIONS",
             "REBALANCE",
             "DISPOSE",
         ):
@@ -164,13 +166,14 @@ async def test_trigger_type_enum_has_all_five_values() -> None:
     }
 
 
-async def test_phase_name_enum_has_the_six_post_merge_phases() -> None:
+async def test_phase_name_enum_has_the_five_post_relations_removal_phases() -> None:
+    """Relations removed 2026-04-27 per dreaming-validation study."""
+
     values = {p.value for p in PhaseName}
     assert values == {
         "replay",
         "cluster",
         "consolidate",
-        "relations",
         "rebalance",
         "dispose",
     }

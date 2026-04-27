@@ -38,11 +38,11 @@ async def test_full_dream_cycle_end_to_end(tmp_path: Path) -> None:
         report = await mem.dream(trigger="idle")
 
         phase_statuses = {o.phase.value: o.status for o in report.outcomes}
+        # Relations removed 2026-04-27 per dreaming-validation study.
         assert phase_statuses == {
             "replay": "ok",
             "cluster": "ok",
             "consolidate": "ok",
-            "relations": "ok",
         }
 
         # Diary entry written.

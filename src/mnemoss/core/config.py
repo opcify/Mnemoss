@@ -61,6 +61,12 @@ class FormulaParams:
     confidence_hot_offset: float = 2.0
     confidence_warm_offset: float = 1.0
     confidence_cold_offset: float = 0.0
+    # Dispose's minimum-age protection. Memories younger than this
+    # are never disposed regardless of activation. Default 30 days
+    # mirrors the original hardcoded MIN_AGE_DAYS in dispose.py;
+    # accumulating-workload bench harnesses set this lower (e.g. 0)
+    # so dispose can fire on the test corpus's age range.
+    min_age_days: int = 30
     # Same-topic auto-expand (§recall/expand.py). Detection is purely
     # semantic: a follow-up recall is "same topic" when it either shares
     # at least one returned memory with the previous recall, or its query
@@ -129,6 +135,10 @@ class FormulaParams:
             raise ValueError(
                 f"expand_candidates_max must be > 0 (got {self.expand_candidates_max!r})"
             )
+
+        # Dispose age protection.
+        if self.min_age_days < 0:
+            raise ValueError(f"min_age_days must be >= 0 (got {self.min_age_days!r})")
 
 
 @dataclass
