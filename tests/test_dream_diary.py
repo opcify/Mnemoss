@@ -44,15 +44,6 @@ def _fake_report() -> DreamReport:
                 status="skipped",
                 details={"reason": "no llm configured"},
             ),
-            PhaseOutcome(
-                phase=PhaseName.RELATIONS,
-                status="ok",
-                details={
-                    "similar_to_edges": 6,
-                    "derived_from_edges": 0,
-                    "total_edges": 6,
-                },
-            ),
         ],
     )
 
@@ -68,7 +59,6 @@ def test_render_dream_entry_has_expected_structure() -> None:
         "### REPLAY · ok",
         "### CLUSTER · ok",
         "### CONSOLIDATE · skipped",
-        "### RELATIONS · ok",
     )
     for section in sections:
         assert section in md

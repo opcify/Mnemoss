@@ -1,0 +1,119 @@
+# Pinned configuration for the dreaming-validation harness.
+#
+# The harness REFUSES TO RUN if any required field below is missing —
+# this prevents a future config default change in src/mnemoss/ from
+# silently invalidating already-recorded results.
+#
+# Per the design doc and pre-registered decision doc:
+#  - Embedder: OpenAIEmbedder("text-embedding-3-small") for speed +
+#    determinism across ablations (OpenAI returns identical vectors for
+#    identical inputs, so ablation deltas are the dream pipeline alone,
+#    not embedder noise).
+#  - LLM (Consolidate): tencent/hy3-preview:free via OpenRouter.
+#  - LLM (gist judge): deepseek/deepseek-v4-flash via OpenRouter —
+#    different model family from Consolidate to mitigate self-preference
+#    bias (per /plan-eng-review outside-voice finding).
+#  - No call/dollar budget caps. Free-tier rate limits handled with
+#    tenacity exponential backoff (5 attempts, 1-30s).
+
+[embedder]
+kind = "openai"
+model = "text-embedding-3-small"
+# api_key is read from $OPENAI_API_KEY at runtime.
+
+[llm.consolidate]
+kind = "openai"  # OpenRouter speaks the OpenAI protocol via base_url.
+# Model history (see docs/dreaming-decision.md "Threshold Amendments"):
+#   1. tencent/hy3-preview:free — provider returns 400 on JSON mode.
+#   2. meta-llama/llama-3.3-70b-instruct:free — 8 rpm cap, 429s.
+#   3. deepseek/deepseek-v4-flash — reasoning model, all max_tokens
+#      went to internal reasoning before any JSON; also rate-limited.
+#   4. inclusionai/ling-2.6-1t:free — current. Non-reasoning chat
+#      model, JSON-mode supported, free. Different model family from
+#      the judge so no self-preference bias when gist-quality runs.
+model = "inclusionai/ling-2.6-1t:free"
+base_url = "https://openrouter.ai/api/v1"
+# api_key is read from $OPENROUTER_API_KEY at runtime.
+
+[llm.judge]
+kind = "openai"
+# Original: deepseek/deepseek-v4-flash. Swapped 2026-04-27 because
+# it's a reasoning model — at max_tokens=8 (the judge's tight
+# budget) the entire output goes to internal reasoning and content
+# is empty. gpt-4o-mini is non-reasoning, fast, paid (~$0.15/1M
+# input tokens, ~$0.001 for the whole study), and reliably emits
+# "A" / "B" / "tie" replies. Different model family from the
+# Consolidate model (inclusionai/ling-2.6-1t:free) so no
+# self-preference bias.
+model = "openai/gpt-4o-mini"
+base_url = "https://openrouter.ai/api/v1"
+# api_key is read from $OPENROUTER_API_KEY at runtime (same key).
+
+[dreamer]
+# Mirrors DreamerParams defaults; pinned here so a future default
+# change doesn't silently invalidate ablation results.
+cluster_min_size = 3
+replay_limit = 100
+# replay_min_base_level intentionally absent (None / no floor).
+
+[formula]
+# All FormulaParams locked at their shipped defaults EXCEPT tau.
+# If a default changes, this file must be updated explicitly so the
+# pre-registration audit trail catches it.
+d = 0.5
+# tau swap (2026-04-27): default tau=-1.0 rejected every memory on
+# the pressure corpus because 30-day-aged memories have B_i ≈ -7.4
+# (computed: 0 - 0.5 * log(30*86400) = -7.4), which is well below
+# the default cutoff. Lowered to -10 so aged memories are still
+# scoreable. See docs/dreaming-decision.md "Threshold Amendments".
+# Topology corpus runs unaffected (memories are <1 minute old, B_i ≈ 0).
+tau = -10.0
+mp = 1.5
+noise_scale = 0.0  # Zero so ablation deltas aren't noise-driven.
+# 2026-04-27 Dispose rebuild: was hardcoded MIN_AGE_DAYS=30 in
+# src/mnemoss/dream/dispose.py. Now configurable via FormulaParams.
+# Pin to 0 for the bench so Dispose isn't age-protecting every
+# memory in our 30-day pressure corpus.
+min_age_days = 0
+s_max = 2.0
+alpha = 0.5
+beta = 0.4
+gamma = 2.0
+delta = 1.0
+epsilon_max = 0.75
+t_floor_seconds = 1.0
+eta_0 = 1.0
+eta_tau_seconds = 3600.0
+
+[harness]
+# Recall-time settings.
+recall_k = 10
+# Whether recall scans tier DEEP. True for the validation study so
+# Dispose ablation can't hide tombstoned-but-still-present rows.
+include_deep = true
+# auto_expand=False so multi-hop recall@10 isolates the contribution
+# of Relations + spreading-activation, not the auto-expand BFS.
+auto_expand = false
+
+[harness.retry]
+# Retry config for LLM calls (free-tier rate limits).
+max_attempts = 5
+initial_wait_seconds = 4.0
+max_wait_seconds = 60.0
+# Proactive pacing — sleep this long between consecutive LLM calls so
+# we never burst above the provider's rpm cap. OpenRouter free tier
+# is 8 rpm (= 7.5s/call); 9.0s gives a small safety margin. Set to 0
+# when using a paid model with no rpm cap to maximize throughput.
+min_wait_between_calls_seconds = 9.0
+# Per-call wall-clock timeout. OpenRouter free models occasionally
+# hang silently; without this the OpenAI SDK waits 10 minutes by
+# default. 60s is enough for a Consolidate prompt + response.
+per_call_timeout_seconds = 60.0
+
+[harness.simulated_time]
+# Anchor for freezegun-mocked datetime.now(UTC) during the run.
+# Topology corpus accumulates over a single simulated minute (no
+# pressure axis). Pressure corpus generator overrides this for the
+# 30-day accumulation.
+anchor = "2026-04-27T00:00:00Z"
+per_observe_increment_seconds = 1

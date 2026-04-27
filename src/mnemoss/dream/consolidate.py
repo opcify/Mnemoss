@@ -64,6 +64,13 @@ log = logging.getLogger(__name__)
 
 PATTERN_ABSTRACTION_LEVEL = 0.85
 
+# Bonus added to the cluster's max idx_priority when promoting a summary
+# or pattern memory above its source members. Small positive offset so
+# the derived memory leads recall on topical queries; capped to 1.0 in
+# the call sites so summaries-of-summaries don't drift to absolute top.
+# 2026-04-27 — see docs/dreaming-decision.md.
+SUMMARY_PRIORITY_BONUS = 0.05
+
 
 @dataclass
 class Refinement:
@@ -239,11 +246,32 @@ def _parse_summary(
             break
 
     salience = max((m.salience for m in members), default=0.0)
-    ip = initial_idx_priority(params)
+
+    # 2026-04-27: lift summary above cluster's idx_priority + inherit
+    # cluster activation history. Two coupled changes:
+    #
+    # (1) idx_priority is at least max(initial_priority, cluster_max +
+    #     SUMMARY_PRIORITY_BONUS), capped at 1.0. The summary is the
+    #     synthesized answer for the cluster's topic; it should rank
+    #     above any individual member on direct topical recall.
+    # (2) access_history is the union of every member's access_history
+    #     plus `now`. This gives the summary's B_i the cluster's
+    #     collective rehearsal signal — without it, the summary's B_i
+    #     would collapse to age-decay alone (length-1 history) and the
+    #     idx_priority bump in (1) would erode within an hour as eta
+    #     decays.
+    #
+    # See docs/dreaming-decision.md "Final validation" for the
+    # motivating finding (forgetting curves showed no rehearsal).
+    member_max_priority = max((m.idx_priority for m in members), default=0.0)
+    ip = min(1.0, max(initial_idx_priority(params), member_max_priority + SUMMARY_PRIORITY_BONUS))
+    inherited_history = sorted({h for m in members for h in m.access_history} | {now})
 
     source_ctx: dict[str, Any] = {
         "extracted_by": "dream_consolidate",
         "cluster_size": len(members),
+        "inherited_history_len": len(inherited_history),
+        "member_max_priority": round(member_max_priority, 4),
     }
 
     return Memory(
@@ -257,8 +285,8 @@ def _parse_summary(
         role=None,
         memory_type=memory_type,
         abstraction_level=abstraction,
-        access_history=[now],
-        last_accessed_at=None,
+        access_history=inherited_history,
+        last_accessed_at=now,
         salience=salience,
         emotional_weight=0.0,
         reminisced_count=0,
@@ -339,7 +367,17 @@ def _parse_patterns(
         if len(sources) < 2:
             continue
 
-        ip = initial_idx_priority(params)
+        # Same idx_priority + access_history inheritance as summaries
+        # (see _parse_summary). Patterns inherit only from their cited
+        # `sources` (which can be a strict subset of members), not from
+        # the entire cluster — patterns reference ≥2 specific members.
+        sources_max_priority = max((s.idx_priority for s in sources), default=0.0)
+        ip = min(
+            1.0,
+            max(initial_idx_priority(params), sources_max_priority + SUMMARY_PRIORITY_BONUS),
+        )
+        inherited_history = sorted({h for s in sources for h in s.access_history} | {now})
+
         out.append(
             Memory(
                 id=str(ulid.new()),
@@ -352,8 +390,8 @@ def _parse_patterns(
                 role=None,
                 memory_type=MemoryType.PATTERN,
                 abstraction_level=PATTERN_ABSTRACTION_LEVEL,
-                access_history=[now],
-                last_accessed_at=None,
+                access_history=inherited_history,
+                last_accessed_at=now,
                 salience=max((s.salience for s in sources), default=0.0),
                 idx_priority=ip,
                 index_tier=idx_priority_to_tier(ip),

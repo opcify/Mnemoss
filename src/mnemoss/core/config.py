@@ -33,9 +33,7 @@ def _require_non_negative(name: str, value: float) -> None:
 
 def _require_in_unit_interval(name: str, value: float) -> None:
     if not (0.0 <= value <= 1.0):
-        raise ValueError(
-            f"{name} must be in [0.0, 1.0] (got {value!r})"
-        )
+        raise ValueError(f"{name} must be in [0.0, 1.0] (got {value!r})")
 
 
 def _require_in_cosine_range(name: str, value: float) -> None:
@@ -131,6 +129,12 @@ class FormulaParams:
     confidence_hot_offset: float = 2.0
     confidence_warm_offset: float = 1.0
     confidence_cold_offset: float = 0.0
+    # Dispose's minimum-age protection. Memories younger than this
+    # are never disposed regardless of activation. Default 30 days
+    # mirrors the original hardcoded MIN_AGE_DAYS in dispose.py;
+    # accumulating-workload bench harnesses set this lower (e.g. 0)
+    # so dispose can fire on the test corpus's age range.
+    min_age_days: int = 30
     # Matching-term weighted-sum constants. The matching term is
     # ``MP · [w_F · s̃_F + w_S · s̃_S]`` where
     #
@@ -332,16 +336,12 @@ class FormulaParams:
         _require_non_negative("delta", self.delta)
         _require_non_negative("eta_0", self.eta_0)
         _require_non_negative("epsilon_max", self.epsilon_max)
-        _require_non_negative(
-            "streak_reset_seconds", self.streak_reset_seconds
-        )
+        _require_non_negative("streak_reset_seconds", self.streak_reset_seconds)
 
         # Tier confidence offsets must be ordered HOT >= WARM >= COLD
         # so cascade cutoffs widen as we scan deeper tiers.
         if not (
-            self.confidence_hot_offset
-            >= self.confidence_warm_offset
-            >= self.confidence_cold_offset
+            self.confidence_hot_offset >= self.confidence_warm_offset >= self.confidence_cold_offset
         ):
             raise ValueError(
                 "tier confidence offsets must satisfy "
@@ -395,14 +395,15 @@ class FormulaParams:
 
         # BFS hop + candidate caps must be positive integers.
         if self.expand_hops_max <= 0:
-            raise ValueError(
-                f"expand_hops_max must be > 0 (got {self.expand_hops_max!r})"
-            )
+            raise ValueError(f"expand_hops_max must be > 0 (got {self.expand_hops_max!r})")
         if self.expand_candidates_max <= 0:
             raise ValueError(
-                f"expand_candidates_max must be > 0 "
-                f"(got {self.expand_candidates_max!r})"
+                f"expand_candidates_max must be > 0 (got {self.expand_candidates_max!r})"
             )
+
+        # Dispose age protection.
+        if self.min_age_days < 0:
+            raise ValueError(f"min_age_days must be >= 0 (got {self.min_age_days!r})")
 
 
 @dataclass
@@ -504,13 +505,11 @@ class EncoderParams:
             )
         if self.working_memory_capacity <= 0:
             raise ValueError(
-                "working_memory_capacity must be > 0 "
-                f"(got {self.working_memory_capacity!r})"
+                f"working_memory_capacity must be > 0 (got {self.working_memory_capacity!r})"
             )
         if self.max_memory_chars is not None and self.max_memory_chars <= 0:
             raise ValueError(
-                "max_memory_chars must be > 0 or None for no split "
-                f"(got {self.max_memory_chars!r})"
+                f"max_memory_chars must be > 0 or None for no split (got {self.max_memory_chars!r})"
             )
         if not 0.0 < self.supersede_cosine_threshold <= 1.0:
             raise ValueError(
@@ -541,13 +540,10 @@ class SegmentationParams:
     def __post_init__(self) -> None:
         _require_positive("time_gap_seconds", self.time_gap_seconds)
         if self.max_event_messages <= 0:
-            raise ValueError(
-                f"max_event_messages must be > 0 (got {self.max_event_messages!r})"
-            )
+            raise ValueError(f"max_event_messages must be > 0 (got {self.max_event_messages!r})")
         if self.max_event_characters <= 0:
             raise ValueError(
-                f"max_event_characters must be > 0 "
-                f"(got {self.max_event_characters!r})"
+                f"max_event_characters must be > 0 (got {self.max_event_characters!r})"
             )
 
 
@@ -624,6 +620,33 @@ class StorageParams:
 
 
 @dataclass
+class DreamerParams:
+    """Knobs for the dream pipeline that the harness needs to pin.
+
+    Mirrors the ``FormulaParams`` / ``EncoderParams`` / ``SegmentationParams``
+    pattern. Plumbed through ``Mnemoss(dreamer=...)`` →
+    ``Mnemoss.dream()`` → ``DreamRunner(replay_limit=...,
+    cluster_min_size=..., replay_min_base_level=...)``. Defaults match
+    the historical hardcoded values in ``DreamRunner.__init__``.
+
+    Note: there is no ``cluster_cosine_threshold`` knob — Mnemoss uses
+    HDBSCAN (``dream/cluster.py``) which only exposes ``min_cluster_size``.
+    """
+
+    cluster_min_size: int = 3
+    replay_limit: int = 100
+    replay_min_base_level: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.cluster_min_size <= 0:
+            raise ValueError(f"cluster_min_size must be > 0 (got {self.cluster_min_size!r})")
+        if self.replay_limit <= 0:
+            raise ValueError(f"replay_limit must be > 0 (got {self.replay_limit!r})")
+        # replay_min_base_level is None (no floor) or any float — negative
+        # floors are legitimate ("only memories above near-dead activation").
+
+
+@dataclass
 class MnemossConfig:
     """Top-level config bundle passed to ``Mnemoss(...)``."""
 
@@ -632,6 +655,7 @@ class MnemossConfig:
     encoder: EncoderParams = field(default_factory=EncoderParams)
     storage: StorageParams = field(default_factory=StorageParams)
     segmentation: SegmentationParams = field(default_factory=SegmentationParams)
+    dreamer: DreamerParams = field(default_factory=DreamerParams)
     tier_capacity: TierCapacityParams = field(default_factory=TierCapacityParams)
 
     def __post_init__(self) -> None:

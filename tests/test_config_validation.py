@@ -17,6 +17,7 @@ import pytest
 
 from mnemoss import (
     CostLimits,
+    DreamerParams,
     EncoderParams,
     FormulaParams,
     MnemossConfig,
@@ -43,9 +44,7 @@ def test_formula_params_defaults_pass_validation() -> None:
         ({"eta_tau_seconds": 0}, "eta_tau_seconds"),
     ],
 )
-def test_formula_rejects_non_positive_scalars(
-    kwargs: dict, offending_field: str
-) -> None:
+def test_formula_rejects_non_positive_scalars(kwargs: dict, offending_field: str) -> None:
     with pytest.raises(ValueError, match=offending_field):
         FormulaParams(**kwargs)
 
@@ -63,9 +62,7 @@ def test_formula_rejects_non_positive_scalars(
         ({"streak_reset_seconds": -1.0}, "streak_reset_seconds"),
     ],
 )
-def test_formula_rejects_negative_non_negatives(
-    kwargs: dict, offending_field: str
-) -> None:
+def test_formula_rejects_negative_non_negatives(kwargs: dict, offending_field: str) -> None:
     with pytest.raises(ValueError, match=offending_field):
         FormulaParams(**kwargs)
 
@@ -105,9 +102,7 @@ def test_formula_rejects_cosine_out_of_unit_interval(
         ({"expand_candidates_max": -5}, "expand_candidates_max"),
     ],
 )
-def test_formula_rejects_non_positive_graph_caps(
-    kwargs: dict, offending_field: str
-) -> None:
+def test_formula_rejects_non_positive_graph_caps(kwargs: dict, offending_field: str) -> None:
     with pytest.raises(ValueError, match=offending_field):
         FormulaParams(**kwargs)
 
@@ -150,9 +145,7 @@ def test_segmentation_params_defaults_pass() -> None:
         ({"max_event_characters": 0}, "max_event_characters"),
     ],
 )
-def test_segmentation_rejects_non_positive(
-    kwargs: dict, offending_field: str
-) -> None:
+def test_segmentation_rejects_non_positive(kwargs: dict, offending_field: str) -> None:
     with pytest.raises(ValueError, match=offending_field):
         SegmentationParams(**kwargs)
 
@@ -212,3 +205,52 @@ def test_cost_limits_rejects_bool_as_int() -> None:
 
     with pytest.raises(ValueError, match="max_llm_calls_per_run"):
         CostLimits(max_llm_calls_per_run=True)  # type: ignore[arg-type]
+
+
+# ─── DreamerParams ─────────────────────────────────────────────────
+
+
+def test_dreamer_params_defaults_match_runner_hardcodes() -> None:
+    """Defaults must match the historical hardcoded values in
+    ``DreamRunner.__init__`` so adding ``DreamerParams`` is a pure
+    refactor with no behavior change for callers that didn't pass it."""
+
+    p = DreamerParams()
+    assert p.cluster_min_size == 3
+    assert p.replay_limit == 100
+    assert p.replay_min_base_level is None
+
+
+@pytest.mark.parametrize(
+    "kwargs, offending_field",
+    [
+        ({"cluster_min_size": 0}, "cluster_min_size"),
+        ({"cluster_min_size": -1}, "cluster_min_size"),
+        ({"replay_limit": 0}, "replay_limit"),
+        ({"replay_limit": -100}, "replay_limit"),
+    ],
+)
+def test_dreamer_rejects_non_positive(kwargs: dict, offending_field: str) -> None:
+    with pytest.raises(ValueError, match=offending_field):
+        DreamerParams(**kwargs)
+
+
+def test_dreamer_accepts_negative_replay_min_base_level() -> None:
+    """Negative base-level floors are legitimate ('only memories above
+    near-dead activation'); the validator must not reject them."""
+
+    p = DreamerParams(replay_min_base_level=-2.0)
+    assert p.replay_min_base_level == -2.0
+
+
+def test_dreamer_accepts_none_replay_min_base_level() -> None:
+    p = DreamerParams(replay_min_base_level=None)
+    assert p.replay_min_base_level is None
+
+
+def test_mnemoss_config_default_dreamer_present() -> None:
+    """``MnemossConfig`` gets a default ``DreamerParams`` so existing
+    callers keep working without naming the new field."""
+
+    cfg = MnemossConfig(workspace="test")
+    assert cfg.dreamer == DreamerParams()

@@ -82,9 +82,7 @@ async def _seed_workspace(mem: Mnemoss, size: int) -> None:
         )
 
 
-async def _measure_recall(
-    mem: Mnemoss, queries: int, *, include_deep: bool
-) -> list[float]:
+async def _measure_recall(mem: Mnemoss, queries: int, *, include_deep: bool) -> list[float]:
     """Run ``queries`` recalls, return per-call latencies in ms."""
 
     latencies: list[float] = []
@@ -96,9 +94,7 @@ async def _measure_recall(
     return latencies
 
 
-def _summarize(
-    size: int, regime: str, latencies: list[float]
-) -> BenchResult:
+def _summarize(size: int, regime: str, latencies: list[float]) -> BenchResult:
     latencies = sorted(latencies)
     n = len(latencies)
 
@@ -143,16 +139,12 @@ async def _run_one(size: int, queries: int) -> list[BenchResult]:
             await mem.recall(_QUERIES[0], k=10)
 
             # Default cascade (HOT → WARM → COLD, no DEEP).
-            lat_default = await _measure_recall(
-                mem, queries, include_deep=False
-            )
+            lat_default = await _measure_recall(mem, queries, include_deep=False)
             results.append(_summarize(size, "cascade (no DEEP)", lat_default))
 
             # DEEP-inclusive cascade — what you get when a query has a
             # temporal "long ago" cue or the caller flags include_deep.
-            lat_deep = await _measure_recall(
-                mem, queries, include_deep=True
-            )
+            lat_deep = await _measure_recall(mem, queries, include_deep=True)
             results.append(_summarize(size, "cascade (+DEEP)", lat_deep))
         finally:
             await mem.close()
@@ -187,9 +179,7 @@ async def _run_all(sizes: list[int], queries: int) -> list[BenchResult]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Mnemoss recall latency benchmark harness."
-    )
+    parser = argparse.ArgumentParser(description="Mnemoss recall latency benchmark harness.")
     parser.add_argument(
         "--sizes",
         type=int,

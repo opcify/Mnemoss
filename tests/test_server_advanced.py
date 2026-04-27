@@ -89,13 +89,14 @@ def test_dream_idle_runs_without_llm(tmp_path: Path) -> None:
     body = r.json()
     assert body["trigger"] == "idle"
     phases = [o["phase"] for o in body["outcomes"]]
-    assert phases == ["replay", "cluster", "consolidate", "relations"]
+    # Relations removed 2026-04-27 per dreaming-validation study.
+    assert phases == ["replay", "cluster", "consolidate"]
     # Consolidate is skipped without an LLM.
     consolidate = next(o for o in body["outcomes"] if o["phase"] == "consolidate")
     assert consolidate["status"] == "skipped"
 
 
-def test_dream_nightly_with_llm_runs_all_six_phases(tmp_path: Path) -> None:
+def test_dream_nightly_with_llm_runs_all_five_phases(tmp_path: Path) -> None:
     with _client(tmp_path, llm=MockLLMClient(callback=_canned)) as c:
         for i in range(5):
             c.post(
@@ -105,11 +106,11 @@ def test_dream_nightly_with_llm_runs_all_six_phases(tmp_path: Path) -> None:
         r = c.post("/workspaces/ws/dream", json={"trigger": "nightly"})
     assert r.status_code == 200
     phases = [o["phase"] for o in r.json()["outcomes"]]
+    # Relations removed 2026-04-27 per dreaming-validation study.
     assert phases == [
         "replay",
         "cluster",
         "consolidate",
-        "relations",
         "rebalance",
         "dispose",
     ]

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from mnemoss import FakeEmbedder, Mnemoss, MockLLMClient, StorageParams
 from mnemoss.core.config import FormulaParams
@@ -404,6 +405,91 @@ async def test_consolidate_handles_malformed_refinement_entries() -> None:
     # Only the well-formed entry survives.
     assert len(result.refinements) == 1
     assert result.refinements[0].fields.gist == "good"
+
+
+async def test_consolidate_summary_inherits_priority_lift_and_history() -> None:
+    """Summary's idx_priority lifts above the cluster max + bonus, capped
+    at 1.0; access_history unions every member's history plus ``now``.
+
+    Pins the 2026-04-27 finding that without inheritance, the summary's
+    B_i collapses to age-decay alone and the idx_priority bump erodes
+    within an hour. See ``docs/dreaming-decision.md`` (Final validation).
+    """
+    from mnemoss.dream.consolidate import SUMMARY_PRIORITY_BONUS
+
+    t1 = datetime(2026, 4, 27, 9, 0, tzinfo=UTC)
+    t2 = datetime(2026, 4, 27, 10, 0, tzinfo=UTC)
+    t3 = datetime(2026, 4, 27, 11, 0, tzinfo=UTC)
+
+    def _mem_with(id: str, *, idx_priority: float, history: list) -> Memory:
+        m = _mem(id, f"content {id}")
+        m.idx_priority = idx_priority
+        m.access_history = history
+        return m
+
+    # Pick member idx_priorities high enough that cluster_max + bonus
+    # beats σ(η_0) ≈ 0.731 (the initial-priority floor for a fresh
+    # memory). Otherwise the floor wins and we never exercise the lift.
+    members = [
+        _mem_with("m1", idx_priority=0.80, history=[t1]),
+        _mem_with("m2", idx_priority=0.90, history=[t2]),
+        _mem_with("m3", idx_priority=0.85, history=[t1, t3]),
+    ]
+    llm = MockLLMClient(
+        responses=[
+            {
+                "summary": {
+                    "memory_type": "fact",
+                    "content": "derived",
+                    "abstraction_level": 0.5,
+                    "aliases": [],
+                },
+                "refinements": [],
+                "patterns": [],
+            }
+        ]
+    )
+    result = await consolidate_cluster(members, llm, FormulaParams())
+    assert result.summary is not None
+    s = result.summary
+    # (1) idx_priority sits at cluster_max (0.90) + bonus, capped at 1.0.
+    assert s.idx_priority == pytest.approx(min(1.0, 0.90 + SUMMARY_PRIORITY_BONUS))
+    # And it strictly outranks every member — that's the whole point.
+    assert all(s.idx_priority > m.idx_priority for m in members)
+    # (2) access_history is the dedup'd union of member histories + now.
+    assert t1 in s.access_history
+    assert t2 in s.access_history
+    assert t3 in s.access_history
+    # 3 distinct member timestamps + 1 `now` = 4 entries.
+    assert len(s.access_history) == 4
+    # The audit trail surfaces both of those for inspect / debugging.
+    assert s.source_context["inherited_history_len"] == 4
+    assert s.source_context["member_max_priority"] == pytest.approx(0.90)
+
+
+async def test_consolidate_summary_priority_caps_at_one() -> None:
+    """Cluster member already at idx_priority=1.0 doesn't push summary above 1.0."""
+    saturated = _mem("m1", "x")
+    saturated.idx_priority = 1.0
+    other = _mem("m2", "y")
+    other.idx_priority = 0.9
+    llm = MockLLMClient(
+        responses=[
+            {
+                "summary": {
+                    "memory_type": "fact",
+                    "content": "derived",
+                    "abstraction_level": 0.5,
+                    "aliases": [],
+                },
+                "refinements": [],
+                "patterns": [],
+            }
+        ]
+    )
+    result = await consolidate_cluster([saturated, other], llm, FormulaParams())
+    assert result.summary is not None
+    assert result.summary.idx_priority == 1.0
 
 
 async def test_consolidate_salience_summary_takes_max_of_members() -> None:

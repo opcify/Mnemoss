@@ -25,17 +25,22 @@ class TriggerType(str, Enum):
 
 
 class PhaseName(str, Enum):
-    """Names of the six dream phases.
+    """Names of the five dream phases.
 
     Consolidate collapses the former Extract / Refine / Generalize trio
-    into one LLM call per cluster — see ``dream/consolidate.py``. The
-    dream pipeline is therefore six phases, not eight.
+    into one LLM call per cluster — see ``dream/consolidate.py``.
+
+    The former Relations phase was removed in 2026-04-27 after the
+    dreaming-validation study found it actively hurt multi-hop recall
+    on small dense corpora (full-clique ``similar_to`` edges caused
+    spreading activation to surface peripheral cluster members).
+    ``derived_from`` edges are still written inline by Consolidate's
+    ``_persist_derived``. See docs/dreaming-decision.md.
     """
 
     REPLAY = "replay"
     CLUSTER = "cluster"
     CONSOLIDATE = "consolidate"
-    RELATIONS = "relations"
     REBALANCE = "rebalance"
     DISPOSE = "dispose"
 
@@ -46,13 +51,18 @@ class PhaseOutcome:
 
     ``status`` is one of:
 
-    - ``"ok"``      — phase ran to completion.
-    - ``"skipped"`` — phase chose not to run (missing LLM, empty
-                     replay set, upstream-empty, budget exhausted).
-                     ``skip_reason`` names the cause.
-    - ``"error"``   — phase raised an unhandled exception. ``error``
-                     holds the exception class + message. Downstream
-                     phases still try to run on whatever state survives.
+    - ``"ok"``               — phase ran to completion.
+    - ``"skipped"``          — phase chose not to run (missing LLM,
+                              empty replay set, upstream-empty, budget
+                              exhausted). ``skip_reason`` names the cause.
+    - ``"error"``            — phase raised an unhandled exception.
+                              ``error`` holds the exception class +
+                              message. Downstream phases still try to
+                              run on whatever state survives.
+    - ``"excluded_by_mask"`` — caller passed a ``phases=`` mask to
+                              ``DreamRunner.run`` that filtered this
+                              phase out before it could run. Used by the
+                              ablation harness in ``bench/ablate_dreaming.py``.
 
     The runner never re-raises phase exceptions — a dream can finish
     in a degraded state (some phases ``ok``, some ``error``), and the

@@ -6,6 +6,17 @@
 #
 # Everything else in the file is a thin convenience wrapper around
 # `python -m ...` commands the rest of the project exposes. No magic.
+#
+# The dreaming-validation harness lives under bench/ablate_dreaming.py
+# and runs on demand. It hits the network (OpenAI embeddings +
+# OpenRouter LLMs) so it's never part of CI by default.
+#
+# API keys:
+#   OPENAI_API_KEY            — embedder (text-embedding-3-small)
+#   OPENROUTER_API_KEY        — Consolidate + judge LLMs
+#   GEMINI_API_KEY            — record-simulation (Gemini 2.5 Flash)
+#   GOOGLE_API_KEY            — alternate Gemini auth
+#   MNEMOSS_BENCH_BUDGET_USD  — optional spend cap
 
 # ─── .env auto-load ────────────────────────────────────────────────
 #
@@ -17,7 +28,7 @@
 # for direct invocation without `make`.
 
 -include .env
-export OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY MNEMOSS_BENCH_BUDGET_USD
+export OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENROUTER_API_KEY MNEMOSS_BENCH_BUDGET_USD
 
 PY ?= python
 RESULTS_DIR ?= bench/results
@@ -137,6 +148,78 @@ chart1: ## re-render Chart 1 SVG from existing JSON
 			--out $(RESULTS_DIR)/chart1_smoke.svg; \
 		echo "wrote $(RESULTS_DIR)/chart1_smoke.svg (smoke — no full run available)"; \
 	fi
+
+
+# ─── dreaming-validation harness ───────────────────────────────────
+#
+# Per-phase ablation study + final comprehensive validation. Pre-
+# registered KEEP/CUT/REBUILD verdicts live in docs/dreaming-decision.md.
+
+.PHONY: ablate-dreaming-binary
+ablate-dreaming-binary: ## binary gate: full pipeline vs dreaming-off (topology)
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.ablate_dreaming --binary
+	$(PY) -m bench.plot_pareto
+
+.PHONY: ablate-dreaming
+ablate-dreaming: ## full topology ablation matrix (14 conditions)
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.ablate_dreaming --full
+	$(PY) -m bench.plot_pareto
+
+.PHONY: ablate-dreaming-pareto
+ablate-dreaming-pareto: ## re-render Pareto chart from existing results
+	$(PY) -m bench.plot_pareto
+
+.PHONY: ablate-dreaming-pressure-binary
+ablate-dreaming-pressure-binary: ## pressure binary gate (Dispose + Rebalance)
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.ablate_dreaming --pressure-binary
+	$(PY) -m bench.plot_pressure
+
+.PHONY: ablate-dreaming-pressure
+ablate-dreaming-pressure: ## pressure full matrix (7 conditions)
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.ablate_dreaming --pressure-full
+	$(PY) -m bench.plot_pressure
+
+.PHONY: ablate-dreaming-pressure-plot
+ablate-dreaming-pressure-plot: ## re-render pressure chart from existing results
+	$(PY) -m bench.plot_pressure
+
+.PHONY: pressure-corpus-gen
+pressure-corpus-gen: ## (re)generate pressure corpus JSONL (seed 42)
+	$(PY) -m bench.fixtures.pressure_corpus_gen --seed 42
+
+.PHONY: gist-quality
+gist-quality: ## pairwise LLM-as-judge for Consolidate's gist quality
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.gist_quality
+	$(PY) -m bench.plot_gist
+
+.PHONY: gist-quality-plot
+gist-quality-plot: ## re-render gist-quality bar chart
+	$(PY) -m bench.plot_gist
+
+.PHONY: forgetting-curves
+forgetting-curves: ## B_i vs age scatter on the pressure corpus
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.forgetting_curves --ablation dreaming_off
+
+.PHONY: comprehensive-validation
+comprehensive-validation: ## final speed+accuracy run (4 conds × 2 corpora × 3 reps)
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	@if [ -z "$$OPENROUTER_API_KEY" ]; then echo "error: OPENROUTER_API_KEY not set (check .env)"; exit 2; fi
+	$(PY) -m bench.comprehensive_validation
+
+.PHONY: bench-tests
+bench-tests: ## bench-harness unit tests (offline, safe in CI)
+	pytest bench/tests/
 
 
 # ─── static explainer figures ──────────────────────────────────────

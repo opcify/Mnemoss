@@ -135,3 +135,6 @@ docs/figures_out/
 # Node / TypeScript (SDK + TS adapters)
 node_modules/
 *.tsbuildinfo
+
+# Local mnemoss.toml may contain real API keys; only the .example is tracked.
+mnemoss.toml

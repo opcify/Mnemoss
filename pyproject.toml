@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mnemoss"
-version = "0.0.1"
+version = "0.0.2"
 description = "ACT-R based memory system for AI agents. Recall what matters, when it matters."
 readme = "README.md"
 license = { text = "MIT" }
@@ -46,6 +46,11 @@ server = [
 sdk = ["httpx>=0.27"]
 mcp = ["mcp>=1.0"]
 observability = ["prometheus-client>=0.19"]
+bench = [
+    "freezegun>=1.4",
+    "tenacity>=8.0",
+    "matplotlib>=3.7",
+]
 # Approximate-nearest-neighbor index (HNSW). Optional — if missing,
 # vec_search falls back to sqlite-vec's linear scan. Install with
 # ``pip install mnemoss[ann]`` to get O(log N) vector recall.

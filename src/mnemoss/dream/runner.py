@@ -28,10 +28,6 @@ from mnemoss.dream.consolidate import (
 )
 from mnemoss.dream.cost import CostLedger, CostLimits
 from mnemoss.dream.dispose import dispose_pass
-from mnemoss.dream.relations import (
-    write_derived_from_edges,
-    write_similar_to_edges,
-)
 from mnemoss.dream.replay import select_replay_candidates
 from mnemoss.dream.types import (
     DreamReport,
@@ -52,21 +48,25 @@ PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
     # Consolidate phase. Surprise and cognitive_load intentionally skip
     # REPLAY — they run on memories already surfaced by the host
     # framework (Stage 6+ will add an explicit `memories=` parameter).
+    #
+    # The former Relations phase was removed in 2026-04-27 after the
+    # dreaming-validation study found it actively hurt multi-hop recall
+    # by 17pp on the topology corpus (full clique similar_to edges
+    # caused spreading activation to surface peripheral cluster
+    # members). derived_from edges are still written inline by
+    # Consolidate's _persist_derived. See docs/dreaming-decision.md.
     TriggerType.IDLE: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
         PhaseName.CONSOLIDATE,
-        PhaseName.RELATIONS,
     ],
     TriggerType.SESSION_END: [
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
         PhaseName.CONSOLIDATE,
-        PhaseName.RELATIONS,
     ],
     TriggerType.SURPRISE: [
         PhaseName.CONSOLIDATE,
-        PhaseName.RELATIONS,
     ],
     TriggerType.COGNITIVE_LOAD: [
         PhaseName.CONSOLIDATE,
@@ -75,7 +75,6 @@ PHASES_BY_TRIGGER: dict[TriggerType, list[PhaseName]] = {
         PhaseName.REPLAY,
         PhaseName.CLUSTER,
         PhaseName.CONSOLIDATE,
-        PhaseName.RELATIONS,
         PhaseName.REBALANCE,
         PhaseName.DISPOSE,
     ],
@@ -132,7 +131,22 @@ class DreamRunner:
         *,
         agent_id: str | None = None,
         now: datetime | None = None,
+        phases: set[str] | None = None,
     ) -> DreamReport:
+        """Run one dream cycle.
+
+        ``phases`` (optional) is an ablation mask — a set of phase
+        ``value`` strings (e.g. ``{"replay", "cluster"}``). When provided,
+        only listed phases run; excluded phases get a ``PhaseOutcome``
+        with ``status="excluded_by_mask"``. Default ``None`` runs every
+        phase the trigger normally runs.
+
+        Dependency rules are intentionally **not** enforced by the mask
+        — downstream phases that consume empty state record their
+        existing skip reasons (``"empty replay set"``, etc.). The mask
+        only filters the iteration loop. See design doc.
+        """
+
         t0 = now if now is not None else datetime.now(UTC)
         report = DreamReport(
             trigger=trigger,
@@ -143,6 +157,15 @@ class DreamRunner:
         state = _DreamState()
 
         for phase in PHASES_BY_TRIGGER.get(trigger, []):
+            if phases is not None and phase.value not in phases:
+                report.outcomes.append(
+                    PhaseOutcome(
+                        phase=phase,
+                        status="excluded_by_mask",
+                        skip_reason="excluded by phases mask",
+                    )
+                )
+                continue
             outcome = await self._run_phase(phase, state, agent_id, t0)
             report.outcomes.append(outcome)
 
@@ -163,8 +186,6 @@ class DreamRunner:
                 return await self._phase_cluster(state)
             if phase is PhaseName.CONSOLIDATE:
                 return await self._phase_consolidate(state, now)
-            if phase is PhaseName.RELATIONS:
-                return await self._phase_relations(state)
             if phase is PhaseName.REBALANCE:
                 return await self._phase_rebalance(now)
             if phase is PhaseName.DISPOSE:
@@ -381,21 +402,6 @@ class DreamRunner:
         embedding = await asyncio.to_thread(self._embedder.embed, [memory.content])
         await self._store.write_memory(memory, embedding[0])
         await self._store.link_derived(memory.derived_from, memory.id)
-
-    # ─── P5 Relations ──────────────────────────────────────────────
-
-    async def _phase_relations(self, state: _DreamState) -> PhaseOutcome:
-        similar_edges = await write_similar_to_edges(self._store, state.cluster_assignments)
-        derived_edges = await write_derived_from_edges(self._store, state.consolidated)
-        return PhaseOutcome(
-            phase=PhaseName.RELATIONS,
-            status="ok",
-            details={
-                "similar_to_edges": similar_edges,
-                "derived_from_edges": derived_edges,
-                "total_edges": similar_edges + derived_edges,
-            },
-        )
 
     # ─── P7 Rebalance ──────────────────────────────────────────────
 

@@ -1,0 +1,99 @@
+{
+  "_comment": "Hand-labeled topology corpus for the Mnemoss dreaming validation. 30 memories across 3 topics (work / family / hobby). 12 queries: 4 single-hop (a single memory or one cluster answers), 4 multi-hop (requires Relations spreading-activation across 2+ memories), 4 negative (gold set empty). Designed so HDBSCAN's default min_cluster_size=3 should classify all 30 as cluster members with zero noise. Topic labels enable noise-aware ARI scoring of the Cluster phase.",
+  "memories": [
+    {"id": "w1", "topic": "work", "content": "alice mentioned the Q3 platform roadmap at standup yesterday"},
+    {"id": "w2", "topic": "work", "content": "bob is alice's coworker on the platform team"},
+    {"id": "w3", "topic": "work", "content": "bob complained that the migration timeline is unrealistic"},
+    {"id": "w4", "topic": "work", "content": "carol said the migration spec slipped to october"},
+    {"id": "w5", "topic": "work", "content": "carol leads design for the analytics dashboard"},
+    {"id": "w6", "topic": "work", "content": "the analytics dashboard launch is targeted for october fifteenth"},
+    {"id": "w7", "topic": "work", "content": "alice approved the dashboard mockup in the friday review"},
+    {"id": "w8", "topic": "work", "content": "platform team standup is every monday at ten"},
+    {"id": "w9", "topic": "work", "content": "bob skipped the wednesday architecture review"},
+    {"id": "w10", "topic": "work", "content": "the migration spec is a forty-page document"},
+
+    {"id": "f1", "topic": "family", "content": "mom called this morning about thanksgiving plans"},
+    {"id": "f2", "topic": "family", "content": "dad is fixing the leaky kitchen faucet"},
+    {"id": "f3", "topic": "family", "content": "mom asked if i'm coming home for thanksgiving"},
+    {"id": "f4", "topic": "family", "content": "my sister just got promoted at her law firm"},
+    {"id": "f5", "topic": "family", "content": "my sister is moving to seattle in december"},
+    {"id": "f6", "topic": "family", "content": "the family golden retriever had its annual checkup"},
+    {"id": "f7", "topic": "family", "content": "my nephew started kindergarten last week"},
+    {"id": "f8", "topic": "family", "content": "my niece won the district piano recital"},
+    {"id": "f9", "topic": "family", "content": "thanksgiving dinner is at aunt linda's house this year"},
+    {"id": "f10", "topic": "family", "content": "aunt linda is hosting all fourteen of us for the holiday"},
+
+    {"id": "h1", "topic": "hobby", "content": "finished reading dune messiah over the weekend"},
+    {"id": "h2", "topic": "hobby", "content": "ordered a new chisel set for woodworking projects"},
+    {"id": "h3", "topic": "hobby", "content": "the workshop has good natural lighting now"},
+    {"id": "h4", "topic": "hobby", "content": "built a small bookshelf from oak for the bedroom"},
+    {"id": "h5", "topic": "hobby", "content": "the bookshelf needs another coat of clear varnish"},
+    {"id": "h6", "topic": "hobby", "content": "joined a local hiking group through the meetup app"},
+    {"id": "h7", "topic": "hobby", "content": "saturday's group hike is to mount tamalpais"},
+    {"id": "h8", "topic": "hobby", "content": "mount tamalpais summit elevation is twenty five hundred feet"},
+    {"id": "h9", "topic": "hobby", "content": "packed trail mix and water for the saturday hike"},
+    {"id": "h10", "topic": "hobby", "content": "the mount tam loop trail is seven miles round trip"}
+  ],
+  "queries": [
+    {
+      "query": "when does the migration spec ship",
+      "kind": "single-hop",
+      "relevant_ids": ["w4", "w10"]
+    },
+    {
+      "query": "thanksgiving plans",
+      "kind": "single-hop",
+      "relevant_ids": ["f1", "f3", "f9"]
+    },
+    {
+      "query": "the bookshelf project",
+      "kind": "single-hop",
+      "relevant_ids": ["h4", "h5"]
+    },
+    {
+      "query": "saturday hike location",
+      "kind": "single-hop",
+      "relevant_ids": ["h7", "h8", "h9"]
+    },
+    {
+      "query": "what did alice's coworker say about the platform migration",
+      "kind": "multi-hop",
+      "relevant_ids": ["w1", "w2", "w3"]
+    },
+    {
+      "query": "how many people are at the dinner my aunt is hosting",
+      "kind": "multi-hop",
+      "relevant_ids": ["f9", "f10"]
+    },
+    {
+      "query": "how long is the trail my hiking group is doing on saturday",
+      "kind": "multi-hop",
+      "relevant_ids": ["h6", "h7", "h10"]
+    },
+    {
+      "query": "did dad fix any plumbing recently",
+      "kind": "multi-hop",
+      "relevant_ids": ["f2"]
+    },
+    {
+      "query": "what did the cat eat for breakfast",
+      "kind": "negative",
+      "relevant_ids": []
+    },
+    {
+      "query": "when is the rocket scheduled to launch",
+      "kind": "negative",
+      "relevant_ids": []
+    },
+    {
+      "query": "what color is the boat",
+      "kind": "negative",
+      "relevant_ids": []
+    },
+    {
+      "query": "how was the chocolate chip cookie recipe",
+      "kind": "negative",
+      "relevant_ids": []
+    }
+  ]
+}

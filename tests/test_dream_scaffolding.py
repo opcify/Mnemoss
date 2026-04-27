@@ -43,13 +43,13 @@ async def test_dream_returns_report_with_phase_outcomes(tmp_path: Path) -> None:
 
         report = await mem.dream(trigger="idle")
         assert report.trigger is TriggerType.IDLE
-        # Idle runs the four light-trigger phases.
+        # Idle runs the three light-trigger phases (Relations removed
+        # 2026-04-27 per dreaming-validation study).
         phases = [o.phase for o in report.outcomes]
         assert phases == [
             PhaseName.REPLAY,
             PhaseName.CLUSTER,
             PhaseName.CONSOLIDATE,
-            PhaseName.RELATIONS,
         ]
         replay = report.outcome(PhaseName.REPLAY)
         assert replay is not None and replay.status == "ok"

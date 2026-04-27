@@ -1,0 +1,4889 @@
+{
+  "_meta": {
+    "seed": 42,
+    "total_memories": 500,
+    "high_utility": 50,
+    "backbone": 100,
+    "junk": 350,
+    "simulated_days": 30,
+    "queries": 30
+  },
+  "memories": [
+    {
+      "id": "j262",
+      "utility": "low",
+      "ts_offset_seconds": 6561,
+      "content": "Hallway light flickered again; need to call facilities"
+    },
+    {
+      "id": "j312",
+      "utility": "low",
+      "ts_offset_seconds": 22025,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "j213",
+      "utility": "low",
+      "ts_offset_seconds": 25609,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "j155",
+      "utility": "low",
+      "ts_offset_seconds": 32241,
+      "content": "Date night at The Daily was strange"
+    },
+    {
+      "id": "h002",
+      "utility": "high",
+      "ts_offset_seconds": 32421,
+      "content": "Sprint 4 kickoff for Project Phoenix; focus on ingestion"
+    },
+    {
+      "id": "j299",
+      "utility": "low",
+      "ts_offset_seconds": 68124,
+      "content": "Weather is rainy this week"
+    },
+    {
+      "id": "j112",
+      "utility": "low",
+      "ts_offset_seconds": 68934,
+      "content": "Hallway light flickered again; need to call maintenance"
+    },
+    {
+      "id": "j115",
+      "utility": "low",
+      "ts_offset_seconds": 76464,
+      "content": "Made stir fry for dinner; turned out fine"
+    },
+    {
+      "id": "b098",
+      "utility": "medium",
+      "ts_offset_seconds": 78607,
+      "content": "Coffee chat with Bob about scope this morning"
+    },
+    {
+      "id": "b036",
+      "utility": "medium",
+      "ts_offset_seconds": 79708,
+      "content": "Alice pinged me on Slack about tooling"
+    },
+    {
+      "id": "j179",
+      "utility": "low",
+      "ts_offset_seconds": 85288,
+      "content": "Weather is clear this week"
+    },
+    {
+      "id": "j093",
+      "utility": "low",
+      "ts_offset_seconds": 87478,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "b013",
+      "utility": "medium",
+      "ts_offset_seconds": 108688,
+      "content": "1:1 with Ivy: career growth, scope, next quarter goals"
+    },
+    {
+      "id": "j063",
+      "utility": "low",
+      "ts_offset_seconds": 111862,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "j061",
+      "utility": "low",
+      "ts_offset_seconds": 118227,
+      "content": "Pixar release schedule for 2027 looks fine"
+    },
+    {
+      "id": "j154",
+      "utility": "low",
+      "ts_offset_seconds": 128585,
+      "content": "Apple release event was on Thursday; underwhelming"
+    },
+    {
+      "id": "j243",
+      "utility": "low",
+      "ts_offset_seconds": 130613,
+      "content": "Phoenix Suns released their 2025 roster yesterday"
+    },
+    {
+      "id": "h045",
+      "utility": "high",
+      "ts_offset_seconds": 135833,
+      "content": "Phoenix migration spec reviewed; David approved the ingestion schema"
+    },
+    {
+      "id": "j285",
+      "utility": "low",
+      "ts_offset_seconds": 145957,
+      "content": "Phoenix bird folklore: rises from ash every 3 years"
+    },
+    {
+      "id": "j141",
+      "utility": "low",
+      "ts_offset_seconds": 153598,
+      "content": "Saw a blue starling at the park this morning"
+    },
+    {
+      "id": "j079",
+      "utility": "low",
+      "ts_offset_seconds": 155121,
+      "content": "Fitness metrics this week: 9500 steps, 60 active minutes"
+    },
+    {
+      "id": "j066",
+      "utility": "low",
+      "ts_offset_seconds": 157736,
+      "content": "Football kickoff at 2pm; Foxes won 17-13"
+    },
+    {
+      "id": "j124",
+      "utility": "low",
+      "ts_offset_seconds": 158324,
+      "content": "Apple release event was on Tuesday; strange"
+    },
+    {
+      "id": "b059",
+      "utility": "medium",
+      "ts_offset_seconds": 160655,
+      "content": "Lunch meeting in conference room B: Cobalt planning"
+    },
+    {
+      "id": "j304",
+      "utility": "low",
+      "ts_offset_seconds": 164173,
+      "content": "Apple release event was on Monday; strange"
+    },
+    {
+      "id": "j160",
+      "utility": "low",
+      "ts_offset_seconds": 172061,
+      "content": "Boat design magazine featured Kline this issue"
+    },
+    {
+      "id": "j303",
+      "utility": "low",
+      "ts_offset_seconds": 175766,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "j080",
+      "utility": "low",
+      "ts_offset_seconds": 177428,
+      "content": "Coffee at Foglight was strange"
+    },
+    {
+      "id": "j140",
+      "utility": "low",
+      "ts_offset_seconds": 177650,
+      "content": "Coffee at Bluebird was strange"
+    },
+    {
+      "id": "j027",
+      "utility": "low",
+      "ts_offset_seconds": 182596,
+      "content": "Bought new rug from the corner shop"
+    },
+    {
+      "id": "j345",
+      "utility": "low",
+      "ts_offset_seconds": 183259,
+      "content": "Phoenix bird folklore: rises from ember every 5 years"
+    },
+    {
+      "id": "h036",
+      "utility": "high",
+      "ts_offset_seconds": 183736,
+      "content": "Phoenix dashboard shipped \u2014 scheduler metrics now visible to ops"
+    },
+    {
+      "id": "h019",
+      "utility": "high",
+      "ts_offset_seconds": 185957,
+      "content": "Phoenix retro: telemetry performed well, limiter needs another iteration"
+    },
+    {
+      "id": "j031",
+      "utility": "low",
+      "ts_offset_seconds": 190494,
+      "content": "Pixar release schedule for 2027 looks underwhelming"
+    },
+    {
+      "id": "j039",
+      "utility": "low",
+      "ts_offset_seconds": 200275,
+      "content": "Fashion design week showed Vega's spring collection"
+    },
+    {
+      "id": "j136",
+      "utility": "low",
+      "ts_offset_seconds": 200504,
+      "content": "Sprint workout at the gym: 60 minutes on the treadmill"
+    },
+    {
+      "id": "j313",
+      "utility": "low",
+      "ts_offset_seconds": 208719,
+      "content": "Trip to Phoenix Arizona was underwhelming; weather was sunny"
+    },
+    {
+      "id": "h026",
+      "utility": "high",
+      "ts_offset_seconds": 218857,
+      "content": "Phoenix dashboard shipped \u2014 router metrics now visible to ops"
+    },
+    {
+      "id": "b055",
+      "utility": "medium",
+      "ts_offset_seconds": 219636,
+      "content": "Office hours with Bob: roadmap questions answered"
+    },
+    {
+      "id": "h021",
+      "utility": "high",
+      "ts_offset_seconds": 220657,
+      "content": "Phoenix architecture review with Ivy on the router module"
+    },
+    {
+      "id": "b061",
+      "utility": "medium",
+      "ts_offset_seconds": 223375,
+      "content": "1:1 with Grace: career growth, roadmap, next quarter goals"
+    },
+    {
+      "id": "b083",
+      "utility": "medium",
+      "ts_offset_seconds": 229772,
+      "content": "Lunch meeting in conference room Sunset: Atlas planning"
+    },
+    {
+      "id": "j171",
+      "utility": "low",
+      "ts_offset_seconds": 235602,
+      "content": "Saw a brown robin at the park this morning"
+    },
+    {
+      "id": "j316",
+      "utility": "low",
+      "ts_offset_seconds": 238614,
+      "content": "Sprint workout at the gym: 45 minutes on the treadmill"
+    },
+    {
+      "id": "j288",
+      "utility": "low",
+      "ts_offset_seconds": 240577,
+      "content": "Car dashboard light came on; fine"
+    },
+    {
+      "id": "b048",
+      "utility": "medium",
+      "ts_offset_seconds": 259517,
+      "content": "Daily standup: Frank reported on Phoenix, blocker on ranking"
+    },
+    {
+      "id": "j234",
+      "utility": "low",
+      "ts_offset_seconds": 263432,
+      "content": "Trail run on the river path was underwhelming"
+    },
+    {
+      "id": "j344",
+      "utility": "low",
+      "ts_offset_seconds": 264662,
+      "content": "Phoenix Bar on Main Street has new cider tasting"
+    },
+    {
+      "id": "j260",
+      "utility": "low",
+      "ts_offset_seconds": 276454,
+      "content": "Coffee at Foglight was strange"
+    },
+    {
+      "id": "j048",
+      "utility": "low",
+      "ts_offset_seconds": 281997,
+      "content": "Car dashboard light came on; strange"
+    },
+    {
+      "id": "j335",
+      "utility": "low",
+      "ts_offset_seconds": 283365,
+      "content": "Date night at Bistro 22 was fine"
+    },
+    {
+      "id": "b018",
+      "utility": "medium",
+      "ts_offset_seconds": 283867,
+      "content": "Coffee chat with David about scope this morning"
+    },
+    {
+      "id": "j302",
+      "utility": "low",
+      "ts_offset_seconds": 286413,
+      "content": "Music release: Eclipse Set dropped a new album titled Migration Routes"
+    },
+    {
+      "id": "b084",
+      "utility": "medium",
+      "ts_offset_seconds": 291862,
+      "content": "Eve pinged me on Slack about release"
+    },
+    {
+      "id": "h030",
+      "utility": "high",
+      "ts_offset_seconds": 302306,
+      "content": "Project Phoenix v1.0 release set for Friday the 22nd"
+    },
+    {
+      "id": "j114",
+      "utility": "low",
+      "ts_offset_seconds": 311178,
+      "content": "Trail run on the river path was decent"
+    },
+    {
+      "id": "j295",
+      "utility": "low",
+      "ts_offset_seconds": 314745,
+      "content": "Made stir fry for dinner; turned out fine"
+    },
+    {
+      "id": "j314",
+      "utility": "low",
+      "ts_offset_seconds": 316054,
+      "content": "Phoenix Bar on Main Street has new seasonal cocktail menu"
+    },
+    {
+      "id": "b040",
+      "utility": "medium",
+      "ts_offset_seconds": 320358,
+      "content": "Daily standup: Ivy reported on Atlas, blocker on telemetry"
+    },
+    {
+      "id": "h042",
+      "utility": "high",
+      "ts_offset_seconds": 321833,
+      "content": "Sprint 5 kickoff for Project Phoenix; focus on ingestion"
+    },
+    {
+      "id": "j322",
+      "utility": "low",
+      "ts_offset_seconds": 322480,
+      "content": "Hallway light flickered again; need to call the super"
+    },
+    {
+      "id": "j315",
+      "utility": "low",
+      "ts_offset_seconds": 323653,
+      "content": "Phoenix bird folklore: rises from ember every 1 years"
+    },
+    {
+      "id": "j135",
+      "utility": "low",
+      "ts_offset_seconds": 326579,
+      "content": "Phoenix bird folklore: rises from ash every 7 years"
+    },
+    {
+      "id": "j157",
+      "utility": "low",
+      "ts_offset_seconds": 329869,
+      "content": "Concert kickoff for Eclipse Set tour next month"
+    },
+    {
+      "id": "j188",
+      "utility": "low",
+      "ts_offset_seconds": 331043,
+      "content": "Visited the new Forge \u2014 Halsten did the architecture"
+    },
+    {
+      "id": "b053",
+      "utility": "medium",
+      "ts_offset_seconds": 332296,
+      "content": "1:1 with David: career growth, roadmap, next quarter goals"
+    },
+    {
+      "id": "b038",
+      "utility": "medium",
+      "ts_offset_seconds": 335833,
+      "content": "Friday wrap-up: Atlas on track, Cobalt slipping a sprint"
+    },
+    {
+      "id": "h043",
+      "utility": "high",
+      "ts_offset_seconds": 341844,
+      "content": "Phoenix bug fix landed in commit f4e5d6c: router now handles rate-limited bursts"
+    },
+    {
+      "id": "j159",
+      "utility": "low",
+      "ts_offset_seconds": 342177,
+      "content": "Fashion design week showed Vega's spring collection"
+    },
+    {
+      "id": "j138",
+      "utility": "low",
+      "ts_offset_seconds": 342278,
+      "content": "Car dashboard light came on; underwhelming"
+    },
+    {
+      "id": "j273",
+      "utility": "low",
+      "ts_offset_seconds": 346497,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "b079",
+      "utility": "medium",
+      "ts_offset_seconds": 351797,
+      "content": "Office hours with Bob: release questions answered"
+    },
+    {
+      "id": "j212",
+      "utility": "low",
+      "ts_offset_seconds": 353702,
+      "content": "Music release: Eclipse Set dropped a new album titled Migration Routes"
+    },
+    {
+      "id": "j011",
+      "utility": "low",
+      "ts_offset_seconds": 355337,
+      "content": "Bird migration is starting; saw goldfinch at the park"
+    },
+    {
+      "id": "j325",
+      "utility": "low",
+      "ts_offset_seconds": 356335,
+      "content": "Made stir fry for dinner; turned out great"
+    },
+    {
+      "id": "j133",
+      "utility": "low",
+      "ts_offset_seconds": 359090,
+      "content": "Trip to Phoenix Arizona was strange; weather was clear"
+    },
+    {
+      "id": "j198",
+      "utility": "low",
+      "ts_offset_seconds": 369643,
+      "content": "Car dashboard light came on; decent"
+    },
+    {
+      "id": "b064",
+      "utility": "medium",
+      "ts_offset_seconds": 378730,
+      "content": "Daily standup: Grace reported on Drake, blocker on telemetry"
+    },
+    {
+      "id": "j073",
+      "utility": "low",
+      "ts_offset_seconds": 384674,
+      "content": "Trip to Phoenix Arizona was strange; weather was humid"
+    },
+    {
+      "id": "b058",
+      "utility": "medium",
+      "ts_offset_seconds": 384859,
+      "content": "Coffee chat with Henry about release this morning"
+    },
+    {
+      "id": "j143",
+      "utility": "low",
+      "ts_offset_seconds": 391970,
+      "content": "Read five chapters of The Tide Turns"
+    },
+    {
+      "id": "b082",
+      "utility": "medium",
+      "ts_offset_seconds": 396386,
+      "content": "Coffee chat with David about tooling this morning"
+    },
+    {
+      "id": "j290",
+      "utility": "low",
+      "ts_offset_seconds": 415584,
+      "content": "Coffee at Ember was decent"
+    },
+    {
+      "id": "j054",
+      "utility": "low",
+      "ts_offset_seconds": 424215,
+      "content": "Trail run on the river path was underwhelming"
+    },
+    {
+      "id": "j333",
+      "utility": "low",
+      "ts_offset_seconds": 430292,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "j246",
+      "utility": "low",
+      "ts_offset_seconds": 430326,
+      "content": "Football kickoff at 11am; Foxes won 21-14"
+    },
+    {
+      "id": "j197",
+      "utility": "low",
+      "ts_offset_seconds": 431193,
+      "content": "Fixed the leaky doorknob in the Sunset this weekend"
+    },
+    {
+      "id": "b031",
+      "utility": "medium",
+      "ts_offset_seconds": 434118,
+      "content": "Office hours with Frank: roadmap questions answered"
+    },
+    {
+      "id": "j242",
+      "utility": "low",
+      "ts_offset_seconds": 434797,
+      "content": "Music release: Hush Tone dropped a new album titled Migration Routes"
+    },
+    {
+      "id": "j165",
+      "utility": "low",
+      "ts_offset_seconds": 444022,
+      "content": "Phoenix bird folklore: rises from ember every 2 years"
+    },
+    {
+      "id": "b077",
+      "utility": "medium",
+      "ts_offset_seconds": 464971,
+      "content": "1:1 with Jack: career growth, scope, next quarter goals"
+    },
+    {
+      "id": "j038",
+      "utility": "low",
+      "ts_offset_seconds": 465105,
+      "content": "Visited the new Arcline \u2014 Halsten did the architecture"
+    },
+    {
+      "id": "j223",
+      "utility": "low",
+      "ts_offset_seconds": 466351,
+      "content": "Trip to Phoenix Arizona was strange; weather was humid"
+    },
+    {
+      "id": "j064",
+      "utility": "low",
+      "ts_offset_seconds": 475837,
+      "content": "Apple release event was on Monday; underwhelming"
+    },
+    {
+      "id": "j233",
+      "utility": "low",
+      "ts_offset_seconds": 477385,
+      "content": "Read five chapters of Quiet Engines"
+    },
+    {
+      "id": "h010",
+      "utility": "high",
+      "ts_offset_seconds": 478262,
+      "content": "Project Phoenix v1.0.1 release set for Friday the 12th"
+    },
+    {
+      "id": "j065",
+      "utility": "low",
+      "ts_offset_seconds": 483072,
+      "content": "Date night at Foglight was great"
+    },
+    {
+      "id": "j289",
+      "utility": "low",
+      "ts_offset_seconds": 493925,
+      "content": "Fitness metrics this week: 12800 steps, 45 active minutes"
+    },
+    {
+      "id": "j244",
+      "utility": "low",
+      "ts_offset_seconds": 503250,
+      "content": "Apple release event was on Tuesday; underwhelming"
+    },
+    {
+      "id": "j010",
+      "utility": "low",
+      "ts_offset_seconds": 511069,
+      "content": "Boat design magazine featured Kline this issue"
+    },
+    {
+      "id": "j177",
+      "utility": "low",
+      "ts_offset_seconds": 522086,
+      "content": "Bought new rug from Marlow's"
+    },
+    {
+      "id": "j191",
+      "utility": "low",
+      "ts_offset_seconds": 522936,
+      "content": "Bird migration is starting; saw robin at the park"
+    },
+    {
+      "id": "j229",
+      "utility": "low",
+      "ts_offset_seconds": 529447,
+      "content": "Fitness metrics this week: 11400 steps, 60 active minutes"
+    },
+    {
+      "id": "j266",
+      "utility": "low",
+      "ts_offset_seconds": 536005,
+      "content": "Birthday party for Jack's cousin this weekend"
+    },
+    {
+      "id": "b011",
+      "utility": "medium",
+      "ts_offset_seconds": 540862,
+      "content": "Lunch meeting in conference room B: Atlas planning"
+    },
+    {
+      "id": "j272",
+      "utility": "low",
+      "ts_offset_seconds": 541844,
+      "content": "Music release: Hush Tone dropped a new album titled Open Doors"
+    },
+    {
+      "id": "j163",
+      "utility": "low",
+      "ts_offset_seconds": 549659,
+      "content": "Trip to Phoenix Arizona was fine; weather was sunny"
+    },
+    {
+      "id": "j239",
+      "utility": "low",
+      "ts_offset_seconds": 559560,
+      "content": "Weather is rainy this week"
+    },
+    {
+      "id": "j113",
+      "utility": "low",
+      "ts_offset_seconds": 565612,
+      "content": "Read five chapters of Letters from the Coast"
+    },
+    {
+      "id": "j111",
+      "utility": "low",
+      "ts_offset_seconds": 575604,
+      "content": "Saw a brown goldfinch at the park this morning"
+    },
+    {
+      "id": "b016",
+      "utility": "medium",
+      "ts_offset_seconds": 576990,
+      "content": "Daily standup: Alice reported on Phoenix, blocker on scheduler"
+    },
+    {
+      "id": "j222",
+      "utility": "low",
+      "ts_offset_seconds": 577134,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "b060",
+      "utility": "medium",
+      "ts_offset_seconds": 577535,
+      "content": "Alice pinged me on Slack about headcount"
+    },
+    {
+      "id": "b050",
+      "utility": "medium",
+      "ts_offset_seconds": 580485,
+      "content": "Coffee chat with Henry about headcount this morning"
+    },
+    {
+      "id": "b043",
+      "utility": "medium",
+      "ts_offset_seconds": 582138,
+      "content": "Lunch meeting in conference room A: Cobalt planning"
+    },
+    {
+      "id": "j261",
+      "utility": "low",
+      "ts_offset_seconds": 593193,
+      "content": "Saw a red robin at the park this morning"
+    },
+    {
+      "id": "j338",
+      "utility": "low",
+      "ts_offset_seconds": 595065,
+      "content": "Visited the new Forge \u2014 Halsten did the architecture"
+    },
+    {
+      "id": "j005",
+      "utility": "low",
+      "ts_offset_seconds": 598860,
+      "content": "Date night at Bistro 22 was great"
+    },
+    {
+      "id": "j081",
+      "utility": "low",
+      "ts_offset_seconds": 600840,
+      "content": "Saw a brown warbler at the park this morning"
+    },
+    {
+      "id": "j042",
+      "utility": "low",
+      "ts_offset_seconds": 602204,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "j117",
+      "utility": "low",
+      "ts_offset_seconds": 612575,
+      "content": "Bought new chair from Marlow's"
+    },
+    {
+      "id": "b025",
+      "utility": "medium",
+      "ts_offset_seconds": 614231,
+      "content": "Weekly all-hands at 11am; Ivy presented Atlas status"
+    },
+    {
+      "id": "b015",
+      "utility": "medium",
+      "ts_offset_seconds": 618025,
+      "content": "Office hours with Frank: release questions answered"
+    },
+    {
+      "id": "j120",
+      "utility": "low",
+      "ts_offset_seconds": 619456,
+      "content": "Watched The Last Architect, the new release from Universal; underwhelming"
+    },
+    {
+      "id": "j057",
+      "utility": "low",
+      "ts_offset_seconds": 627130,
+      "content": "Bought new shelf from the hardware store"
+    },
+    {
+      "id": "b007",
+      "utility": "medium",
+      "ts_offset_seconds": 630711,
+      "content": "Office hours with Carol: release questions answered"
+    },
+    {
+      "id": "j301",
+      "utility": "low",
+      "ts_offset_seconds": 632757,
+      "content": "Pixar release schedule for 2025 looks decent"
+    },
+    {
+      "id": "j082",
+      "utility": "low",
+      "ts_offset_seconds": 633161,
+      "content": "Hallway light flickered again; need to call maintenance"
+    },
+    {
+      "id": "j126",
+      "utility": "low",
+      "ts_offset_seconds": 641182,
+      "content": "Football kickoff at 10am; Ravens won 17-13"
+    },
+    {
+      "id": "j050",
+      "utility": "low",
+      "ts_offset_seconds": 643566,
+      "content": "Coffee at Ember was underwhelming"
+    },
+    {
+      "id": "j349",
+      "utility": "low",
+      "ts_offset_seconds": 646982,
+      "content": "Fitness metrics this week: 9500 steps, 30 active minutes"
+    },
+    {
+      "id": "h013",
+      "utility": "high",
+      "ts_offset_seconds": 649887,
+      "content": "Phoenix bug fix landed in commit 0a1b2c3: ingestion now handles concurrent writes"
+    },
+    {
+      "id": "j095",
+      "utility": "low",
+      "ts_offset_seconds": 652549,
+      "content": "Date night at The Daily was strange"
+    },
+    {
+      "id": "b092",
+      "utility": "medium",
+      "ts_offset_seconds": 660222,
+      "content": "Eve pinged me on Slack about headcount"
+    },
+    {
+      "id": "j147",
+      "utility": "low",
+      "ts_offset_seconds": 660224,
+      "content": "Bought new lamp from Marlow's"
+    },
+    {
+      "id": "b032",
+      "utility": "medium",
+      "ts_offset_seconds": 665829,
+      "content": "Daily standup: Jack reported on Drake, blocker on ranking"
+    },
+    {
+      "id": "j032",
+      "utility": "low",
+      "ts_offset_seconds": 671032,
+      "content": "Music release: Marlow dropped a new album titled Lowlight"
+    },
+    {
+      "id": "j214",
+      "utility": "low",
+      "ts_offset_seconds": 672398,
+      "content": "Apple release event was on Friday; underwhelming"
+    },
+    {
+      "id": "j153",
+      "utility": "low",
+      "ts_offset_seconds": 679721,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "b095",
+      "utility": "medium",
+      "ts_offset_seconds": 680514,
+      "content": "Office hours with Ivy: roadmap questions answered"
+    },
+    {
+      "id": "j084",
+      "utility": "low",
+      "ts_offset_seconds": 694321,
+      "content": "Trail run on the eastern fire road was decent"
+    },
+    {
+      "id": "j202",
+      "utility": "low",
+      "ts_offset_seconds": 698958,
+      "content": "Hallway light flickered again; need to call facilities"
+    },
+    {
+      "id": "h044",
+      "utility": "high",
+      "ts_offset_seconds": 705199,
+      "content": "Phoenix deployment plan: Thursday morning, storage first then indexer"
+    },
+    {
+      "id": "j256",
+      "utility": "low",
+      "ts_offset_seconds": 720888,
+      "content": "Sprint workout at the gym: 60 minutes on the treadmill"
+    },
+    {
+      "id": "j051",
+      "utility": "low",
+      "ts_offset_seconds": 723764,
+      "content": "Saw a blue starling at the park this morning"
+    },
+    {
+      "id": "h033",
+      "utility": "high",
+      "ts_offset_seconds": 727707,
+      "content": "Phoenix bug fix landed in commit b9c8d7e: router now handles rate-limited bursts"
+    },
+    {
+      "id": "j094",
+      "utility": "low",
+      "ts_offset_seconds": 734377,
+      "content": "Apple release event was on Thursday; fine"
+    },
+    {
+      "id": "j087",
+      "utility": "low",
+      "ts_offset_seconds": 736917,
+      "content": "Bought new lamp from the corner shop"
+    },
+    {
+      "id": "h000",
+      "utility": "high",
+      "ts_offset_seconds": 743004,
+      "content": "Project Phoenix v1.0 release set for Monday the 22nd"
+    },
+    {
+      "id": "j227",
+      "utility": "low",
+      "ts_offset_seconds": 756077,
+      "content": "Fixed the leaky hinge in the B this weekend"
+    },
+    {
+      "id": "j118",
+      "utility": "low",
+      "ts_offset_seconds": 756889,
+      "content": "Public transit was great today"
+    },
+    {
+      "id": "j180",
+      "utility": "low",
+      "ts_offset_seconds": 758522,
+      "content": "Watched Skyline Memories, the new release from Universal; fine"
+    },
+    {
+      "id": "j035",
+      "utility": "low",
+      "ts_offset_seconds": 760870,
+      "content": "Date night at Ember was great"
+    },
+    {
+      "id": "j049",
+      "utility": "low",
+      "ts_offset_seconds": 764529,
+      "content": "Fitness metrics this week: 11400 steps, 20 active minutes"
+    },
+    {
+      "id": "b003",
+      "utility": "medium",
+      "ts_offset_seconds": 780342,
+      "content": "Lunch meeting in conference room A: Phoenix planning"
+    },
+    {
+      "id": "j309",
+      "utility": "low",
+      "ts_offset_seconds": 783568,
+      "content": "Fashion design week showed Kline's spring collection"
+    },
+    {
+      "id": "j284",
+      "utility": "low",
+      "ts_offset_seconds": 785651,
+      "content": "Phoenix Bar on Main Street has new cider tasting"
+    },
+    {
+      "id": "b002",
+      "utility": "medium",
+      "ts_offset_seconds": 789533,
+      "content": "Coffee chat with Eve about scope this morning"
+    },
+    {
+      "id": "j298",
+      "utility": "low",
+      "ts_offset_seconds": 801545,
+      "content": "Public transit was decent today"
+    },
+    {
+      "id": "h032",
+      "utility": "high",
+      "ts_offset_seconds": 805328,
+      "content": "Sprint 3 kickoff for Project Phoenix; focus on telemetry"
+    },
+    {
+      "id": "b012",
+      "utility": "medium",
+      "ts_offset_seconds": 813291,
+      "content": "Frank pinged me on Slack about headcount"
+    },
+    {
+      "id": "j208",
+      "utility": "low",
+      "ts_offset_seconds": 813762,
+      "content": "Public transit was great today"
+    },
+    {
+      "id": "h012",
+      "utility": "high",
+      "ts_offset_seconds": 827417,
+      "content": "Sprint 7 kickoff for Project Phoenix; focus on scheduler"
+    },
+    {
+      "id": "h005",
+      "utility": "high",
+      "ts_offset_seconds": 836637,
+      "content": "Phoenix migration spec reviewed; Bob approved the ranking schema"
+    },
+    {
+      "id": "j296",
+      "utility": "low",
+      "ts_offset_seconds": 837592,
+      "content": "Birthday party for David's sister this weekend"
+    },
+    {
+      "id": "j323",
+      "utility": "low",
+      "ts_offset_seconds": 845533,
+      "content": "Read five chapters of Quiet Engines"
+    },
+    {
+      "id": "j279",
+      "utility": "low",
+      "ts_offset_seconds": 857412,
+      "content": "Fashion design week showed Kline's spring collection"
+    },
+    {
+      "id": "j158",
+      "utility": "low",
+      "ts_offset_seconds": 885979,
+      "content": "Visited the new Arcline \u2014 Halsten did the architecture"
+    },
+    {
+      "id": "j236",
+      "utility": "low",
+      "ts_offset_seconds": 898389,
+      "content": "Birthday party for David's cousin this weekend"
+    },
+    {
+      "id": "j056",
+      "utility": "low",
+      "ts_offset_seconds": 902332,
+      "content": "Birthday party for Ivy's nephew this weekend"
+    },
+    {
+      "id": "j101",
+      "utility": "low",
+      "ts_offset_seconds": 904161,
+      "content": "Bird migration is starting; saw warbler at the park"
+    },
+    {
+      "id": "h048",
+      "utility": "high",
+      "ts_offset_seconds": 904521,
+      "content": "Phoenix release date confirmed for October 8th; Carol owns coordination"
+    },
+    {
+      "id": "j137",
+      "utility": "low",
+      "ts_offset_seconds": 924921,
+      "content": "Fixed the leaky faucet in the C this weekend"
+    },
+    {
+      "id": "j161",
+      "utility": "low",
+      "ts_offset_seconds": 929340,
+      "content": "Bird migration is starting; saw robin at the park"
+    },
+    {
+      "id": "h015",
+      "utility": "high",
+      "ts_offset_seconds": 931294,
+      "content": "Phoenix migration spec reviewed; Grace approved the billing schema"
+    },
+    {
+      "id": "b041",
+      "utility": "medium",
+      "ts_offset_seconds": 941783,
+      "content": "Weekly all-hands at 11am; Henry presented Cobalt status"
+    },
+    {
+      "id": "j209",
+      "utility": "low",
+      "ts_offset_seconds": 950190,
+      "content": "Weather is humid this week"
+    },
+    {
+      "id": "j249",
+      "utility": "low",
+      "ts_offset_seconds": 965154,
+      "content": "Fashion design week showed Vega's spring collection"
+    },
+    {
+      "id": "j263",
+      "utility": "low",
+      "ts_offset_seconds": 981479,
+      "content": "Read five chapters of The Tide Turns"
+    },
+    {
+      "id": "j025",
+      "utility": "low",
+      "ts_offset_seconds": 988924,
+      "content": "Made stew for dinner; turned out great"
+    },
+    {
+      "id": "j281",
+      "utility": "low",
+      "ts_offset_seconds": 989836,
+      "content": "Bird migration is starting; saw robin at the park"
+    },
+    {
+      "id": "j192",
+      "utility": "low",
+      "ts_offset_seconds": 990983,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "j074",
+      "utility": "low",
+      "ts_offset_seconds": 996273,
+      "content": "Phoenix Bar on Main Street has new cider tasting"
+    },
+    {
+      "id": "j034",
+      "utility": "low",
+      "ts_offset_seconds": 996735,
+      "content": "Apple release event was on Tuesday; great"
+    },
+    {
+      "id": "b063",
+      "utility": "medium",
+      "ts_offset_seconds": 1000087,
+      "content": "Office hours with Henry: tooling questions answered"
+    },
+    {
+      "id": "b005",
+      "utility": "medium",
+      "ts_offset_seconds": 1003145,
+      "content": "1:1 with Frank: career growth, roadmap, next quarter goals"
+    },
+    {
+      "id": "j055",
+      "utility": "low",
+      "ts_offset_seconds": 1008999,
+      "content": "Made risotto for dinner; turned out fine"
+    },
+    {
+      "id": "j168",
+      "utility": "low",
+      "ts_offset_seconds": 1011355,
+      "content": "Car dashboard light came on; decent"
+    },
+    {
+      "id": "h008",
+      "utility": "high",
+      "ts_offset_seconds": 1014762,
+      "content": "Phoenix release date confirmed for October 22nd; Ivy owns coordination"
+    },
+    {
+      "id": "b021",
+      "utility": "medium",
+      "ts_offset_seconds": 1020543,
+      "content": "1:1 with Ivy: career growth, headcount, next quarter goals"
+    },
+    {
+      "id": "j069",
+      "utility": "low",
+      "ts_offset_seconds": 1039112,
+      "content": "Fashion design week showed Kline's spring collection"
+    },
+    {
+      "id": "j007",
+      "utility": "low",
+      "ts_offset_seconds": 1046947,
+      "content": "Concert kickoff for Mira tour next month"
+    },
+    {
+      "id": "j196",
+      "utility": "low",
+      "ts_offset_seconds": 1048589,
+      "content": "Sprint workout at the gym: 60 minutes on the treadmill"
+    },
+    {
+      "id": "j145",
+      "utility": "low",
+      "ts_offset_seconds": 1056946,
+      "content": "Made risotto for dinner; turned out decent"
+    },
+    {
+      "id": "j224",
+      "utility": "low",
+      "ts_offset_seconds": 1062474,
+      "content": "Phoenix Bar on Main Street has new seasonal cocktail menu"
+    },
+    {
+      "id": "b056",
+      "utility": "medium",
+      "ts_offset_seconds": 1063886,
+      "content": "Daily standup: Ivy reported on Phoenix, blocker on billing"
+    },
+    {
+      "id": "h039",
+      "utility": "high",
+      "ts_offset_seconds": 1071726,
+      "content": "Phoenix retro: scheduler performed well, worker needs another iteration"
+    },
+    {
+      "id": "j131",
+      "utility": "low",
+      "ts_offset_seconds": 1073422,
+      "content": "Bird migration is starting; saw goldfinch at the park"
+    },
+    {
+      "id": "j108",
+      "utility": "low",
+      "ts_offset_seconds": 1073608,
+      "content": "Car dashboard light came on; strange"
+    },
+    {
+      "id": "j201",
+      "utility": "low",
+      "ts_offset_seconds": 1091734,
+      "content": "Saw a brown warbler at the park this morning"
+    },
+    {
+      "id": "b057",
+      "utility": "medium",
+      "ts_offset_seconds": 1097970,
+      "content": "Weekly all-hands at 11am; Carol presented Cobalt status"
+    },
+    {
+      "id": "b088",
+      "utility": "medium",
+      "ts_offset_seconds": 1118707,
+      "content": "Daily standup: Bob reported on Phoenix, blocker on ranking"
+    },
+    {
+      "id": "j028",
+      "utility": "low",
+      "ts_offset_seconds": 1141282,
+      "content": "Public transit was decent today"
+    },
+    {
+      "id": "j040",
+      "utility": "low",
+      "ts_offset_seconds": 1144169,
+      "content": "Boat design magazine featured Vega this issue"
+    },
+    {
+      "id": "j021",
+      "utility": "low",
+      "ts_offset_seconds": 1145744,
+      "content": "Saw a blue robin at the park this morning"
+    },
+    {
+      "id": "j225",
+      "utility": "low",
+      "ts_offset_seconds": 1145953,
+      "content": "Phoenix bird folklore: rises from ash every 5 years"
+    },
+    {
+      "id": "j291",
+      "utility": "low",
+      "ts_offset_seconds": 1151568,
+      "content": "Saw a yellow starling at the park this morning"
+    },
+    {
+      "id": "b049",
+      "utility": "medium",
+      "ts_offset_seconds": 1152064,
+      "content": "Weekly all-hands at 11am; David presented Drake status"
+    },
+    {
+      "id": "h034",
+      "utility": "high",
+      "ts_offset_seconds": 1168909,
+      "content": "Phoenix deployment plan: Tuesday morning, scheduler first then queue"
+    },
+    {
+      "id": "j102",
+      "utility": "low",
+      "ts_offset_seconds": 1181836,
+      "content": "Military deployment in the news, the southern coast"
+    },
+    {
+      "id": "j337",
+      "utility": "low",
+      "ts_offset_seconds": 1186541,
+      "content": "Concert kickoff for Jolt tour next month"
+    },
+    {
+      "id": "h024",
+      "utility": "high",
+      "ts_offset_seconds": 1188021,
+      "content": "Phoenix deployment plan: Wednesday morning, billing first then worker"
+    },
+    {
+      "id": "j068",
+      "utility": "low",
+      "ts_offset_seconds": 1191798,
+      "content": "Visited the new Arcline \u2014 Mori did the architecture"
+    },
+    {
+      "id": "b076",
+      "utility": "medium",
+      "ts_offset_seconds": 1195074,
+      "content": "Jack pinged me on Slack about headcount"
+    },
+    {
+      "id": "j071",
+      "utility": "low",
+      "ts_offset_seconds": 1195640,
+      "content": "Bird migration is starting; saw goldfinch at the park"
+    },
+    {
+      "id": "h009",
+      "utility": "high",
+      "ts_offset_seconds": 1200036,
+      "content": "Phoenix retro: storage performed well, worker needs another iteration"
+    },
+    {
+      "id": "j186",
+      "utility": "low",
+      "ts_offset_seconds": 1203259,
+      "content": "Football kickoff at 4pm; Eagles won 21-14"
+    },
+    {
+      "id": "j297",
+      "utility": "low",
+      "ts_offset_seconds": 1204088,
+      "content": "Bought new lamp from the hardware store"
+    },
+    {
+      "id": "h029",
+      "utility": "high",
+      "ts_offset_seconds": 1208385,
+      "content": "Phoenix retro: ranking performed well, indexer needs another iteration"
+    },
+    {
+      "id": "b054",
+      "utility": "medium",
+      "ts_offset_seconds": 1214029,
+      "content": "Friday wrap-up: Cobalt on track, Echo slipping a sprint"
+    },
+    {
+      "id": "j203",
+      "utility": "low",
+      "ts_offset_seconds": 1214314,
+      "content": "Read four chapters of Quiet Engines"
+    },
+    {
+      "id": "j259",
+      "utility": "low",
+      "ts_offset_seconds": 1221683,
+      "content": "Fitness metrics this week: 9500 steps, 20 active minutes"
+    },
+    {
+      "id": "j029",
+      "utility": "low",
+      "ts_offset_seconds": 1230787,
+      "content": "Weather is rainy this week"
+    },
+    {
+      "id": "j336",
+      "utility": "low",
+      "ts_offset_seconds": 1232145,
+      "content": "Football kickoff at 3pm; Ravens won 21-14"
+    },
+    {
+      "id": "j267",
+      "utility": "low",
+      "ts_offset_seconds": 1240003,
+      "content": "Bought new lamp from the corner shop"
+    },
+    {
+      "id": "j228",
+      "utility": "low",
+      "ts_offset_seconds": 1240641,
+      "content": "Car dashboard light came on; underwhelming"
+    },
+    {
+      "id": "h016",
+      "utility": "high",
+      "ts_offset_seconds": 1263119,
+      "content": "Phoenix dashboard shipped \u2014 scheduler metrics now visible to ops"
+    },
+    {
+      "id": "j015",
+      "utility": "low",
+      "ts_offset_seconds": 1264244,
+      "content": "Phoenix bird folklore: rises from fire every 1 years"
+    },
+    {
+      "id": "b006",
+      "utility": "medium",
+      "ts_offset_seconds": 1270120,
+      "content": "Friday wrap-up: Beacon on track, Drake slipping a sprint"
+    },
+    {
+      "id": "j006",
+      "utility": "low",
+      "ts_offset_seconds": 1285536,
+      "content": "Football kickoff at 3pm; Foxes won 21-14"
+    },
+    {
+      "id": "b033",
+      "utility": "medium",
+      "ts_offset_seconds": 1293604,
+      "content": "Weekly all-hands at 4pm; David presented Phoenix status"
+    },
+    {
+      "id": "b093",
+      "utility": "medium",
+      "ts_offset_seconds": 1295478,
+      "content": "1:1 with Henry: career growth, scope, next quarter goals"
+    },
+    {
+      "id": "j237",
+      "utility": "low",
+      "ts_offset_seconds": 1298002,
+      "content": "Bought new lamp from the hardware store"
+    },
+    {
+      "id": "j134",
+      "utility": "low",
+      "ts_offset_seconds": 1298480,
+      "content": "Phoenix Bar on Main Street has new cider tasting"
+    },
+    {
+      "id": "h006",
+      "utility": "high",
+      "ts_offset_seconds": 1300552,
+      "content": "Phoenix dashboard shipped \u2014 ranking metrics now visible to ops"
+    },
+    {
+      "id": "j220",
+      "utility": "low",
+      "ts_offset_seconds": 1301206,
+      "content": "Boat design magazine featured Halo this issue"
+    },
+    {
+      "id": "b009",
+      "utility": "medium",
+      "ts_offset_seconds": 1301385,
+      "content": "Weekly all-hands at 4pm; Bob presented Beacon status"
+    },
+    {
+      "id": "j116",
+      "utility": "low",
+      "ts_offset_seconds": 1301944,
+      "content": "Birthday party for Henry's niece this weekend"
+    },
+    {
+      "id": "h027",
+      "utility": "high",
+      "ts_offset_seconds": 1307101,
+      "content": "Phoenix design doc published: telemetry subsystem and indexer interactions"
+    },
+    {
+      "id": "b045",
+      "utility": "medium",
+      "ts_offset_seconds": 1313071,
+      "content": "1:1 with Grace: career growth, release, next quarter goals"
+    },
+    {
+      "id": "j283",
+      "utility": "low",
+      "ts_offset_seconds": 1318628,
+      "content": "Trip to Phoenix Arizona was decent; weather was rainy"
+    },
+    {
+      "id": "j013",
+      "utility": "low",
+      "ts_offset_seconds": 1323704,
+      "content": "Trip to Phoenix Arizona was strange; weather was clear"
+    },
+    {
+      "id": "j194",
+      "utility": "low",
+      "ts_offset_seconds": 1325982,
+      "content": "Phoenix Bar on Main Street has new espresso flight"
+    },
+    {
+      "id": "j293",
+      "utility": "low",
+      "ts_offset_seconds": 1336661,
+      "content": "Read five chapters of The Tide Turns"
+    },
+    {
+      "id": "j330",
+      "utility": "low",
+      "ts_offset_seconds": 1347258,
+      "content": "Watched Migration North, the new release from Sony; great"
+    },
+    {
+      "id": "j258",
+      "utility": "low",
+      "ts_offset_seconds": 1348580,
+      "content": "Car dashboard light came on; underwhelming"
+    },
+    {
+      "id": "j098",
+      "utility": "low",
+      "ts_offset_seconds": 1355633,
+      "content": "Visited the new Forge \u2014 Mori did the architecture"
+    },
+    {
+      "id": "j199",
+      "utility": "low",
+      "ts_offset_seconds": 1360560,
+      "content": "Fitness metrics this week: 12800 steps, 30 active minutes"
+    },
+    {
+      "id": "j022",
+      "utility": "low",
+      "ts_offset_seconds": 1362176,
+      "content": "Hallway light flickered again; need to call facilities"
+    },
+    {
+      "id": "b044",
+      "utility": "medium",
+      "ts_offset_seconds": 1375395,
+      "content": "Frank pinged me on Slack about release"
+    },
+    {
+      "id": "j331",
+      "utility": "low",
+      "ts_offset_seconds": 1376244,
+      "content": "Pixar release schedule for 2026 looks great"
+    },
+    {
+      "id": "h031",
+      "utility": "high",
+      "ts_offset_seconds": 1377730,
+      "content": "Phoenix architecture review with Carol on the ranking module"
+    },
+    {
+      "id": "b087",
+      "utility": "medium",
+      "ts_offset_seconds": 1382823,
+      "content": "Office hours with Jack: scope questions answered"
+    },
+    {
+      "id": "j230",
+      "utility": "low",
+      "ts_offset_seconds": 1392193,
+      "content": "Coffee at Foglight was strange"
+    },
+    {
+      "id": "h003",
+      "utility": "high",
+      "ts_offset_seconds": 1394684,
+      "content": "Phoenix bug fix landed in commit a1b2c3d: billing now handles rate-limited bursts"
+    },
+    {
+      "id": "j149",
+      "utility": "low",
+      "ts_offset_seconds": 1396991,
+      "content": "Weather is clear this week"
+    },
+    {
+      "id": "j172",
+      "utility": "low",
+      "ts_offset_seconds": 1398221,
+      "content": "Hallway light flickered again; need to call maintenance"
+    },
+    {
+      "id": "j122",
+      "utility": "low",
+      "ts_offset_seconds": 1403621,
+      "content": "Music release: Mira dropped a new album titled Lowlight"
+    },
+    {
+      "id": "j235",
+      "utility": "low",
+      "ts_offset_seconds": 1406309,
+      "content": "Made stew for dinner; turned out great"
+    },
+    {
+      "id": "j343",
+      "utility": "low",
+      "ts_offset_seconds": 1412492,
+      "content": "Trip to Phoenix Arizona was decent; weather was windy"
+    },
+    {
+      "id": "b022",
+      "utility": "medium",
+      "ts_offset_seconds": 1419214,
+      "content": "Friday wrap-up: Atlas on track, Drake slipping a sprint"
+    },
+    {
+      "id": "j241",
+      "utility": "low",
+      "ts_offset_seconds": 1419970,
+      "content": "Pixar release schedule for 2026 looks fine"
+    },
+    {
+      "id": "j089",
+      "utility": "low",
+      "ts_offset_seconds": 1422022,
+      "content": "Weather is rainy this week"
+    },
+    {
+      "id": "j340",
+      "utility": "low",
+      "ts_offset_seconds": 1424021,
+      "content": "Boat design magazine featured Kline this issue"
+    },
+    {
+      "id": "j238",
+      "utility": "low",
+      "ts_offset_seconds": 1429821,
+      "content": "Public transit was fine today"
+    },
+    {
+      "id": "j282",
+      "utility": "low",
+      "ts_offset_seconds": 1433329,
+      "content": "Military deployment in the news, the southern coast"
+    },
+    {
+      "id": "j096",
+      "utility": "low",
+      "ts_offset_seconds": 1440482,
+      "content": "Football kickoff at 3pm; Ravens won 10-7"
+    },
+    {
+      "id": "b081",
+      "utility": "medium",
+      "ts_offset_seconds": 1446206,
+      "content": "Weekly all-hands at 2pm; David presented Beacon status"
+    },
+    {
+      "id": "b034",
+      "utility": "medium",
+      "ts_offset_seconds": 1447759,
+      "content": "Coffee chat with Bob about roadmap this morning"
+    },
+    {
+      "id": "j332",
+      "utility": "low",
+      "ts_offset_seconds": 1465386,
+      "content": "Music release: Eclipse Set dropped a new album titled Migration Routes"
+    },
+    {
+      "id": "j106",
+      "utility": "low",
+      "ts_offset_seconds": 1466266,
+      "content": "Sprint workout at the gym: 20 minutes on the treadmill"
+    },
+    {
+      "id": "j268",
+      "utility": "low",
+      "ts_offset_seconds": 1467254,
+      "content": "Public transit was great today"
+    },
+    {
+      "id": "j037",
+      "utility": "low",
+      "ts_offset_seconds": 1472619,
+      "content": "Concert kickoff for Marlow tour next month"
+    },
+    {
+      "id": "j130",
+      "utility": "low",
+      "ts_offset_seconds": 1474494,
+      "content": "Boat design magazine featured Vega this issue"
+    },
+    {
+      "id": "b052",
+      "utility": "medium",
+      "ts_offset_seconds": 1476152,
+      "content": "Eve pinged me on Slack about release"
+    },
+    {
+      "id": "j190",
+      "utility": "low",
+      "ts_offset_seconds": 1477649,
+      "content": "Boat design magazine featured Kline this issue"
+    },
+    {
+      "id": "j305",
+      "utility": "low",
+      "ts_offset_seconds": 1478740,
+      "content": "Date night at Foglight was strange"
+    },
+    {
+      "id": "j017",
+      "utility": "low",
+      "ts_offset_seconds": 1479817,
+      "content": "Fixed the leaky faucet in the B this weekend"
+    },
+    {
+      "id": "j151",
+      "utility": "low",
+      "ts_offset_seconds": 1485484,
+      "content": "Pixar release schedule for 2025 looks strange"
+    },
+    {
+      "id": "j215",
+      "utility": "low",
+      "ts_offset_seconds": 1497258,
+      "content": "Date night at Bistro 22 was fine"
+    },
+    {
+      "id": "b017",
+      "utility": "medium",
+      "ts_offset_seconds": 1497760,
+      "content": "Weekly all-hands at 2pm; David presented Phoenix status"
+    },
+    {
+      "id": "j036",
+      "utility": "low",
+      "ts_offset_seconds": 1512481,
+      "content": "Football kickoff at 3pm; Hawks won 10-7"
+    },
+    {
+      "id": "h017",
+      "utility": "high",
+      "ts_offset_seconds": 1517617,
+      "content": "Phoenix design doc published: scheduler subsystem and limiter interactions"
+    },
+    {
+      "id": "j251",
+      "utility": "low",
+      "ts_offset_seconds": 1517720,
+      "content": "Bird migration is starting; saw starling at the park"
+    },
+    {
+      "id": "j008",
+      "utility": "low",
+      "ts_offset_seconds": 1518969,
+      "content": "Visited the new Arcline \u2014 Veiga did the architecture"
+    },
+    {
+      "id": "h020",
+      "utility": "high",
+      "ts_offset_seconds": 1520844,
+      "content": "Project Phoenix v1.0 release set for Thursday the 3rd"
+    },
+    {
+      "id": "h049",
+      "utility": "high",
+      "ts_offset_seconds": 1523837,
+      "content": "Phoenix retro: storage performed well, limiter needs another iteration"
+    },
+    {
+      "id": "b020",
+      "utility": "medium",
+      "ts_offset_seconds": 1526298,
+      "content": "Henry pinged me on Slack about roadmap"
+    },
+    {
+      "id": "j164",
+      "utility": "low",
+      "ts_offset_seconds": 1527982,
+      "content": "Phoenix Bar on Main Street has new espresso flight"
+    },
+    {
+      "id": "j341",
+      "utility": "low",
+      "ts_offset_seconds": 1536492,
+      "content": "Bird migration is starting; saw warbler at the park"
+    },
+    {
+      "id": "b062",
+      "utility": "medium",
+      "ts_offset_seconds": 1539099,
+      "content": "Friday wrap-up: Cobalt on track, Cobalt slipping a sprint"
+    },
+    {
+      "id": "j030",
+      "utility": "low",
+      "ts_offset_seconds": 1540764,
+      "content": "Watched Migration North, the new release from Pixar; decent"
+    },
+    {
+      "id": "b067",
+      "utility": "medium",
+      "ts_offset_seconds": 1542836,
+      "content": "Lunch meeting in conference room Oak: Drake planning"
+    },
+    {
+      "id": "b096",
+      "utility": "medium",
+      "ts_offset_seconds": 1543584,
+      "content": "Daily standup: Ivy reported on Beacon, blocker on billing"
+    },
+    {
+      "id": "j184",
+      "utility": "low",
+      "ts_offset_seconds": 1546597,
+      "content": "Apple release event was on Friday; decent"
+    },
+    {
+      "id": "h025",
+      "utility": "high",
+      "ts_offset_seconds": 1552115,
+      "content": "Phoenix migration spec reviewed; Bob approved the storage schema"
+    },
+    {
+      "id": "j193",
+      "utility": "low",
+      "ts_offset_seconds": 1555937,
+      "content": "Trip to Phoenix Arizona was underwhelming; weather was sunny"
+    },
+    {
+      "id": "j175",
+      "utility": "low",
+      "ts_offset_seconds": 1556976,
+      "content": "Made stir fry for dinner; turned out decent"
+    },
+    {
+      "id": "b090",
+      "utility": "medium",
+      "ts_offset_seconds": 1560337,
+      "content": "Coffee chat with Frank about roadmap this morning"
+    },
+    {
+      "id": "j052",
+      "utility": "low",
+      "ts_offset_seconds": 1563854,
+      "content": "Hallway light flickered again; need to call the super"
+    },
+    {
+      "id": "h011",
+      "utility": "high",
+      "ts_offset_seconds": 1565743,
+      "content": "Phoenix architecture review with Alice on the ingestion module"
+    },
+    {
+      "id": "j307",
+      "utility": "low",
+      "ts_offset_seconds": 1568508,
+      "content": "Concert kickoff for Mira tour next month"
+    },
+    {
+      "id": "j001",
+      "utility": "low",
+      "ts_offset_seconds": 1572497,
+      "content": "Pixar release schedule for 2027 looks underwhelming"
+    },
+    {
+      "id": "j144",
+      "utility": "low",
+      "ts_offset_seconds": 1577873,
+      "content": "Trail run on the river path was underwhelming"
+    },
+    {
+      "id": "j218",
+      "utility": "low",
+      "ts_offset_seconds": 1579907,
+      "content": "Visited the new Arcline \u2014 Mori did the architecture"
+    },
+    {
+      "id": "j275",
+      "utility": "low",
+      "ts_offset_seconds": 1580077,
+      "content": "Date night at Ember was underwhelming"
+    },
+    {
+      "id": "j311",
+      "utility": "low",
+      "ts_offset_seconds": 1594705,
+      "content": "Bird migration is starting; saw starling at the park"
+    },
+    {
+      "id": "b071",
+      "utility": "medium",
+      "ts_offset_seconds": 1601689,
+      "content": "Office hours with Ivy: scope questions answered"
+    },
+    {
+      "id": "b004",
+      "utility": "medium",
+      "ts_offset_seconds": 1605807,
+      "content": "Ivy pinged me on Slack about tooling"
+    },
+    {
+      "id": "j306",
+      "utility": "low",
+      "ts_offset_seconds": 1612636,
+      "content": "Football kickoff at 2pm; Ravens won 17-13"
+    },
+    {
+      "id": "j274",
+      "utility": "low",
+      "ts_offset_seconds": 1619698,
+      "content": "Apple release event was on Thursday; underwhelming"
+    },
+    {
+      "id": "b051",
+      "utility": "medium",
+      "ts_offset_seconds": 1621367,
+      "content": "Lunch meeting in conference room Sunset: Atlas planning"
+    },
+    {
+      "id": "j004",
+      "utility": "low",
+      "ts_offset_seconds": 1621705,
+      "content": "Apple release event was on Thursday; underwhelming"
+    },
+    {
+      "id": "j248",
+      "utility": "low",
+      "ts_offset_seconds": 1622697,
+      "content": "Visited the new Skyhall \u2014 Halsten did the architecture"
+    },
+    {
+      "id": "b078",
+      "utility": "medium",
+      "ts_offset_seconds": 1623142,
+      "content": "Friday wrap-up: Phoenix on track, Echo slipping a sprint"
+    },
+    {
+      "id": "j067",
+      "utility": "low",
+      "ts_offset_seconds": 1624942,
+      "content": "Concert kickoff for Eclipse Set tour next month"
+    },
+    {
+      "id": "j206",
+      "utility": "low",
+      "ts_offset_seconds": 1637681,
+      "content": "Birthday party for David's sister this weekend"
+    },
+    {
+      "id": "j294",
+      "utility": "low",
+      "ts_offset_seconds": 1643990,
+      "content": "Trail run on the eastern fire road was decent"
+    },
+    {
+      "id": "j286",
+      "utility": "low",
+      "ts_offset_seconds": 1657854,
+      "content": "Sprint workout at the gym: 20 minutes on the treadmill"
+    },
+    {
+      "id": "j076",
+      "utility": "low",
+      "ts_offset_seconds": 1659965,
+      "content": "Sprint workout at the gym: 60 minutes on the treadmill"
+    },
+    {
+      "id": "h037",
+      "utility": "high",
+      "ts_offset_seconds": 1662848,
+      "content": "Phoenix design doc published: storage subsystem and indexer interactions"
+    },
+    {
+      "id": "b030",
+      "utility": "medium",
+      "ts_offset_seconds": 1665437,
+      "content": "Friday wrap-up: Atlas on track, Atlas slipping a sprint"
+    },
+    {
+      "id": "j129",
+      "utility": "low",
+      "ts_offset_seconds": 1669475,
+      "content": "Fashion design week showed Kline's spring collection"
+    },
+    {
+      "id": "j226",
+      "utility": "low",
+      "ts_offset_seconds": 1670272,
+      "content": "Sprint workout at the gym: 30 minutes on the treadmill"
+    },
+    {
+      "id": "j088",
+      "utility": "low",
+      "ts_offset_seconds": 1677812,
+      "content": "Public transit was underwhelming today"
+    },
+    {
+      "id": "h004",
+      "utility": "high",
+      "ts_offset_seconds": 1679608,
+      "content": "Phoenix deployment plan: Thursday morning, auth first then queue"
+    },
+    {
+      "id": "j178",
+      "utility": "low",
+      "ts_offset_seconds": 1681011,
+      "content": "Public transit was great today"
+    },
+    {
+      "id": "j085",
+      "utility": "low",
+      "ts_offset_seconds": 1696272,
+      "content": "Made pasta for dinner; turned out underwhelming"
+    },
+    {
+      "id": "b080",
+      "utility": "medium",
+      "ts_offset_seconds": 1698828,
+      "content": "Daily standup: Jack reported on Drake, blocker on scheduler"
+    },
+    {
+      "id": "j176",
+      "utility": "low",
+      "ts_offset_seconds": 1703769,
+      "content": "Birthday party for Jack's nephew this weekend"
+    },
+    {
+      "id": "j339",
+      "utility": "low",
+      "ts_offset_seconds": 1714503,
+      "content": "Fashion design week showed Halo's spring collection"
+    },
+    {
+      "id": "b068",
+      "utility": "medium",
+      "ts_offset_seconds": 1723265,
+      "content": "Alice pinged me on Slack about tooling"
+    },
+    {
+      "id": "j308",
+      "utility": "low",
+      "ts_offset_seconds": 1737212,
+      "content": "Visited the new Forge \u2014 Veiga did the architecture"
+    },
+    {
+      "id": "j148",
+      "utility": "low",
+      "ts_offset_seconds": 1740203,
+      "content": "Public transit was fine today"
+    },
+    {
+      "id": "j104",
+      "utility": "low",
+      "ts_offset_seconds": 1747211,
+      "content": "Phoenix Bar on Main Street has new espresso flight"
+    },
+    {
+      "id": "b073",
+      "utility": "medium",
+      "ts_offset_seconds": 1751935,
+      "content": "Weekly all-hands at 11am; Bob presented Drake status"
+    },
+    {
+      "id": "j167",
+      "utility": "low",
+      "ts_offset_seconds": 1755990,
+      "content": "Fixed the leaky faucet in the B this weekend"
+    },
+    {
+      "id": "j264",
+      "utility": "low",
+      "ts_offset_seconds": 1760875,
+      "content": "Trail run on the eastern fire road was great"
+    },
+    {
+      "id": "j162",
+      "utility": "low",
+      "ts_offset_seconds": 1760905,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "h040",
+      "utility": "high",
+      "ts_offset_seconds": 1775259,
+      "content": "Project Phoenix v1.0.1 release set for Thursday the 22nd"
+    },
+    {
+      "id": "b039",
+      "utility": "medium",
+      "ts_offset_seconds": 1775895,
+      "content": "Office hours with Henry: headcount questions answered"
+    },
+    {
+      "id": "b037",
+      "utility": "medium",
+      "ts_offset_seconds": 1778446,
+      "content": "1:1 with Bob: career growth, scope, next quarter goals"
+    },
+    {
+      "id": "b042",
+      "utility": "medium",
+      "ts_offset_seconds": 1780480,
+      "content": "Coffee chat with David about roadmap this morning"
+    },
+    {
+      "id": "j139",
+      "utility": "low",
+      "ts_offset_seconds": 1787260,
+      "content": "Fitness metrics this week: 12800 steps, 60 active minutes"
+    },
+    {
+      "id": "j271",
+      "utility": "low",
+      "ts_offset_seconds": 1800358,
+      "content": "Pixar release schedule for 2027 looks decent"
+    },
+    {
+      "id": "j121",
+      "utility": "low",
+      "ts_offset_seconds": 1800548,
+      "content": "Pixar release schedule for 2026 looks fine"
+    },
+    {
+      "id": "b075",
+      "utility": "medium",
+      "ts_offset_seconds": 1803188,
+      "content": "Lunch meeting in conference room Sunset: Phoenix planning"
+    },
+    {
+      "id": "j319",
+      "utility": "low",
+      "ts_offset_seconds": 1806097,
+      "content": "Fitness metrics this week: 12800 steps, 45 active minutes"
+    },
+    {
+      "id": "j070",
+      "utility": "low",
+      "ts_offset_seconds": 1806298,
+      "content": "Boat design magazine featured Halo this issue"
+    },
+    {
+      "id": "j041",
+      "utility": "low",
+      "ts_offset_seconds": 1824272,
+      "content": "Bird migration is starting; saw robin at the park"
+    },
+    {
+      "id": "j033",
+      "utility": "low",
+      "ts_offset_seconds": 1827359,
+      "content": "Phoenix Suns released their 2026 roster yesterday"
+    },
+    {
+      "id": "j000",
+      "utility": "low",
+      "ts_offset_seconds": 1829637,
+      "content": "Watched Release Window, the new release from Sony; decent"
+    },
+    {
+      "id": "h028",
+      "utility": "high",
+      "ts_offset_seconds": 1831701,
+      "content": "Phoenix release date confirmed for October 12th; Frank owns coordination"
+    },
+    {
+      "id": "j016",
+      "utility": "low",
+      "ts_offset_seconds": 1832706,
+      "content": "Sprint workout at the gym: 20 minutes on the treadmill"
+    },
+    {
+      "id": "h023",
+      "utility": "high",
+      "ts_offset_seconds": 1834892,
+      "content": "Phoenix bug fix landed in commit a1b2c3d: auth now handles concurrent writes"
+    },
+    {
+      "id": "h014",
+      "utility": "high",
+      "ts_offset_seconds": 1835735,
+      "content": "Phoenix deployment plan: Wednesday morning, billing first then queue"
+    },
+    {
+      "id": "j003",
+      "utility": "low",
+      "ts_offset_seconds": 1836091,
+      "content": "Phoenix Suns released their 2027 roster yesterday"
+    },
+    {
+      "id": "j205",
+      "utility": "low",
+      "ts_offset_seconds": 1837830,
+      "content": "Made stir fry for dinner; turned out strange"
+    },
+    {
+      "id": "b035",
+      "utility": "medium",
+      "ts_offset_seconds": 1843068,
+      "content": "Lunch meeting in conference room B: Phoenix planning"
+    },
+    {
+      "id": "j077",
+      "utility": "low",
+      "ts_offset_seconds": 1844389,
+      "content": "Fixed the leaky faucet in the C this weekend"
+    },
+    {
+      "id": "j250",
+      "utility": "low",
+      "ts_offset_seconds": 1844498,
+      "content": "Boat design magazine featured Vega this issue"
+    },
+    {
+      "id": "j210",
+      "utility": "low",
+      "ts_offset_seconds": 1847999,
+      "content": "Watched Release Window, the new release from A24; strange"
+    },
+    {
+      "id": "j174",
+      "utility": "low",
+      "ts_offset_seconds": 1854067,
+      "content": "Trail run on the eastern fire road was underwhelming"
+    },
+    {
+      "id": "b000",
+      "utility": "medium",
+      "ts_offset_seconds": 1854755,
+      "content": "Daily standup: Bob reported on Cobalt, blocker on storage"
+    },
+    {
+      "id": "j072",
+      "utility": "low",
+      "ts_offset_seconds": 1858550,
+      "content": "Military deployment in the news, the southern coast"
+    },
+    {
+      "id": "h046",
+      "utility": "high",
+      "ts_offset_seconds": 1861886,
+      "content": "Phoenix dashboard shipped \u2014 telemetry metrics now visible to ops"
+    },
+    {
+      "id": "b066",
+      "utility": "medium",
+      "ts_offset_seconds": 1862016,
+      "content": "Coffee chat with David about roadmap this morning"
+    },
+    {
+      "id": "b097",
+      "utility": "medium",
+      "ts_offset_seconds": 1863104,
+      "content": "Weekly all-hands at 11am; Eve presented Phoenix status"
+    },
+    {
+      "id": "j200",
+      "utility": "low",
+      "ts_offset_seconds": 1870306,
+      "content": "Coffee at Foglight was fine"
+    },
+    {
+      "id": "j173",
+      "utility": "low",
+      "ts_offset_seconds": 1875397,
+      "content": "Read three chapters of Letters from the Coast"
+    },
+    {
+      "id": "b070",
+      "utility": "medium",
+      "ts_offset_seconds": 1881570,
+      "content": "Friday wrap-up: Drake on track, Drake slipping a sprint"
+    },
+    {
+      "id": "j310",
+      "utility": "low",
+      "ts_offset_seconds": 1882845,
+      "content": "Boat design magazine featured Halo this issue"
+    },
+    {
+      "id": "j166",
+      "utility": "low",
+      "ts_offset_seconds": 1882940,
+      "content": "Sprint workout at the gym: 20 minutes on the treadmill"
+    },
+    {
+      "id": "j257",
+      "utility": "low",
+      "ts_offset_seconds": 1884581,
+      "content": "Fixed the leaky hinge in the Sunset this weekend"
+    },
+    {
+      "id": "j127",
+      "utility": "low",
+      "ts_offset_seconds": 1886319,
+      "content": "Concert kickoff for Eclipse Set tour next month"
+    },
+    {
+      "id": "j099",
+      "utility": "low",
+      "ts_offset_seconds": 1887112,
+      "content": "Fashion design week showed Vega's spring collection"
+    },
+    {
+      "id": "j217",
+      "utility": "low",
+      "ts_offset_seconds": 1889630,
+      "content": "Concert kickoff for Marlow tour next month"
+    },
+    {
+      "id": "j170",
+      "utility": "low",
+      "ts_offset_seconds": 1892167,
+      "content": "Coffee at Bluebird was decent"
+    },
+    {
+      "id": "j269",
+      "utility": "low",
+      "ts_offset_seconds": 1895464,
+      "content": "Weather is clear this week"
+    },
+    {
+      "id": "j044",
+      "utility": "low",
+      "ts_offset_seconds": 1902728,
+      "content": "Phoenix Bar on Main Street has new espresso flight"
+    },
+    {
+      "id": "j123",
+      "utility": "low",
+      "ts_offset_seconds": 1917273,
+      "content": "Phoenix Suns released their 2025 roster yesterday"
+    },
+    {
+      "id": "j195",
+      "utility": "low",
+      "ts_offset_seconds": 1919647,
+      "content": "Phoenix bird folklore: rises from fire every 2 years"
+    },
+    {
+      "id": "j018",
+      "utility": "low",
+      "ts_offset_seconds": 1928349,
+      "content": "Car dashboard light came on; fine"
+    },
+    {
+      "id": "h041",
+      "utility": "high",
+      "ts_offset_seconds": 1929786,
+      "content": "Phoenix architecture review with Henry on the ingestion module"
+    },
+    {
+      "id": "j182",
+      "utility": "low",
+      "ts_offset_seconds": 1936426,
+      "content": "Music release: Marlow dropped a new album titled Lowlight"
+    },
+    {
+      "id": "j053",
+      "utility": "low",
+      "ts_offset_seconds": 1936688,
+      "content": "Read two chapters of Letters from the Coast"
+    },
+    {
+      "id": "j204",
+      "utility": "low",
+      "ts_offset_seconds": 1940753,
+      "content": "Trail run on the ridge loop was great"
+    },
+    {
+      "id": "j169",
+      "utility": "low",
+      "ts_offset_seconds": 1945960,
+      "content": "Fitness metrics this week: 8200 steps, 30 active minutes"
+    },
+    {
+      "id": "j023",
+      "utility": "low",
+      "ts_offset_seconds": 1948769,
+      "content": "Read four chapters of The Tide Turns"
+    },
+    {
+      "id": "b085",
+      "utility": "medium",
+      "ts_offset_seconds": 1966797,
+      "content": "1:1 with Frank: career growth, roadmap, next quarter goals"
+    },
+    {
+      "id": "j090",
+      "utility": "low",
+      "ts_offset_seconds": 1967194,
+      "content": "Watched The Last Architect, the new release from A24; great"
+    },
+    {
+      "id": "h038",
+      "utility": "high",
+      "ts_offset_seconds": 1967590,
+      "content": "Phoenix release date confirmed for October 8th; Jack owns coordination"
+    },
+    {
+      "id": "b029",
+      "utility": "medium",
+      "ts_offset_seconds": 1971889,
+      "content": "1:1 with Bob: career growth, headcount, next quarter goals"
+    },
+    {
+      "id": "j185",
+      "utility": "low",
+      "ts_offset_seconds": 1981619,
+      "content": "Date night at Bistro 22 was underwhelming"
+    },
+    {
+      "id": "j059",
+      "utility": "low",
+      "ts_offset_seconds": 1985582,
+      "content": "Weather is windy this week"
+    },
+    {
+      "id": "b023",
+      "utility": "medium",
+      "ts_offset_seconds": 1994932,
+      "content": "Office hours with Ivy: headcount questions answered"
+    },
+    {
+      "id": "j219",
+      "utility": "low",
+      "ts_offset_seconds": 2007105,
+      "content": "Fashion design week showed Vega's spring collection"
+    },
+    {
+      "id": "j347",
+      "utility": "low",
+      "ts_offset_seconds": 2015743,
+      "content": "Fixed the leaky hinge in the A this weekend"
+    },
+    {
+      "id": "j342",
+      "utility": "low",
+      "ts_offset_seconds": 2037012,
+      "content": "Military deployment in the news, the southern coast"
+    },
+    {
+      "id": "j119",
+      "utility": "low",
+      "ts_offset_seconds": 2039568,
+      "content": "Weather is windy this week"
+    },
+    {
+      "id": "j252",
+      "utility": "low",
+      "ts_offset_seconds": 2041085,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "j075",
+      "utility": "low",
+      "ts_offset_seconds": 2072477,
+      "content": "Phoenix bird folklore: rises from ember every 5 years"
+    },
+    {
+      "id": "b001",
+      "utility": "medium",
+      "ts_offset_seconds": 2081227,
+      "content": "Weekly all-hands at 4pm; Henry presented Drake status"
+    },
+    {
+      "id": "j019",
+      "utility": "low",
+      "ts_offset_seconds": 2086185,
+      "content": "Fitness metrics this week: 8200 steps, 45 active minutes"
+    },
+    {
+      "id": "j152",
+      "utility": "low",
+      "ts_offset_seconds": 2086764,
+      "content": "Music release: Jolt dropped a new album titled Static"
+    },
+    {
+      "id": "j107",
+      "utility": "low",
+      "ts_offset_seconds": 2093142,
+      "content": "Fixed the leaky hinge in the B this weekend"
+    },
+    {
+      "id": "b014",
+      "utility": "medium",
+      "ts_offset_seconds": 2096435,
+      "content": "Friday wrap-up: Phoenix on track, Echo slipping a sprint"
+    },
+    {
+      "id": "h018",
+      "utility": "high",
+      "ts_offset_seconds": 2098252,
+      "content": "Phoenix release date confirmed for November 27th; Alice owns coordination"
+    },
+    {
+      "id": "j103",
+      "utility": "low",
+      "ts_offset_seconds": 2102886,
+      "content": "Trip to Phoenix Arizona was decent; weather was clear"
+    },
+    {
+      "id": "b027",
+      "utility": "medium",
+      "ts_offset_seconds": 2105570,
+      "content": "Lunch meeting in conference room C: Cobalt planning"
+    },
+    {
+      "id": "j183",
+      "utility": "low",
+      "ts_offset_seconds": 2109343,
+      "content": "Phoenix Suns released their 2025 roster yesterday"
+    },
+    {
+      "id": "j255",
+      "utility": "low",
+      "ts_offset_seconds": 2116231,
+      "content": "Phoenix bird folklore: rises from ash every 5 years"
+    },
+    {
+      "id": "j189",
+      "utility": "low",
+      "ts_offset_seconds": 2126796,
+      "content": "Fashion design week showed Halo's spring collection"
+    },
+    {
+      "id": "j047",
+      "utility": "low",
+      "ts_offset_seconds": 2127886,
+      "content": "Fixed the leaky doorknob in the Oak this weekend"
+    },
+    {
+      "id": "j045",
+      "utility": "low",
+      "ts_offset_seconds": 2127925,
+      "content": "Phoenix bird folklore: rises from smoke every 2 years"
+    },
+    {
+      "id": "j265",
+      "utility": "low",
+      "ts_offset_seconds": 2129123,
+      "content": "Made stew for dinner; turned out decent"
+    },
+    {
+      "id": "j328",
+      "utility": "low",
+      "ts_offset_seconds": 2129404,
+      "content": "Public transit was strange today"
+    },
+    {
+      "id": "j092",
+      "utility": "low",
+      "ts_offset_seconds": 2132755,
+      "content": "Music release: Marlow dropped a new album titled Static"
+    },
+    {
+      "id": "j231",
+      "utility": "low",
+      "ts_offset_seconds": 2138893,
+      "content": "Saw a yellow starling at the park this morning"
+    },
+    {
+      "id": "j012",
+      "utility": "low",
+      "ts_offset_seconds": 2141122,
+      "content": "Military deployment in the news, the gulf"
+    },
+    {
+      "id": "h022",
+      "utility": "high",
+      "ts_offset_seconds": 2148936,
+      "content": "Sprint 6 kickoff for Project Phoenix; focus on ranking"
+    },
+    {
+      "id": "j060",
+      "utility": "low",
+      "ts_offset_seconds": 2152038,
+      "content": "Watched Skyline Memories, the new release from Warner; great"
+    },
+    {
+      "id": "j247",
+      "utility": "low",
+      "ts_offset_seconds": 2153157,
+      "content": "Concert kickoff for Hush Tone tour next month"
+    },
+    {
+      "id": "b069",
+      "utility": "medium",
+      "ts_offset_seconds": 2161642,
+      "content": "1:1 with Alice: career growth, roadmap, next quarter goals"
+    },
+    {
+      "id": "j318",
+      "utility": "low",
+      "ts_offset_seconds": 2161675,
+      "content": "Car dashboard light came on; strange"
+    },
+    {
+      "id": "j142",
+      "utility": "low",
+      "ts_offset_seconds": 2163880,
+      "content": "Hallway light flickered again; need to call facilities"
+    },
+    {
+      "id": "b072",
+      "utility": "medium",
+      "ts_offset_seconds": 2171581,
+      "content": "Daily standup: Carol reported on Phoenix, blocker on billing"
+    },
+    {
+      "id": "j207",
+      "utility": "low",
+      "ts_offset_seconds": 2178000,
+      "content": "Bought new shelf from Marlow's"
+    },
+    {
+      "id": "b046",
+      "utility": "medium",
+      "ts_offset_seconds": 2192564,
+      "content": "Friday wrap-up: Phoenix on track, Atlas slipping a sprint"
+    },
+    {
+      "id": "j014",
+      "utility": "low",
+      "ts_offset_seconds": 2195653,
+      "content": "Phoenix Bar on Main Street has new cider tasting"
+    },
+    {
+      "id": "j321",
+      "utility": "low",
+      "ts_offset_seconds": 2197658,
+      "content": "Saw a brown warbler at the park this morning"
+    },
+    {
+      "id": "j043",
+      "utility": "low",
+      "ts_offset_seconds": 2198102,
+      "content": "Trip to Phoenix Arizona was decent; weather was humid"
+    },
+    {
+      "id": "j128",
+      "utility": "low",
+      "ts_offset_seconds": 2206453,
+      "content": "Visited the new Forge \u2014 Halsten did the architecture"
+    },
+    {
+      "id": "j240",
+      "utility": "low",
+      "ts_offset_seconds": 2207853,
+      "content": "Watched The Last Architect, the new release from A24; strange"
+    },
+    {
+      "id": "j320",
+      "utility": "low",
+      "ts_offset_seconds": 2208433,
+      "content": "Coffee at Bluebird was fine"
+    },
+    {
+      "id": "j020",
+      "utility": "low",
+      "ts_offset_seconds": 2210121,
+      "content": "Coffee at Bluebird was strange"
+    },
+    {
+      "id": "j026",
+      "utility": "low",
+      "ts_offset_seconds": 2212326,
+      "content": "Birthday party for Frank's sister this weekend"
+    },
+    {
+      "id": "j324",
+      "utility": "low",
+      "ts_offset_seconds": 2213634,
+      "content": "Trail run on the river path was underwhelming"
+    },
+    {
+      "id": "j125",
+      "utility": "low",
+      "ts_offset_seconds": 2220715,
+      "content": "Date night at The Daily was decent"
+    },
+    {
+      "id": "j078",
+      "utility": "low",
+      "ts_offset_seconds": 2225005,
+      "content": "Car dashboard light came on; underwhelming"
+    },
+    {
+      "id": "b026",
+      "utility": "medium",
+      "ts_offset_seconds": 2225517,
+      "content": "Coffee chat with Eve about release this morning"
+    },
+    {
+      "id": "j100",
+      "utility": "low",
+      "ts_offset_seconds": 2233812,
+      "content": "Boat design magazine featured Vega this issue"
+    },
+    {
+      "id": "j187",
+      "utility": "low",
+      "ts_offset_seconds": 2239805,
+      "content": "Concert kickoff for Eclipse Set tour next month"
+    },
+    {
+      "id": "j146",
+      "utility": "low",
+      "ts_offset_seconds": 2248372,
+      "content": "Birthday party for Henry's niece this weekend"
+    },
+    {
+      "id": "j150",
+      "utility": "low",
+      "ts_offset_seconds": 2263962,
+      "content": "Watched Skyline Memories, the new release from Pixar; strange"
+    },
+    {
+      "id": "j278",
+      "utility": "low",
+      "ts_offset_seconds": 2277635,
+      "content": "Visited the new Forge \u2014 Veiga did the architecture"
+    },
+    {
+      "id": "j002",
+      "utility": "low",
+      "ts_offset_seconds": 2282045,
+      "content": "Music release: Jolt dropped a new album titled Migration Routes"
+    },
+    {
+      "id": "j221",
+      "utility": "low",
+      "ts_offset_seconds": 2287885,
+      "content": "Bird migration is starting; saw warbler at the park"
+    },
+    {
+      "id": "b094",
+      "utility": "medium",
+      "ts_offset_seconds": 2290147,
+      "content": "Friday wrap-up: Beacon on track, Echo slipping a sprint"
+    },
+    {
+      "id": "h001",
+      "utility": "high",
+      "ts_offset_seconds": 2301851,
+      "content": "Phoenix architecture review with Eve on the ranking module"
+    },
+    {
+      "id": "j270",
+      "utility": "low",
+      "ts_offset_seconds": 2324281,
+      "content": "Watched Migration North, the new release from Sony; fine"
+    },
+    {
+      "id": "b086",
+      "utility": "medium",
+      "ts_offset_seconds": 2324971,
+      "content": "Friday wrap-up: Phoenix on track, Drake slipping a sprint"
+    },
+    {
+      "id": "j109",
+      "utility": "low",
+      "ts_offset_seconds": 2325912,
+      "content": "Fitness metrics this week: 11400 steps, 60 active minutes"
+    },
+    {
+      "id": "j253",
+      "utility": "low",
+      "ts_offset_seconds": 2340267,
+      "content": "Trip to Phoenix Arizona was decent; weather was humid"
+    },
+    {
+      "id": "j024",
+      "utility": "low",
+      "ts_offset_seconds": 2343456,
+      "content": "Trail run on the river path was decent"
+    },
+    {
+      "id": "j326",
+      "utility": "low",
+      "ts_offset_seconds": 2344289,
+      "content": "Birthday party for Carol's cousin this weekend"
+    },
+    {
+      "id": "j287",
+      "utility": "low",
+      "ts_offset_seconds": 2355826,
+      "content": "Fixed the leaky hinge in the Sunset this weekend"
+    },
+    {
+      "id": "j254",
+      "utility": "low",
+      "ts_offset_seconds": 2364477,
+      "content": "Phoenix Bar on Main Street has new seasonal cocktail menu"
+    },
+    {
+      "id": "j245",
+      "utility": "low",
+      "ts_offset_seconds": 2367650,
+      "content": "Date night at The Daily was underwhelming"
+    },
+    {
+      "id": "b091",
+      "utility": "medium",
+      "ts_offset_seconds": 2375322,
+      "content": "Lunch meeting in conference room B: Beacon planning"
+    },
+    {
+      "id": "h035",
+      "utility": "high",
+      "ts_offset_seconds": 2379196,
+      "content": "Phoenix migration spec reviewed; David approved the auth schema"
+    },
+    {
+      "id": "j292",
+      "utility": "low",
+      "ts_offset_seconds": 2380659,
+      "content": "Hallway light flickered again; need to call maintenance"
+    },
+    {
+      "id": "b019",
+      "utility": "medium",
+      "ts_offset_seconds": 2392512,
+      "content": "Lunch meeting in conference room A: Phoenix planning"
+    },
+    {
+      "id": "j300",
+      "utility": "low",
+      "ts_offset_seconds": 2393537,
+      "content": "Watched Release Window, the new release from A24; great"
+    },
+    {
+      "id": "j232",
+      "utility": "low",
+      "ts_offset_seconds": 2397701,
+      "content": "Hallway light flickered again; need to call maintenance"
+    },
+    {
+      "id": "j329",
+      "utility": "low",
+      "ts_offset_seconds": 2405012,
+      "content": "Weather is windy this week"
+    },
+    {
+      "id": "j156",
+      "utility": "low",
+      "ts_offset_seconds": 2407202,
+      "content": "Football kickoff at 2pm; Foxes won 17-13"
+    },
+    {
+      "id": "b047",
+      "utility": "medium",
+      "ts_offset_seconds": 2411923,
+      "content": "Office hours with Alice: release questions answered"
+    },
+    {
+      "id": "j046",
+      "utility": "low",
+      "ts_offset_seconds": 2414908,
+      "content": "Sprint workout at the gym: 45 minutes on the treadmill"
+    },
+    {
+      "id": "b024",
+      "utility": "medium",
+      "ts_offset_seconds": 2430465,
+      "content": "Daily standup: Eve reported on Drake, blocker on storage"
+    },
+    {
+      "id": "j346",
+      "utility": "low",
+      "ts_offset_seconds": 2434077,
+      "content": "Sprint workout at the gym: 60 minutes on the treadmill"
+    },
+    {
+      "id": "j083",
+      "utility": "low",
+      "ts_offset_seconds": 2440679,
+      "content": "Read three chapters of Letters from the Coast"
+    },
+    {
+      "id": "b074",
+      "utility": "medium",
+      "ts_offset_seconds": 2444186,
+      "content": "Coffee chat with Bob about headcount this morning"
+    },
+    {
+      "id": "j091",
+      "utility": "low",
+      "ts_offset_seconds": 2469905,
+      "content": "Pixar release schedule for 2025 looks decent"
+    },
+    {
+      "id": "j097",
+      "utility": "low",
+      "ts_offset_seconds": 2480594,
+      "content": "Concert kickoff for Jolt tour next month"
+    },
+    {
+      "id": "j277",
+      "utility": "low",
+      "ts_offset_seconds": 2487785,
+      "content": "Concert kickoff for Jolt tour next month"
+    },
+    {
+      "id": "j062",
+      "utility": "low",
+      "ts_offset_seconds": 2491751,
+      "content": "Music release: Jolt dropped a new album titled Migration Routes"
+    },
+    {
+      "id": "b089",
+      "utility": "medium",
+      "ts_offset_seconds": 2495783,
+      "content": "Weekly all-hands at 4pm; Eve presented Atlas status"
+    },
+    {
+      "id": "j211",
+      "utility": "low",
+      "ts_offset_seconds": 2500743,
+      "content": "Pixar release schedule for 2025 looks underwhelming"
+    },
+    {
+      "id": "j110",
+      "utility": "low",
+      "ts_offset_seconds": 2502904,
+      "content": "Coffee at Stumptown was fine"
+    },
+    {
+      "id": "b099",
+      "utility": "medium",
+      "ts_offset_seconds": 2505033,
+      "content": "Lunch meeting in conference room B: Beacon planning"
+    },
+    {
+      "id": "j216",
+      "utility": "low",
+      "ts_offset_seconds": 2507715,
+      "content": "Football kickoff at 11am; Eagles won 10-7"
+    },
+    {
+      "id": "j327",
+      "utility": "low",
+      "ts_offset_seconds": 2513751,
+      "content": "Bought new shelf from the hardware store"
+    },
+    {
+      "id": "j105",
+      "utility": "low",
+      "ts_offset_seconds": 2526644,
+      "content": "Phoenix bird folklore: rises from ash every 4 years"
+    },
+    {
+      "id": "b028",
+      "utility": "medium",
+      "ts_offset_seconds": 2526872,
+      "content": "Ivy pinged me on Slack about release"
+    },
+    {
+      "id": "j276",
+      "utility": "low",
+      "ts_offset_seconds": 2527578,
+      "content": "Football kickoff at 4pm; Eagles won 21-14"
+    },
+    {
+      "id": "j181",
+      "utility": "low",
+      "ts_offset_seconds": 2527910,
+      "content": "Pixar release schedule for 2027 looks strange"
+    },
+    {
+      "id": "b010",
+      "utility": "medium",
+      "ts_offset_seconds": 2536142,
+      "content": "Coffee chat with Ivy about scope this morning"
+    },
+    {
+      "id": "j334",
+      "utility": "low",
+      "ts_offset_seconds": 2537578,
+      "content": "Apple release event was on Monday; strange"
+    },
+    {
+      "id": "j086",
+      "utility": "low",
+      "ts_offset_seconds": 2537951,
+      "content": "Birthday party for Ivy's cousin this weekend"
+    },
+    {
+      "id": "b008",
+      "utility": "medium",
+      "ts_offset_seconds": 2546261,
+      "content": "Daily standup: Alice reported on Beacon, blocker on ingestion"
+    },
+    {
+      "id": "j317",
+      "utility": "low",
+      "ts_offset_seconds": 2548345,
+      "content": "Fixed the leaky faucet in the B this weekend"
+    },
+    {
+      "id": "j280",
+      "utility": "low",
+      "ts_offset_seconds": 2553828,
+      "content": "Boat design magazine featured Halo this issue"
+    },
+    {
+      "id": "b065",
+      "utility": "medium",
+      "ts_offset_seconds": 2557709,
+      "content": "Weekly all-hands at 11am; David presented Beacon status"
+    },
+    {
+      "id": "h047",
+      "utility": "high",
+      "ts_offset_seconds": 2561022,
+      "content": "Phoenix design doc published: billing subsystem and queue interactions"
+    },
+    {
+      "id": "j058",
+      "utility": "low",
+      "ts_offset_seconds": 2578698,
+      "content": "Public transit was decent today"
+    },
+    {
+      "id": "j348",
+      "utility": "low",
+      "ts_offset_seconds": 2578874,
+      "content": "Car dashboard light came on; great"
+    },
+    {
+      "id": "h007",
+      "utility": "high",
+      "ts_offset_seconds": 2579532,
+      "content": "Phoenix design doc published: auth subsystem and limiter interactions"
+    },
+    {
+      "id": "j132",
+      "utility": "low",
+      "ts_offset_seconds": 2580957,
+      "content": "Military deployment in the news, the eastern border"
+    },
+    {
+      "id": "j009",
+      "utility": "low",
+      "ts_offset_seconds": 2591401,
+      "content": "Fashion design week showed Halo's spring collection"
+    }
+  ],
+  "queries": [
+    {
+      "query": "what is the phoenix release date",
+      "relevant_ids": [
+        "h000",
+        "h008",
+        "h010",
+        "h018",
+        "h020",
+        "h028",
+        "h030",
+        "h038",
+        "h040",
+        "h048"
+      ],
+      "junk_ids": [
+        "j000",
+        "j001",
+        "j002",
+        "j003",
+        "j004",
+        "j013",
+        "j014",
+        "j015",
+        "j030",
+        "j031",
+        "j032",
+        "j033",
+        "j034",
+        "j043",
+        "j044",
+        "j045",
+        "j060",
+        "j061",
+        "j062",
+        "j063",
+        "j064",
+        "j073",
+        "j074",
+        "j075",
+        "j090",
+        "j091",
+        "j092",
+        "j093",
+        "j094",
+        "j103",
+        "j104",
+        "j105",
+        "j120",
+        "j121",
+        "j122",
+        "j123",
+        "j124",
+        "j133",
+        "j134",
+        "j135",
+        "j150",
+        "j151",
+        "j152",
+        "j153",
+        "j154",
+        "j163",
+        "j164",
+        "j165",
+        "j180",
+        "j181",
+        "j182",
+        "j183",
+        "j184",
+        "j193",
+        "j194",
+        "j195",
+        "j210",
+        "j211",
+        "j212",
+        "j213",
+        "j214",
+        "j223",
+        "j224",
+        "j225",
+        "j240",
+        "j241",
+        "j242",
+        "j243",
+        "j244",
+        "j253",
+        "j254",
+        "j255",
+        "j270",
+        "j271",
+        "j272",
+        "j273",
+        "j274",
+        "j283",
+        "j284",
+        "j285",
+        "j300",
+        "j301",
+        "j302",
+        "j303",
+        "j304",
+        "j313",
+        "j314",
+        "j315",
+        "j330",
+        "j331",
+        "j332",
+        "j333",
+        "j334",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix architecture review notes",
+      "relevant_ids": [
+        "h001",
+        "h007",
+        "h011",
+        "h017",
+        "h021",
+        "h027",
+        "h031",
+        "h037",
+        "h041",
+        "h047"
+      ],
+      "junk_ids": [
+        "j003",
+        "j008",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j038",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j068",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j098",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j128",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j158",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j188",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j218",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j248",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j278",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j308",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j338",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix sprint kickoff focus",
+      "relevant_ids": [
+        "h002",
+        "h012",
+        "h022",
+        "h032",
+        "h042"
+      ],
+      "junk_ids": [
+        "j003",
+        "j006",
+        "j007",
+        "j013",
+        "j014",
+        "j015",
+        "j016",
+        "j033",
+        "j036",
+        "j037",
+        "j043",
+        "j044",
+        "j045",
+        "j046",
+        "j063",
+        "j066",
+        "j067",
+        "j073",
+        "j074",
+        "j075",
+        "j076",
+        "j093",
+        "j096",
+        "j097",
+        "j103",
+        "j104",
+        "j105",
+        "j106",
+        "j123",
+        "j126",
+        "j127",
+        "j133",
+        "j134",
+        "j135",
+        "j136",
+        "j153",
+        "j156",
+        "j157",
+        "j163",
+        "j164",
+        "j165",
+        "j166",
+        "j183",
+        "j186",
+        "j187",
+        "j193",
+        "j194",
+        "j195",
+        "j196",
+        "j213",
+        "j216",
+        "j217",
+        "j223",
+        "j224",
+        "j225",
+        "j226",
+        "j243",
+        "j246",
+        "j247",
+        "j253",
+        "j254",
+        "j255",
+        "j256",
+        "j273",
+        "j276",
+        "j277",
+        "j283",
+        "j284",
+        "j285",
+        "j286",
+        "j303",
+        "j306",
+        "j307",
+        "j313",
+        "j314",
+        "j315",
+        "j316",
+        "j333",
+        "j336",
+        "j337",
+        "j343",
+        "j344",
+        "j345",
+        "j346"
+      ]
+    },
+    {
+      "query": "phoenix bug fix details",
+      "relevant_ids": [
+        "h003",
+        "h013",
+        "h023",
+        "h033",
+        "h043"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j017",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j047",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j077",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j107",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j137",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j167",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j197",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j227",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j257",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j287",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j317",
+        "j333",
+        "j343",
+        "j344",
+        "j345",
+        "j347"
+      ]
+    },
+    {
+      "query": "phoenix deployment plan",
+      "relevant_ids": [
+        "h004",
+        "h014",
+        "h024",
+        "h034",
+        "h044"
+      ],
+      "junk_ids": [
+        "j003",
+        "j012",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j042",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j072",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j102",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j132",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j162",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j192",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j222",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j252",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j282",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j312",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j342",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix migration schema approval",
+      "relevant_ids": [
+        "h005",
+        "h015",
+        "h025",
+        "h035",
+        "h045"
+      ],
+      "junk_ids": [
+        "j002",
+        "j003",
+        "j011",
+        "j013",
+        "j014",
+        "j015",
+        "j030",
+        "j033",
+        "j041",
+        "j043",
+        "j044",
+        "j045",
+        "j062",
+        "j063",
+        "j071",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j101",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j131",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j161",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j191",
+        "j193",
+        "j194",
+        "j195",
+        "j212",
+        "j213",
+        "j221",
+        "j223",
+        "j224",
+        "j225",
+        "j242",
+        "j243",
+        "j251",
+        "j253",
+        "j254",
+        "j255",
+        "j270",
+        "j273",
+        "j281",
+        "j283",
+        "j284",
+        "j285",
+        "j302",
+        "j303",
+        "j311",
+        "j313",
+        "j314",
+        "j315",
+        "j330",
+        "j332",
+        "j333",
+        "j341",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix dashboard metrics",
+      "relevant_ids": [
+        "h006",
+        "h016",
+        "h026",
+        "h036",
+        "h046"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j018",
+        "j019",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j048",
+        "j049",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j078",
+        "j079",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j108",
+        "j109",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j138",
+        "j139",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j168",
+        "j169",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j198",
+        "j199",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j228",
+        "j229",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j258",
+        "j259",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j288",
+        "j289",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j318",
+        "j319",
+        "j333",
+        "j343",
+        "j344",
+        "j345",
+        "j348",
+        "j349"
+      ]
+    },
+    {
+      "query": "phoenix design doc components",
+      "relevant_ids": [
+        "h007",
+        "h017",
+        "h027",
+        "h037",
+        "h047"
+      ],
+      "junk_ids": [
+        "j003",
+        "j009",
+        "j010",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j039",
+        "j040",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j069",
+        "j070",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j099",
+        "j100",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j129",
+        "j130",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j159",
+        "j160",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j189",
+        "j190",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j219",
+        "j220",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j249",
+        "j250",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j279",
+        "j280",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j309",
+        "j310",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j339",
+        "j340",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix retro outcomes",
+      "relevant_ids": [
+        "h009",
+        "h019",
+        "h029",
+        "h039",
+        "h049"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "when does phoenix ship",
+      "relevant_ids": [
+        "h000",
+        "h008",
+        "h010",
+        "h018",
+        "h020",
+        "h028",
+        "h030",
+        "h038",
+        "h040",
+        "h048"
+      ],
+      "junk_ids": [
+        "j000",
+        "j001",
+        "j002",
+        "j003",
+        "j004",
+        "j013",
+        "j014",
+        "j015",
+        "j030",
+        "j031",
+        "j032",
+        "j033",
+        "j034",
+        "j043",
+        "j044",
+        "j045",
+        "j060",
+        "j061",
+        "j062",
+        "j063",
+        "j064",
+        "j073",
+        "j074",
+        "j075",
+        "j090",
+        "j091",
+        "j092",
+        "j093",
+        "j094",
+        "j103",
+        "j104",
+        "j105",
+        "j120",
+        "j121",
+        "j122",
+        "j123",
+        "j124",
+        "j133",
+        "j134",
+        "j135",
+        "j150",
+        "j151",
+        "j152",
+        "j153",
+        "j154",
+        "j163",
+        "j164",
+        "j165",
+        "j180",
+        "j181",
+        "j182",
+        "j183",
+        "j184",
+        "j193",
+        "j194",
+        "j195",
+        "j210",
+        "j211",
+        "j212",
+        "j213",
+        "j214",
+        "j223",
+        "j224",
+        "j225",
+        "j240",
+        "j241",
+        "j242",
+        "j243",
+        "j244",
+        "j253",
+        "j254",
+        "j255",
+        "j270",
+        "j271",
+        "j272",
+        "j273",
+        "j274",
+        "j283",
+        "j284",
+        "j285",
+        "j300",
+        "j301",
+        "j302",
+        "j303",
+        "j304",
+        "j313",
+        "j314",
+        "j315",
+        "j330",
+        "j331",
+        "j332",
+        "j333",
+        "j334",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "who is reviewing phoenix architecture",
+      "relevant_ids": [
+        "h001",
+        "h011",
+        "h021",
+        "h031",
+        "h041"
+      ],
+      "junk_ids": [
+        "j003",
+        "j008",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j038",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j068",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j098",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j128",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j158",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j188",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j218",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j248",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j278",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j308",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j338",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix component performance feedback",
+      "relevant_ids": [
+        "h001",
+        "h009",
+        "h011",
+        "h019",
+        "h021",
+        "h029",
+        "h031",
+        "h039",
+        "h041",
+        "h049"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix coordination owner",
+      "relevant_ids": [
+        "h008",
+        "h018",
+        "h028",
+        "h038",
+        "h048"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix bug edge cases handled",
+      "relevant_ids": [
+        "h003",
+        "h013",
+        "h023",
+        "h033",
+        "h043"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j017",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j047",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j077",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j107",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j137",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j167",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j197",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j227",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j257",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j287",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j317",
+        "j333",
+        "j343",
+        "j344",
+        "j345",
+        "j347"
+      ]
+    },
+    {
+      "query": "phoenix v1 release week",
+      "relevant_ids": [
+        "h000",
+        "h008",
+        "h010",
+        "h018",
+        "h020",
+        "h028",
+        "h030",
+        "h038",
+        "h040",
+        "h048"
+      ],
+      "junk_ids": [
+        "j000",
+        "j001",
+        "j002",
+        "j003",
+        "j004",
+        "j013",
+        "j014",
+        "j015",
+        "j030",
+        "j031",
+        "j032",
+        "j033",
+        "j034",
+        "j043",
+        "j044",
+        "j045",
+        "j060",
+        "j061",
+        "j062",
+        "j063",
+        "j064",
+        "j073",
+        "j074",
+        "j075",
+        "j090",
+        "j091",
+        "j092",
+        "j093",
+        "j094",
+        "j103",
+        "j104",
+        "j105",
+        "j120",
+        "j121",
+        "j122",
+        "j123",
+        "j124",
+        "j133",
+        "j134",
+        "j135",
+        "j150",
+        "j151",
+        "j152",
+        "j153",
+        "j154",
+        "j163",
+        "j164",
+        "j165",
+        "j180",
+        "j181",
+        "j182",
+        "j183",
+        "j184",
+        "j193",
+        "j194",
+        "j195",
+        "j210",
+        "j211",
+        "j212",
+        "j213",
+        "j214",
+        "j223",
+        "j224",
+        "j225",
+        "j240",
+        "j241",
+        "j242",
+        "j243",
+        "j244",
+        "j253",
+        "j254",
+        "j255",
+        "j270",
+        "j271",
+        "j272",
+        "j273",
+        "j274",
+        "j283",
+        "j284",
+        "j285",
+        "j300",
+        "j301",
+        "j302",
+        "j303",
+        "j304",
+        "j313",
+        "j314",
+        "j315",
+        "j330",
+        "j331",
+        "j332",
+        "j333",
+        "j334",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "weekly all-hands status update",
+      "relevant_ids": [
+        "b001",
+        "b006",
+        "b009",
+        "b014",
+        "b017",
+        "b022",
+        "b025",
+        "b030",
+        "b033",
+        "b038",
+        "b041",
+        "b046",
+        "b049",
+        "b054",
+        "b057",
+        "b062",
+        "b065",
+        "b070",
+        "b073",
+        "b078",
+        "b081",
+        "b086",
+        "b089",
+        "b094",
+        "b097"
+      ],
+      "junk_ids": []
+    },
+    {
+      "query": "daily standup blockers reported",
+      "relevant_ids": [
+        "b000",
+        "b008",
+        "b016",
+        "b024",
+        "b032",
+        "b040",
+        "b048",
+        "b056",
+        "b064",
+        "b072",
+        "b080",
+        "b088",
+        "b096"
+      ],
+      "junk_ids": []
+    },
+    {
+      "query": "coffee chat topics this week",
+      "relevant_ids": [
+        "b002",
+        "b010",
+        "b018",
+        "b026",
+        "b034",
+        "b042",
+        "b050",
+        "b058",
+        "b066",
+        "b074",
+        "b082",
+        "b090",
+        "b098"
+      ],
+      "junk_ids": [
+        "j020",
+        "j050",
+        "j080",
+        "j110",
+        "j140",
+        "j170",
+        "j200",
+        "j230",
+        "j260",
+        "j290",
+        "j320"
+      ]
+    },
+    {
+      "query": "1:1 conversations with team members",
+      "relevant_ids": [
+        "b005",
+        "b013",
+        "b021",
+        "b029",
+        "b037",
+        "b045",
+        "b053",
+        "b061",
+        "b069",
+        "b077",
+        "b085",
+        "b093"
+      ],
+      "junk_ids": []
+    },
+    {
+      "query": "office hours questions",
+      "relevant_ids": [
+        "b007",
+        "b015",
+        "b023",
+        "b031",
+        "b039",
+        "b047",
+        "b055",
+        "b063",
+        "b071",
+        "b079",
+        "b087",
+        "b095"
+      ],
+      "junk_ids": []
+    },
+    {
+      "query": "lunch meeting agenda",
+      "relevant_ids": [
+        "b003",
+        "b011",
+        "b019",
+        "b027",
+        "b035",
+        "b043",
+        "b051",
+        "b059",
+        "b067",
+        "b075",
+        "b083",
+        "b091",
+        "b099"
+      ],
+      "junk_ids": []
+    },
+    {
+      "query": "friday project wrap-up summary",
+      "relevant_ids": [
+        "b006",
+        "b014",
+        "b022",
+        "b030",
+        "b038",
+        "b046",
+        "b054",
+        "b062",
+        "b070",
+        "b078",
+        "b086",
+        "b094"
+      ],
+      "junk_ids": [
+        "j184",
+        "j214"
+      ]
+    },
+    {
+      "query": "slack ping topics",
+      "relevant_ids": [
+        "b004",
+        "b012",
+        "b020",
+        "b028",
+        "b036",
+        "b044",
+        "b052",
+        "b060",
+        "b068",
+        "b076",
+        "b084",
+        "b092"
+      ],
+      "junk_ids": []
+    },
+    {
+      "query": "phoenix telemetry component review",
+      "relevant_ids": [
+        "h001",
+        "h009",
+        "h011",
+        "h019",
+        "h021",
+        "h029",
+        "h031",
+        "h039",
+        "h041",
+        "h049"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix sprint number focus",
+      "relevant_ids": [
+        "h002",
+        "h012",
+        "h022",
+        "h032",
+        "h042"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j016",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j046",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j076",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j106",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j136",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j166",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j196",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j226",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j256",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j286",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j316",
+        "j333",
+        "j343",
+        "j344",
+        "j345",
+        "j346"
+      ]
+    },
+    {
+      "query": "phoenix deployment morning order",
+      "relevant_ids": [
+        "h004",
+        "h014",
+        "h024",
+        "h034",
+        "h044"
+      ],
+      "junk_ids": [
+        "j012",
+        "j021",
+        "j042",
+        "j051",
+        "j072",
+        "j081",
+        "j102",
+        "j111",
+        "j132",
+        "j141",
+        "j162",
+        "j171",
+        "j192",
+        "j201",
+        "j222",
+        "j231",
+        "j252",
+        "j261",
+        "j282",
+        "j291",
+        "j312",
+        "j321",
+        "j342"
+      ]
+    },
+    {
+      "query": "phoenix v2 alpha release",
+      "relevant_ids": [
+        "h000",
+        "h008",
+        "h010",
+        "h018",
+        "h020",
+        "h028",
+        "h030",
+        "h038",
+        "h040",
+        "h048"
+      ],
+      "junk_ids": [
+        "j000",
+        "j001",
+        "j002",
+        "j003",
+        "j004",
+        "j013",
+        "j014",
+        "j015",
+        "j030",
+        "j031",
+        "j032",
+        "j033",
+        "j034",
+        "j043",
+        "j044",
+        "j045",
+        "j060",
+        "j061",
+        "j062",
+        "j063",
+        "j064",
+        "j073",
+        "j074",
+        "j075",
+        "j090",
+        "j091",
+        "j092",
+        "j093",
+        "j094",
+        "j103",
+        "j104",
+        "j105",
+        "j120",
+        "j121",
+        "j122",
+        "j123",
+        "j124",
+        "j133",
+        "j134",
+        "j135",
+        "j150",
+        "j151",
+        "j152",
+        "j153",
+        "j154",
+        "j163",
+        "j164",
+        "j165",
+        "j180",
+        "j181",
+        "j182",
+        "j183",
+        "j184",
+        "j193",
+        "j194",
+        "j195",
+        "j210",
+        "j211",
+        "j212",
+        "j213",
+        "j214",
+        "j223",
+        "j224",
+        "j225",
+        "j240",
+        "j241",
+        "j242",
+        "j243",
+        "j244",
+        "j253",
+        "j254",
+        "j255",
+        "j270",
+        "j271",
+        "j272",
+        "j273",
+        "j274",
+        "j283",
+        "j284",
+        "j285",
+        "j300",
+        "j301",
+        "j302",
+        "j303",
+        "j304",
+        "j313",
+        "j314",
+        "j315",
+        "j330",
+        "j331",
+        "j332",
+        "j333",
+        "j334",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix retro lessons learned",
+      "relevant_ids": [
+        "h009",
+        "h019",
+        "h029",
+        "h039",
+        "h049"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix subsystem interactions",
+      "relevant_ids": [
+        "h007",
+        "h017",
+        "h027",
+        "h037",
+        "h047"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    },
+    {
+      "query": "phoenix iteration needed",
+      "relevant_ids": [
+        "h009",
+        "h019",
+        "h029",
+        "h039",
+        "h049"
+      ],
+      "junk_ids": [
+        "j003",
+        "j013",
+        "j014",
+        "j015",
+        "j033",
+        "j043",
+        "j044",
+        "j045",
+        "j063",
+        "j073",
+        "j074",
+        "j075",
+        "j093",
+        "j103",
+        "j104",
+        "j105",
+        "j123",
+        "j133",
+        "j134",
+        "j135",
+        "j153",
+        "j163",
+        "j164",
+        "j165",
+        "j183",
+        "j193",
+        "j194",
+        "j195",
+        "j213",
+        "j223",
+        "j224",
+        "j225",
+        "j243",
+        "j253",
+        "j254",
+        "j255",
+        "j273",
+        "j283",
+        "j284",
+        "j285",
+        "j303",
+        "j313",
+        "j314",
+        "j315",
+        "j333",
+        "j343",
+        "j344",
+        "j345"
+      ]
+    }
+  ]
+}

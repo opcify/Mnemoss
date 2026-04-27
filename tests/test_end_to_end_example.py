@@ -275,10 +275,11 @@ async def test_dream_with_cost_cap_stops_after_budget_exhausted(
 # ─── 5. full nightly pipeline with LLM ────────────────────────────
 
 
-async def test_nightly_pipeline_runs_all_six_phases(tmp_path: Path) -> None:
+async def test_nightly_pipeline_runs_all_five_phases(tmp_path: Path) -> None:
     """A NIGHTLY trigger exercises every phase: REPLAY → CLUSTER →
-    CONSOLIDATE → RELATIONS → REBALANCE → DISPOSE. This is the
-    canonical smoke test for the dream engine end-to-end."""
+    CONSOLIDATE → REBALANCE → DISPOSE. This is the canonical smoke
+    test for the dream engine end-to-end. (Relations removed
+    2026-04-27 per dreaming-validation study.)"""
 
     llm = MockLLMClient(responses=[_consolidate_response(3) for _ in range(10)])
     mem = _make_mem(tmp_path, llm=llm)
@@ -296,7 +297,6 @@ async def test_nightly_pipeline_runs_all_six_phases(tmp_path: Path) -> None:
             PhaseName.REPLAY,
             PhaseName.CLUSTER,
             PhaseName.CONSOLIDATE,
-            PhaseName.RELATIONS,
             PhaseName.REBALANCE,
             PhaseName.DISPOSE,
         } == seen
