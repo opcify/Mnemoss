@@ -15,7 +15,7 @@
 .PHONY: ablate-dreaming ablate-dreaming-binary ablate-dreaming-pareto \
         ablate-dreaming-pressure ablate-dreaming-pressure-binary \
         ablate-dreaming-pressure-plot pressure-corpus-gen \
-        gist-quality gist-quality-plot \
+        gist-quality gist-quality-plot forgetting-curves \
         bench-tests test lint typecheck
 
 # Auto-load .env if it exists. ``include .env`` reads KEY=VALUE
@@ -91,6 +91,15 @@ gist-quality:
 # Render the gist-quality bar chart from existing results.
 gist-quality-plot:
 	python -m bench.plot_gist
+
+# Forgetting-curves panel: B_i vs age scatter, bucketed by utility,
+# on the pressure corpus. Snapshots the formula's natural decay
+# shape and surfaces whether the dream pipeline is producing
+# differential rehearsal across utility buckets. Skips Consolidate
+# (no LLM, no network besides the embedder).
+forgetting-curves:
+	@if [ -z "$$OPENAI_API_KEY" ]; then echo "error: OPENAI_API_KEY not set (check .env)"; exit 2; fi
+	python -m bench.forgetting_curves --ablation dreaming_off
 
 # Bench harness unit tests (ARI math, bootstrap CI, corpus shape).
 # These do NOT hit the network and ARE safe to run in CI.

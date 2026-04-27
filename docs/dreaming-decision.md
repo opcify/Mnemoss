@@ -405,6 +405,72 @@ The 0.5607 number isn't a damning verdict — it's just below the
 a corpus with longer source memories (LoCoMo) would likely produce
 higher ARI as the embedder has more vocabulary to disambiguate.
 
+### Forgetting curves — pressure corpus, B_i vs age (2026-04-27)
+
+Run: `python -m bench.forgetting_curves --ablation dreaming_off`.
+Output: `bench/results/forgetting_curves_dreaming_off.png`.
+
+For every memory in the pressure corpus (500 memories), at end_time
+(day ~30 simulated), computes B_i via
+``mnemoss.formula.base_level.compute_base_level`` and plots scatter
++ binned-mean lines bucketed by utility (high/medium/low).
+
+Mean B_i per utility bucket:
+
+```
+high    n= 50  mean B_i =  -6.935  (min=-7.378  max=-4.657)
+medium  n=100  mean B_i =  -6.876  (min=-7.368  max=-5.213)
+low     n=350  mean B_i =  -6.869  (min=-7.383  max=-1.064)
+tombstoned: 0
+```
+
+**All three utility buckets have essentially the same mean B_i**
+(within 0.07 of each other). The range variance comes from age, not
+utility — memories observed near end_time have less-negative B_i
+than ones observed early, regardless of which utility bucket they
+belong to.
+
+**The architectural finding this surfaces:**
+on this corpus, the dream pipeline is NOT producing the differential
+rehearsal that the formula is designed to amplify. Specifically:
+
+- Consolidate's refinement updates ``extracted_gist`` and similar
+  fields but **does not bump ``access_history``** (verified by
+  reading `src/mnemoss/dream/consolidate.py`).
+- Cluster, Relations, Rebalance, and Dispose also leave
+  ``access_history`` untouched.
+- The corpus's "high-utility" memories are 50 *separate* mentions of
+  Phoenix, not 50 accesses to the *same* memory — so even semantic
+  rehearsal doesn't accumulate per-memory.
+
+Without rehearsal, B_i collapses to ``-d * log(age)`` with
+``access_history`` of length 1 for every memory. The shape is the
+intended ACT-R power-law decay (linear on a log-x plot, slope -d).
+The formula is "correct" in the sense that it produces the right
+shape — it just has nothing to amplify because the upstream pipeline
+isn't generating signal.
+
+**Action items:**
+
+1. **Decide whether dreaming should bump access_history.** The
+   ACT-R intent is clear: phases that "touch" a memory (Consolidate
+   refinement, Cluster representative selection) should rehearse
+   it. Currently they don't. Adding a single
+   ``access_history.append(now)`` in Consolidate's per-member
+   refinement loop would close the gap. Whether that's correct
+   per ACT-R orthodoxy is a separate question.
+
+2. **Hand-design a corpus that drives differential rehearsal.**
+   Instead of 50 separate Phoenix memories, the high-utility track
+   should be 5-10 memories about Phoenix that get RECALLED multiple
+   times during the simulation (so their access_history accumulates
+   organically). The current pressure corpus generator
+   (`bench/fixtures/pressure_corpus_gen.py`) doesn't simulate
+   recalls at all.
+
+3. **Re-test** after either fix lands. The forgetting-curves panel
+   should then show clear utility separation.
+
 ### Consolidate verdict — gist quality judge (2026-04-27)
 
 Run: `python -m bench.gist_quality` against the topology corpus.
