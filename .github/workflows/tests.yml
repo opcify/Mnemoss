@@ -75,7 +75,9 @@ jobs:
       - name: Install package with dev extras
         # Editable install so mnemoss + bench/ + demo/ + docs/ all
         # resolve against the working tree, not a snapshot.
-        run: pip install -e ".[dev,openai,gemini]"
+        # server/sdk/mcp/observability extras are required for the
+        # server, SDK e2e, MCP, and metrics test suites.
+        run: pip install -e ".[dev,openai,gemini,server,sdk,mcp,observability]"
 
       - name: Run tests (skip integration — model downloads excluded from CI)
         run: pytest -m "not integration" -q --color=yes
