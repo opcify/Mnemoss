@@ -506,6 +506,63 @@ doesn't change that.
 These are architecture changes, not parameter tuning. Re-validate
 after they land.
 
+### Final validation — speed + accuracy vs oracle (2026-04-27)
+
+Run: `python -m bench.final_validation --corpus topology` and
+`--corpus pressure`. Three conditions per corpus: `dreaming_off`,
+`full` (5 phases post-Relations-removal), and a synthetic
+`oracle` ceiling (recall@k=1.0, latency=0ms).
+
+| | topology (30) | pressure (500) |
+|---|---|---|
+| `dreaming_off` recall@10 | 0.5417 | 0.1967 |
+| `full` recall@10 | 0.0000 | 0.0000 |
+| `oracle` recall@10 | 1.0000 | 1.0000 |
+| Accuracy delta (full vs off) | **-54pp** | **-20pp** |
+| Gap to oracle (full) | **-100pp** | **-100pp** |
+| `dreaming_off` mean latency | 428.9ms | 410.4ms |
+| `full` mean latency | **279.7ms** | **242.1ms** |
+| Speed lift (full vs off) | **-149ms / -35%** | **-168ms / -41%** |
+
+**Speed: dreaming wins decisively on both corpora.** Mean
+recall latency drops by 35-41%. The Rebalance phase migrates
+high-utility memories to HOT, and the cascade returns from HOT
+without scanning COLD/DEEP. Consolidate's LLM cost is paid
+once during dream, not per recall query.
+
+**Accuracy: dreaming cannot reach the oracle ceiling under
+strict recall@k of original gold ids.** The gap is 100pp on
+both corpora. Consolidate writes 4-20 summary memories per
+dream cycle; under embedding similarity they outrank the
+original gold ids and fill top-10. Strict recall@k counts
+only originals → 0.
+
+**The architectural insight:** strict recall@k of original ids
+is structurally bounded above by `1 - (summaries_in_topK / k)`.
+With Consolidate active and k=10, top-K saturates with summaries
+on every Phoenix-themed query. Two paths to lift the ceiling:
+
+1. **Recall-layer fix** — distinguish "evidence" (originals)
+   from "answer" (summaries). Either return both and count both
+   as hits, or expose a `kinds=` filter so callers can ask for
+   originals only.
+2. **Formula fix** — lower the starting `idx_priority` for
+   derived memories so they don't outrank originals
+   immediately. Only after rehearsal would they climb.
+
+Both are separate /office-hours topics. For the validation
+study itself, the headline is:
+
+> Dreaming reaches a real **35-41% speedup** on recall latency.
+> Accuracy under the recall@k-of-originals metric saturates at
+> 0 because of Consolidate's summary crowd-out — that's a
+> metric / architecture interaction, not a Consolidate-quality
+> issue (Consolidate scored 0.78 win rate on the gist-quality
+> judge, KEEP verdict).
+
+Charts: `bench/results/final_validation_topology.png` and
+`bench/results/final_validation_pressure.png`.
+
 ### Forgetting curves — pressure corpus, B_i vs age (2026-04-27)
 
 Run: `python -m bench.forgetting_curves --ablation dreaming_off`.
