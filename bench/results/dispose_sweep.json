@@ -1,0 +1,97 @@
+[
+  {
+    "delta": 1.0,
+    "ran_dispose": false,
+    "tombstoned_total": 0,
+    "tombstoned_by_utility": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "cleanliness": 0.2917,
+    "dispose_phase_status": "excluded_by_mask",
+    "dispose_details": {
+      "scanned": null,
+      "disposed": null,
+      "activation_dead": null,
+      "redundant": null,
+      "protected": null
+    }
+  },
+  {
+    "delta": 0.0,
+    "ran_dispose": true,
+    "tombstoned_total": 0,
+    "tombstoned_by_utility": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "cleanliness": 0.9583,
+    "dispose_phase_status": "ok",
+    "dispose_details": {
+      "scanned": 100,
+      "disposed": 0,
+      "activation_dead": 0,
+      "redundant": 0,
+      "protected": 100
+    }
+  },
+  {
+    "delta": 0.3,
+    "ran_dispose": true,
+    "tombstoned_total": 0,
+    "tombstoned_by_utility": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "cleanliness": 0.9583,
+    "dispose_phase_status": "ok",
+    "dispose_details": {
+      "scanned": 100,
+      "disposed": 0,
+      "activation_dead": 0,
+      "redundant": 0,
+      "protected": 100
+    }
+  },
+  {
+    "delta": 0.5,
+    "ran_dispose": true,
+    "tombstoned_total": 0,
+    "tombstoned_by_utility": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "cleanliness": 0.9583,
+    "dispose_phase_status": "ok",
+    "dispose_details": {
+      "scanned": 100,
+      "disposed": 0,
+      "activation_dead": 0,
+      "redundant": 0,
+      "protected": 100
+    }
+  },
+  {
+    "delta": 1.0,
+    "ran_dispose": true,
+    "tombstoned_total": 0,
+    "tombstoned_by_utility": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "cleanliness": 0.9583,
+    "dispose_phase_status": "ok",
+    "dispose_details": {
+      "scanned": 100,
+      "disposed": 0,
+      "activation_dead": 0,
+      "redundant": 0,
+      "protected": 100
+    }
+  }
+]

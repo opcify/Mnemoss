@@ -1,0 +1,37 @@
+[
+  {
+    "cluster_min_size": 2,
+    "ari": 0.5489,
+    "scored": 25,
+    "dropped": 5,
+    "distinct_clusters_found": 6
+  },
+  {
+    "cluster_min_size": 3,
+    "ari": 0.5607,
+    "scored": 26,
+    "dropped": 4,
+    "distinct_clusters_found": 4
+  },
+  {
+    "cluster_min_size": 4,
+    "ari": 1.0,
+    "scored": 17,
+    "dropped": 13,
+    "distinct_clusters_found": 2
+  },
+  {
+    "cluster_min_size": 5,
+    "ari": 1.0,
+    "scored": 15,
+    "dropped": 15,
+    "distinct_clusters_found": 2
+  },
+  {
+    "cluster_min_size": 7,
+    "ari": 0.0,
+    "scored": 0,
+    "dropped": 30,
+    "distinct_clusters_found": 0
+  }
+]

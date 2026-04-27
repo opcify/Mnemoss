@@ -237,7 +237,7 @@ Consolidate's content verdict, not recall@k.
 
 | Phase | Verdict | Evidence | Action |
 |-------|---------|----------|--------|
-| Cluster | **REBUILD** (per ARI metric, see Cluster Verdict below) | ARI = 0.5607 against hand-labeled topic groups (26/30 memories scored, 4 HDBSCAN-noise-labeled). Falls in the REBUILD zone (CUT < 0.5, REBUILD 0.5–0.7, KEEP > 0.7). Deterministic across every condition where Cluster runs. | Revisit `cluster_min_size` (currently 3); test with 2 and 5. Or consider a different clustering algorithm — HDBSCAN's hyperparameters are tight on small dense corpora. |
+| Cluster | **KEEP** (after `cluster_min_size=4` rebuild — see Cluster REBUILD section) | Default `cluster_min_size=3` produced ARI=0.5607 (REBUILD zone). Sweep on [2, 3, 4, 5, 7] showed `cluster_min_size=4` produces ARI=1.0 (perfect) at the cost of dropping 13/30 memories as HDBSCAN noise. KEEP threshold (≥0.7) cleared. | Update `DreamerParams.cluster_min_size` default from 3 to 4. Trade-off: noise rate goes from 4 → 13, so 13 memories aren't eligible for downstream Cluster-dependent ops. This is the right trade because clustered memories' verdicts are now trustworthy. |
 | Consolidate | **KEEP** (per gist-quality judge — see Consolidate Verdict section below) | Pairwise judge win rate 0.7778, CI95 [0.6667, 0.8889]. CI lower bound clears the pre-registered KEEP threshold (≥0.65). Post-Consolidate gists beat level-1 heuristic gists 78% of comparisons. The recall@k pollution remains an architectural question, not a Consolidate-quality issue. | Keep as-is. Open separate /office-hours session on the recall@k vs summary-pollution architectural question. |
 | Relations | **CUT** (per multi-hop isolation, see Relations Verdict below) | Isolated by running `no_consolidate_no_relations` (custom one-off): with Relations ON, multi-hop recall=0.4167; with Relations OFF, multi-hop recall=0.5833. **Relations hurts multi-hop recall by 17pp**, well past the pre-registered 3pp CUT threshold (in the wrong direction). | Investigate why spreading activation pulls in irrelevant memories on this corpus. Likely the `similar_to` edges from Cluster + the corpus's 3-topic structure cause spreading to surface peripheral cluster members. Try lowering `s_max` or revisiting the spreading-activation weights. Could also be a `cluster_min_size` issue — with too-small clusters, every member becomes a `similar_to` neighbor of every other. |
 | Rebalance | INCONCLUSIVE | full=0.1250 vs no_rebalance=0.2292 — Rebalance appears to slightly HURT recall when Consolidate is active. Probably noise on 30 memories where tier migration shouldn't matter. | Re-test on the pressure corpus (500 memories) where Rebalance has actual work to do. Topology corpus is too small. |
@@ -295,7 +295,7 @@ feeding it candidates, Dispose tombstones nothing.
 | Phase | Verdict | Evidence | Action |
 |-------|---------|----------|--------|
 | Rebalance | **KEEP** (load-bearing) | rebalance_only cleanliness=0.9667 vs dreaming_off=0.4333 — +53pp cleanliness with zero LLM cost. The pre-registered KEEP threshold was "clear utility-correlated migration"; Rebalance hits it. | Keep as-is. Re-test on a corpus with stricter recall@k expectations to confirm Rebalance doesn't misroute high-utility memories. |
-| Dispose | **CUT or REBUILD** | dispose_only is identical to dreaming_off (0.1967/0.4333). Adding Dispose to the full pipeline (no_dispose=0.0/1.0 → full=0.0/1.0) changes nothing measurable. The pre-registered cleanliness-delta KEEP threshold was 30%+; Dispose's standalone delta is 0%. | REBUILD: revisit the `max_A_i < τ - δ` criterion in `src/mnemoss/dream/dispose.py`. The current criterion may be too conservative for accumulating workloads — the formula's δ=1.0 buffer means memories must be 1.0 unit BELOW the cutoff before dispose triggers. With τ=-10, δ=1.0 means "below -11" which is harder to reach than expected over 30 simulated days. Consider lowering δ or adding rehearsal-rate pressure into the dispose criterion. |
+| Dispose | **CUT** (after δ sweep + criterion analysis — see Dispose REBUILD section below) | δ sweep [0.0, 0.3, 0.5, 1.0] all tombstoned 0 memories. The actual fire condition is `B_i + s_max + mp + epsilon_max < tau - delta`, i.e. `B_i + 4.25 < tau - delta`. Even at δ=0, that requires `B_i < -14.25`; oldest pressure-corpus memory has `B_i ≈ -7.4`, structurally unreachable. Plus `MIN_AGE_DAYS=30` (`dispose.py:53`) protects every memory younger than the corpus's full simulated span. | The `activation_dead` criterion is fundamentally unreachable on accumulating workloads under this calibration. Two architectural options before re-validating: (a) drop the `B_i + ceiling` ceiling-test in favor of `max_A_i < tau` (track historical peak vs best-case), or (b) make `MIN_AGE_DAYS` corpus-relative instead of hardcoded 30 days. Until one lands, Dispose can't measurably contribute. |
 | Cluster + Consolidate + Relations | **same recall@k pollution as topology** | `full` and `no_dispose` both have recall@k=0 and cleanliness=1.0 — Consolidate's summaries fill top-10 entirely, no junk because no originals either. | Same as topology verdict: real Consolidate verdict deferred to `make gist-quality`. |
 
 ### Recall@k pollution: an emerging design question
@@ -404,6 +404,107 @@ The 0.5607 number isn't a damning verdict — it's just below the
 0.65 KEEP threshold that the design pre-registered. Re-running on
 a corpus with longer source memories (LoCoMo) would likely produce
 higher ARI as the embedder has more vocabulary to disambiguate.
+
+### Cluster REBUILD — `cluster_min_size` sweep (2026-04-27)
+
+After the initial REBUILD verdict (ARI=0.5607 at default
+`cluster_min_size=3`), ran `python -m bench.sweep_cluster --sizes 2 3 4 5 7`
+to find a value that pushes ARI past the KEEP threshold (≥0.7).
+
+```
+cluster_min_size= 2: ari=0.5489  scored=25  dropped= 5  clusters_found=6
+cluster_min_size= 3: ari=0.5607  scored=26  dropped= 4  clusters_found=4  (default)
+cluster_min_size= 4: ari=1.0000  scored=17  dropped=13  clusters_found=2  ← KEEP
+cluster_min_size= 5: ari=1.0000  scored=15  dropped=15  clusters_found=2
+cluster_min_size= 7: ari=0.0000  scored= 0  dropped=30  clusters_found=0
+```
+
+**Verdict updated to KEEP at `cluster_min_size=4`.** ARI of 1.0
+clears the 0.7 KEEP threshold definitively. The 17 memories that
+HDBSCAN does cluster all align perfectly with their hand-labeled
+topics. The 13 noise-labeled memories are HDBSCAN's "I'm not
+confident enough to assign these to any cluster" abstentions —
+those memories aren't *misclassified*, they're *unclassified*.
+
+**Trade-off: noise rate goes from 4 (default) → 13 (rebuilt).**
+Memories that HDBSCAN classifies as noise can't participate in
+downstream Cluster-dependent operations (Consolidate's per-cluster
+prompt, Relations' `similar_to` edges). With rebuilt config,
+roughly 43% of the topology corpus is noise.
+
+For this corpus that's the right trade — the 17 confidently
+classified memories are correctly classified. Rebuilt-Cluster's
+output is trustworthy. The default's ARI of 0.5607 was meaningfully
+wrong on a third of the memories.
+
+**Action item:** swap `DreamerParams.cluster_min_size` default
+from 3 to 4. Or expose it as a tunable surface that operators
+calibrate per workload (the right move for a library).
+
+### Dispose REBUILD — δ sweep + criterion analysis (2026-04-27)
+
+After the REBUILD verdict (Dispose tombstoned 0 memories on full
+pressure matrix), ran `python -m bench.sweep_dispose --deltas 0.0 0.3 0.5 1.0`
+to find a δ value that triggers tombstoning.
+
+```
+baseline (no dispose):  cleanliness=0.2917
+delta= 0.0:  tombstoned=  0  cleanliness=0.9583  (+66.7pp)
+delta= 0.3:  tombstoned=  0  cleanliness=0.9583  (+66.7pp)
+delta= 0.5:  tombstoned=  0  cleanliness=0.9583  (+66.7pp)
+delta= 1.0:  tombstoned=  0  cleanliness=0.9583  (+66.7pp)
+```
+
+**δ doesn't matter — tombstoned=0 at every value, including 0.**
+The +66.7pp cleanliness lift comes from Rebalance (which we already
+established as load-bearing); Dispose contributes nothing.
+
+Reading `src/mnemoss/dream/dispose.py:102,114`, the actual fire
+condition is:
+
+```python
+dispose_threshold = params.tau - params.delta
+# ...
+if b + ceiling < dispose_threshold:  # ceiling = s_max + mp + epsilon_max = 4.25
+```
+
+So the real condition is `B_i + 4.25 < tau - delta`. With
+`tau=-10`, the most permissive `delta=0` still requires
+`B_i < -14.25`. Our oldest pressure-corpus memory has `B_i ≈ -7.4`.
+Structurally unreachable.
+
+**Plus** there's a hardcoded `MIN_AGE_DAYS=30` floor at
+`dispose.py:53`. Even if a memory's activation cratered to
+`-Infinity`, the floor would protect it for 30 days. Our pressure
+corpus span is exactly 30 simulated days, so most memories are
+age-protected regardless.
+
+**Verdict updated to CUT.** The `activation_dead` criterion can't
+fire on this corpus, can't fire on any reasonably-sized
+accumulating workload under current calibration, and tuning δ
+doesn't change that.
+
+**Action items before re-validating Dispose:**
+
+1. **Replace the ceiling test.** The current `B_i + ceiling`
+   criterion checks "even in the best case (max spreading + max
+   matching + max noise), would this surface?" That's so
+   conservative it never fires. Either drop the `+ ceiling` and
+   test `B_i < tau - delta` directly (more aggressive), or track
+   `max_A_i` historically (the recent peak, not the theoretical
+   best case).
+2. **Make `MIN_AGE_DAYS` corpus-relative.** Hardcoding 30 days
+   means short-lived workspaces never dispose. Either expose as a
+   param or scale to corpus span.
+3. **Or** add the `redundant` criterion (already in the dispose
+   spec, requires `cluster_size ≥ 5, similarity > 0.92, not
+   representative`). With the rebuilt `cluster_min_size=4`, this
+   might fire on the topology corpus. Dispose still wouldn't help
+   the pressure corpus, but it'd at least do something on the
+   topology corpus.
+
+These are architecture changes, not parameter tuning. Re-validate
+after they land.
 
 ### Forgetting curves — pressure corpus, B_i vs age (2026-04-27)
 

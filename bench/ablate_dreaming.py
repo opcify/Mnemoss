@@ -217,9 +217,7 @@ class RetryingLLM:
                 )
                 return result
             except _asyncio.TimeoutError as e:
-                last_err = TimeoutError(
-                    f"LLM call exceeded {self._per_call_timeout:.0f}s"
-                )
+                last_err = TimeoutError(f"LLM call exceeded {self._per_call_timeout:.0f}s")
                 last_err.__cause__ = e
                 if attempt == self._max_attempts - 1:
                     break
