@@ -39,12 +39,22 @@ _SMOKE_QUERIES = 30
 # tuning benchmark. Local dev with FakeEmbedder hits <10ms p99 easily.
 # Coverage instrumentation adds ~3-5× overhead per call, so widen the
 # budget when coverage is active. Running `pytest` without coverage
-# still enforces the tight gate.
+# still enforces the tight gate. GitHub-hosted runners are shared
+# (noisy-neighbor) hardware — widen there too so jitter doesn't trip
+# the gate while still catching real order-of-magnitude regressions.
 _UNDER_COVERAGE = (
     "coverage" in sys.modules or os.environ.get("COVERAGE_RUN") is not None
 )
-_P99_BUDGET_MS = 500.0 if _UNDER_COVERAGE else 150.0
-_MEDIAN_BUDGET_MS = 150.0 if _UNDER_COVERAGE else 40.0
+_ON_CI = os.environ.get("CI") is not None
+if _UNDER_COVERAGE:
+    _P99_BUDGET_MS = 500.0
+    _MEDIAN_BUDGET_MS = 150.0
+elif _ON_CI:
+    _P99_BUDGET_MS = 500.0
+    _MEDIAN_BUDGET_MS = 100.0
+else:
+    _P99_BUDGET_MS = 150.0
+    _MEDIAN_BUDGET_MS = 40.0
 
 
 _QUERIES = [

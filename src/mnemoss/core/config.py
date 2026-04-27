@@ -311,11 +311,11 @@ class FormulaParams:
         # for any d_recall / d_storage they left unset. Otherwise fall
         # back to the split defaults (0.1 / 0.5). Explicit d_recall /
         # d_storage always win.
-        _SENTINEL_D = 0.01
+        sentinel_d = 0.01
         if self.d_recall is None:
-            self.d_recall = self.d if self.d != _SENTINEL_D else 0.2
+            self.d_recall = self.d if self.d != sentinel_d else 0.2
         if self.d_storage is None:
-            self.d_storage = self.d if self.d != _SENTINEL_D else 0.5
+            self.d_storage = self.d if self.d != sentinel_d else 0.5
         # Decay / scaling parameters must be strictly positive — zero
         # would zero out B_i or matching entirely and produce
         # degenerate rankings.

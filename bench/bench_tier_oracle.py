@@ -149,7 +149,9 @@ class _BatchCachedEmbedder:
         return getattr(self._inner, name)
 
 
-def _precompute_vectors(embedder, texts: list[str], batch_size: int = 100, label: str = "") -> dict[str, np.ndarray]:
+def _precompute_vectors(
+    embedder, texts: list[str], batch_size: int = 100, label: str = ""
+) -> dict[str, np.ndarray]:
     """Embed ``texts`` in batches and return a text → vec dict.
 
     Uses the embedder's native ``embed`` (which sentence-transformers

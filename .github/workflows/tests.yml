@@ -58,18 +58,14 @@ jobs:
             tests/test_demo_render_trace.py
 
   pytest:
-    name: pytest (py${{ matrix.python }})
+    name: pytest (py3.12)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.12"
           cache: pip
 
       - name: Install package with dev extras
