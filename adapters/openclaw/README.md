@@ -41,17 +41,23 @@ it.
 
 ## Install
 
+For an end-to-end walkthrough — Docker container, Mnemoss server, plugin
+config, verification — see [INSTALL.md](./INSTALL.md).
+
+Quickstart for a published plugin:
+
 ```bash
 openclaw plugins install @mnemoss/openclaw-plugin
+openclaw config set plugins.slots.memory mnemoss
 ```
 
-Or, for local development against a checkout of this monorepo:
+For local development against a checkout of this monorepo:
 
 ```bash
 cd adapters/openclaw
 npm install
 npm run build
-openclaw plugins install --local $(pwd)
+openclaw plugins install --link $(pwd)
 ```
 
 ## Configure

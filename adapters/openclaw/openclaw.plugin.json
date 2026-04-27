@@ -1,5 +1,6 @@
 {
   "id": "mnemoss",
+  "kind": "memory",
   "name": "Mnemoss",
   "description": "ACT-R memory system for OpenClaw — ranked recall with spreading activation and dreaming.",
   "memoryCapability": {
