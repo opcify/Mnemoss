@@ -408,8 +408,7 @@ def _build_backend(
         return StaticFileBackend()
 
     raise ValueError(
-        f"Unknown backend {backend_name!r}. "
-        f"Supported: 'mnemoss', 'raw_stack', 'static_file'."
+        f"Unknown backend {backend_name!r}. Supported: 'mnemoss', 'raw_stack', 'static_file'."
     )
 
 
