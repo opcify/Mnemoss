@@ -239,7 +239,7 @@ Consolidate's content verdict, not recall@k.
 |-------|---------|----------|--------|
 | Cluster | **REBUILD** (per ARI metric, see Cluster Verdict below) | ARI = 0.5607 against hand-labeled topic groups (26/30 memories scored, 4 HDBSCAN-noise-labeled). Falls in the REBUILD zone (CUT < 0.5, REBUILD 0.5–0.7, KEEP > 0.7). Deterministic across every condition where Cluster runs. | Revisit `cluster_min_size` (currently 3); test with 2 and 5. Or consider a different clustering algorithm — HDBSCAN's hyperparameters are tight on small dense corpora. |
 | Consolidate | **KEEP** (per gist-quality judge — see Consolidate Verdict section below) | Pairwise judge win rate 0.7778, CI95 [0.6667, 0.8889]. CI lower bound clears the pre-registered KEEP threshold (≥0.65). Post-Consolidate gists beat level-1 heuristic gists 78% of comparisons. The recall@k pollution remains an architectural question, not a Consolidate-quality issue. | Keep as-is. Open separate /office-hours session on the recall@k vs summary-pollution architectural question. |
-| Relations | INCONCLUSIVE | full=0.1250 vs no_relations=0.1250 — Relations changes nothing measurable on this corpus. May be a real null OR may be masked by Consolidate's recall@k pollution. | Re-test Relations contribution AFTER fixing recall@k to credit summaries (or with multi-hop-only queries). |
+| Relations | **CUT** (per multi-hop isolation, see Relations Verdict below) | Isolated by running `no_consolidate_no_relations` (custom one-off): with Relations ON, multi-hop recall=0.4167; with Relations OFF, multi-hop recall=0.5833. **Relations hurts multi-hop recall by 17pp**, well past the pre-registered 3pp CUT threshold (in the wrong direction). | Investigate why spreading activation pulls in irrelevant memories on this corpus. Likely the `similar_to` edges from Cluster + the corpus's 3-topic structure cause spreading to surface peripheral cluster members. Try lowering `s_max` or revisiting the spreading-activation weights. Could also be a `cluster_min_size` issue — with too-small clusters, every member becomes a `similar_to` neighbor of every other. |
 | Rebalance | INCONCLUSIVE | full=0.1250 vs no_rebalance=0.2292 — Rebalance appears to slightly HURT recall when Consolidate is active. Probably noise on 30 memories where tier migration shouldn't matter. | Re-test on the pressure corpus (500 memories) where Rebalance has actual work to do. Topology corpus is too small. |
 | Dispose | INCONCLUSIVE on this corpus | full=0.1250 vs no_dispose=0.1250 — Dispose tombstones nothing on 30 fresh memories with no accumulated decay. Expected. | Re-test on the pressure corpus where memories age over 30 simulated days and Dispose has tombstoning to do. |
 
@@ -317,6 +317,50 @@ interpretations:
 
 This is an architectural question, not a verdict on the existing
 phases. Worth a separate /office-hours session.
+
+### Relations verdict — isolated multi-hop comparison (2026-04-27)
+
+The full ablation matrix couldn't verdict Relations cleanly because
+Consolidate's summary pollution dominates `full` and `no_relations`
+both at recall@k=0.0. Ran a custom one-off ablation:
+`no_consolidate_no_relations` = `{replay, cluster, rebalance, dispose}`,
+specifically to isolate Relations vs (everything-else-non-Consolidate).
+
+```
+no_consolidate                multi-hop = 0.4167
+no_consolidate_no_relations   multi-hop = 0.5833
+```
+
+**Relations hurts multi-hop recall by 17pp** on this corpus, which
+is well past the pre-registered 3pp CUT threshold — in the WRONG
+direction. The expected behavior was that Relations would HELP
+multi-hop recall through spreading activation across `similar_to`
+edges. Instead, it appears to surface peripheral cluster members
+that displace the actual gold ids from top-10.
+
+**Hypothesized cause:** with 30 memories across 3 topics
+(10 memories per topic) and `cluster_min_size=3`, HDBSCAN groups
+each topic into one big cluster. Cluster's `similar_to` edges
+then connect every member of a topic to every other member.
+Spreading activation from a query into the cluster pulls in
+ALL cluster members, including ones that aren't relevant to the
+specific query. The signal-to-noise ratio in the top-10 drops.
+
+**Action items per the pre-registered REBUILD/CUT trigger:**
+
+1. Lower `s_max` (currently 2.0) — caps the spreading-activation
+   contribution per neighbor edge. Halving it might reduce the
+   pull from peripheral cluster members.
+2. Revisit when Cluster writes `similar_to` edges. Currently every
+   pair within a cluster gets an edge. Limiting to "near-centroid
+   pairs only" or "k-nearest within cluster" might keep spreading
+   from over-firing.
+3. Re-test on a corpus with bigger clusters (more memories per
+   topic) and finer-grained queries — the topology corpus's 3
+   coarse topics may be too few for Relations to discriminate.
+
+The pre-registered KEEP threshold for Relations was "delta > 8pp."
+With a delta of -17pp, this is well past CUT.
 
 ### Cluster verdict — noise-aware ARI (2026-04-27)
 
