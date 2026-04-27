@@ -28,10 +28,10 @@ cross-session ACT-R layer.
 
 ## Install
 
-Two forms; pick one. **Embedded** runs Mnemoss in-process — 
-low-latency, database lives under `$HERMES_HOME/mnemoss/`. **Remote** 
-points at a shared `mnemoss-server`, which is what you want when 
-multiple Hermes instances should share memory.
+For an end-to-end walkthrough — embedded vs remote, server setup, plugin
+tree drop-in, config, verification — see [INSTALL.md](./INSTALL.md).
+
+Quickstart:
 
 ```bash
 # Embedded (default) — Mnemoss runs in-process
@@ -41,11 +41,10 @@ pip install mnemoss-hermes
 pip install "mnemoss-hermes[remote]"
 ```
 
-Then drop the plugin into Hermes's plugin tree. The simplest route is 
-to symlink it into `plugins/memory/mnemoss/`:
+Then symlink the package into Hermes's plugin tree:
 
 ```bash
-ln -s $(python -c "import mnemoss_hermes, pathlib; print(pathlib.Path(mnemoss_hermes.__file__).parent)") \
+ln -s $(python -c "import mnemoss_hermes, pathlib; print(pathlib.Path(mnemoss_hermes.__file__).parent.parent.parent)") \
       ~/path/to/hermes-agent/plugins/memory/mnemoss
 ```
 
