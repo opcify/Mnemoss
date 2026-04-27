@@ -687,3 +687,114 @@ capitalization). On a corpus with longer source memories
 (real conversational data), the LLM's actual rewrites would
 surface more clearly. Worth re-running on LoCoMo or similar
 once available.
+
+### Comprehensive validation — speed + accuracy, replicated (2026-04-28)
+
+`bench/comprehensive_validation.py` — 4 conditions × 2 corpora × 3 reps
+with topic-aware metrics, MRR, warmup queries, and oracle ceilings.
+Built specifically to escape two saturation biases visible in earlier
+runs:
+
+1. **Strict recall@k pins to 0** under dreaming_on because Consolidate
+   replaces source memories with summaries (the summary's id is not a
+   gold id). Topic-aware recall@k credits a hit if either the gold id
+   or any derived memory whose `derived_from` covers a gold member is
+   in top-K.
+2. **Single-shot wallclock variance** swung topology speed by 50ms
+   between two prior reps. Three reps + 3-query warmup + median
+   reported.
+
+#### Topology corpus (30 memories, 12 queries, 3 reps)
+
+```
+condition           topic@10     MRR  strict@10    lat ms   std ms
+--------------------------------------------------------------------
+dreaming_off           0.542   0.562      0.542     130.6     29.3
+dreaming_on            0.875   0.719      0.000     118.0      3.6
+oracle_evidence        1.000   1.000      1.000       0.0      0.0
+oracle_answer          1.000   1.000      0.000       0.0      0.0
+```
+
+- topic-aware recall: **+33.33pp** (0.542 → 0.875), gap to oracle
+  +12.50pp.
+- MRR: **+15.63pp** (0.562 → 0.719) — relevant items also rank higher
+  inside top-K, not just appear.
+- latency: **−12.6ms (−9.7%)**, and std collapses 29.3 → 3.6ms.
+  Dreaming buys consistency, not just average speed.
+
+#### Pressure corpus (500 memories, 30 queries, 3 reps)
+
+```
+condition           topic@10     MRR  strict@10    lat ms   std ms
+--------------------------------------------------------------------
+dreaming_off           0.193   0.446      0.193     294.7     15.1
+dreaming_on            0.069   0.217      0.000     132.7     15.0
+oracle_evidence        1.000   1.000      1.000       0.0      0.0
+oracle_answer          1.000   1.000      0.000       0.0      0.0
+```
+
+- topic-aware recall: **−12.44pp** (0.193 → 0.069), gap to oracle
+  +93.11pp — both conditions are far from the ceiling, but dreaming
+  made it worse.
+- MRR: **−22.95pp** (0.446 → 0.217).
+- latency: **−162.0ms (−55.0%)** (294.7ms → 132.7ms). Tier-prune from
+  WARM/COLD eviction is the speed mechanism.
+- top-10 cleanliness (1 − fraction-irrelevant): **+70.8pp**
+  (0.292 → 1.000). Dreaming returns *clean* lists; just not lists
+  that contain the gold topic.
+
+#### Final verdict
+
+**Dreaming improves speed decisively on both corpora and improves
+accuracy on small/clean corpora, but hurts accuracy on
+adversarial-vocabulary corpora where Consolidate summaries get pulled
+in by junk-token overlap.**
+
+The corpus-divergence is the real research finding from this whole
+study:
+
+| Aspect                         | Topology      | Pressure      |
+| ------------------------------ | ------------- | ------------- |
+| Corpus character               | small, sparse | large, dense  |
+| Vocabulary noise (Phoenix etc) | low           | high          |
+| Topics per memory              | one           | drift / mix   |
+| Cluster count vs corpus size   | 1:5           | ~1:20         |
+| Topic-aware recall delta       | **+33.33pp**  | **−12.44pp**  |
+| MRR delta                      | +15.63pp      | −22.95pp      |
+| Latency delta                  | −9.7%         | **−55.0%**    |
+| Cleanliness delta              | n/a (clean)   | **+70.8pp**   |
+
+What pressure surfaces: when many disjoint topics share entity tokens
+("Phoenix" the city, "Phoenix" the project, "Phoenix" the metaphor),
+HDBSCAN groups them, Consolidate writes a single summary that
+mentions all three uses, and the summary's embedding sits near every
+"Phoenix" query — pulling the wrong topic into top-K.
+
+This is the same disease topic-aware-recall was designed to *fix* on
+topology and it did (+33pp). The fact that it can't fix pressure is
+what's interesting: the failure mode is not metric saturation, it's
+**summary collapse under polysemous vocabulary**.
+
+#### KEEP / CUT / REBUILD — pipeline level
+
+| Phase           | Verdict           | Notes                                                      |
+| --------------- | ----------------- | ---------------------------------------------------------- |
+| Replay          | KEEP              | seed selection only, no measurable harm                    |
+| Cluster         | KEEP (`min_size=4`) | rebuilt — see Cluster REBUILD section                    |
+| Consolidate     | **KEEP, with caveat** | gist quality judge: 0.778 win rate vs source. But on **adversarial-vocab corpora the summary becomes a junk-magnet.** Future work: gate Consolidate on intra-cluster cosine homogeneity (skip clusters whose member-pair cosine variance is too high), or require entity-disambiguation in the prompt. |
+| Relations       | **CUT**           | already removed — see Relations verdict (−17pp multi-hop)  |
+| Rebalance       | KEEP              | cheap, idx_priority bumps recall ordering                  |
+| Dispose         | KEEP (rebuilt)    | criterion now `B_i < τ − δ` directly; sweep showed 0 disposals at all δ on a 1-day-aged pressure corpus, by design (`min_age_days` gate stops disposing fresh memories) |
+
+#### What this changes for callers
+
+- For agents whose memory streams are **topical, low-noise** (single
+  domain, distinct vocabularies): turn dreaming **on**. Accuracy
+  goes up, speed goes up, cleanliness goes up.
+- For agents whose memory streams are **polysemous** (overloaded
+  entity names, drifting topics, large social/news corpora):
+  dreaming still wins on speed and cleanliness, but recall accuracy
+  may degrade. Either keep dreaming **off** or run with very small
+  cluster sizes (`min_cluster_size=6+`) to suppress aggressive merges.
+- Default config is unchanged (`cluster_min_size=4`); the corpus-
+  divergence is documented here so users can tune knowingly.
