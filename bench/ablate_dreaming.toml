@@ -49,11 +49,17 @@ replay_limit = 100
 # replay_min_base_level intentionally absent (None / no floor).
 
 [formula]
-# All FormulaParams locked at their shipped defaults. If the formula
-# defaults change, this file must be updated explicitly so the
+# All FormulaParams locked at their shipped defaults EXCEPT tau.
+# If a default changes, this file must be updated explicitly so the
 # pre-registration audit trail catches it.
 d = 0.5
-tau = -1.0
+# tau swap (2026-04-27): default tau=-1.0 rejected every memory on
+# the pressure corpus because 30-day-aged memories have B_i ≈ -7.4
+# (computed: 0 - 0.5 * log(30*86400) = -7.4), which is well below
+# the default cutoff. Lowered to -10 so aged memories are still
+# scoreable. See docs/dreaming-decision.md "Threshold Amendments".
+# Topology corpus runs unaffected (memories are <1 minute old, B_i ≈ 0).
+tau = -10.0
 mp = 1.5
 noise_scale = 0.0  # Zero so ablation deltas aren't noise-driven.
 s_max = 2.0

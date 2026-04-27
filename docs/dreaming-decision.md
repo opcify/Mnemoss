@@ -261,3 +261,59 @@ same way. The recall@k vs gist-quality split is the principled
 answer: the Pareto chart (`bench/results/pareto.png`) is honest about
 the trade-off — more LLM calls = more summaries = lower
 original-id recall, but possibly higher content-quality coverage.
+
+### Pressure corpus, full ablation matrix (2026-04-27)
+
+Run: `python -m bench.ablate_dreaming --pressure-full` against
+`bench/fixtures/pressure_corpus_seed42.jsonl` (500 memories
+accumulating over 30 simulated days, 30 adversarial queries).
+Required a τ swap from -1.0 → -10.0 because the default cutoff
+rejected every memory aged 30 days (B_i ≈ -7.4 << -1.0). 7
+ablation conditions. Raw output:
+`bench/results/pressure_results.jsonl`.
+
+```
+label                          recall@k    clean   llm
+--------------------------------------------------------
+full                             0.0000   1.0000    20
+dreaming_off                     0.1967   0.4333     0
+no_dispose                       0.0000   1.0000    20
+no_rebalance                     0.1353   0.4667    20
+no_dispose_no_rebalance          0.1114   0.4000    20
+dispose_only                     0.1967   0.4333     0
+rebalance_only                   0.0733   0.9667     0
+```
+
+**Headline.** Rebalance alone — zero LLM, just tier migration —
+moves top-K cleanliness from 0.4333 to 0.9667. That's a +53pp
+absolute lift on a 30-query adversarial set, with no LLM cost.
+Dispose-alone does nothing measurable; without upstream phases
+feeding it candidates, Dispose tombstones nothing.
+
+### Per-phase verdicts (pressure corpus, recall@k + cleanliness)
+
+| Phase | Verdict | Evidence | Action |
+|-------|---------|----------|--------|
+| Rebalance | **KEEP** (load-bearing) | rebalance_only cleanliness=0.9667 vs dreaming_off=0.4333 — +53pp cleanliness with zero LLM cost. The pre-registered KEEP threshold was "clear utility-correlated migration"; Rebalance hits it. | Keep as-is. Re-test on a corpus with stricter recall@k expectations to confirm Rebalance doesn't misroute high-utility memories. |
+| Dispose | **CUT or REBUILD** | dispose_only is identical to dreaming_off (0.1967/0.4333). Adding Dispose to the full pipeline (no_dispose=0.0/1.0 → full=0.0/1.0) changes nothing measurable. The pre-registered cleanliness-delta KEEP threshold was 30%+; Dispose's standalone delta is 0%. | REBUILD: revisit the `max_A_i < τ - δ` criterion in `src/mnemoss/dream/dispose.py`. The current criterion may be too conservative for accumulating workloads — the formula's δ=1.0 buffer means memories must be 1.0 unit BELOW the cutoff before dispose triggers. With τ=-10, δ=1.0 means "below -11" which is harder to reach than expected over 30 simulated days. Consider lowering δ or adding rehearsal-rate pressure into the dispose criterion. |
+| Cluster + Consolidate + Relations | **same recall@k pollution as topology** | `full` and `no_dispose` both have recall@k=0 and cleanliness=1.0 — Consolidate's summaries fill top-10 entirely, no junk because no originals either. | Same as topology verdict: real Consolidate verdict deferred to `make gist-quality`. |
+
+### Recall@k pollution: an emerging design question
+
+Across both corpora, every condition that runs Consolidate has
+recall@k of original gold ids dropping to near-zero. The summaries
+are content-correct but they crowd top-K. Two possible
+interpretations:
+
+1. **The metric is wrong** — recall@k of original ids fails to
+   credit summaries that capture the same topic. The gist-quality
+   judge is the right test for Consolidate's value.
+2. **The behavior is wrong** — summaries shouldn't dominate top-K
+   in the formula. Maybe Consolidate's `_persist_derived` should
+   write summaries with a lower starting `idx_priority` so they
+   don't outrank originals immediately. Or `Mnemoss.recall` should
+   distinguish "answer ids" from "evidence ids" and only return
+   originals as evidence.
+
+This is an architectural question, not a verdict on the existing
+phases. Worth a separate /office-hours session.
