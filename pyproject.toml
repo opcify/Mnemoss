@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mnemoss"
-version = "0.0.1"
+version = "0.0.2"
 description = "ACT-R based memory system for AI agents. Recall what matters, when it matters."
 readme = "README.md"
 license = { text = "MIT" }
