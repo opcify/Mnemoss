@@ -237,7 +237,7 @@ Consolidate's content verdict, not recall@k.
 
 | Phase | Verdict | Evidence | Action |
 |-------|---------|----------|--------|
-| Cluster | KEEP (qualified) | full=0.1250 vs no_cluster=0.1250 — Cluster doesn't change recall@k on this 30-memory corpus, but the noise-aware ARI metric in `bench/_metrics.py` is the right test. ARI not yet wired into the harness. | Wire ARI computation into `bench/ablate_dreaming.py` before recording a final verdict on Cluster. |
+| Cluster | **REBUILD** (per ARI metric, see Cluster Verdict below) | ARI = 0.5607 against hand-labeled topic groups (26/30 memories scored, 4 HDBSCAN-noise-labeled). Falls in the REBUILD zone (CUT < 0.5, REBUILD 0.5–0.7, KEEP > 0.7). Deterministic across every condition where Cluster runs. | Revisit `cluster_min_size` (currently 3); test with 2 and 5. Or consider a different clustering algorithm — HDBSCAN's hyperparameters are tight on small dense corpora. |
 | Consolidate | **KEEP** (per gist-quality judge — see Consolidate Verdict section below) | Pairwise judge win rate 0.7778, CI95 [0.6667, 0.8889]. CI lower bound clears the pre-registered KEEP threshold (≥0.65). Post-Consolidate gists beat level-1 heuristic gists 78% of comparisons. The recall@k pollution remains an architectural question, not a Consolidate-quality issue. | Keep as-is. Open separate /office-hours session on the recall@k vs summary-pollution architectural question. |
 | Relations | INCONCLUSIVE | full=0.1250 vs no_relations=0.1250 — Relations changes nothing measurable on this corpus. May be a real null OR may be masked by Consolidate's recall@k pollution. | Re-test Relations contribution AFTER fixing recall@k to credit summaries (or with multi-hop-only queries). |
 | Rebalance | INCONCLUSIVE | full=0.1250 vs no_rebalance=0.2292 — Rebalance appears to slightly HURT recall when Consolidate is active. Probably noise on 30 memories where tier migration shouldn't matter. | Re-test on the pressure corpus (500 memories) where Rebalance has actual work to do. Topology corpus is too small. |
@@ -317,6 +317,49 @@ interpretations:
 
 This is an architectural question, not a verdict on the existing
 phases. Worth a separate /office-hours session.
+
+### Cluster verdict — noise-aware ARI (2026-04-27)
+
+After wiring `bench/_metrics.noise_aware_ari` into the harness, the
+ARI of HDBSCAN's per-memory cluster_id assignments against the
+topology corpus's hand-labeled `topic` field is computed at the
+end of every ablation run.
+
+Result is identical across every condition where Cluster ran (since
+ARI depends only on the embeddings and `cluster_min_size`, not on
+Consolidate / Dispose / Rebalance / Relations):
+
+```
+ari = 0.5607
+scored = 26 of 30 memories  (4 HDBSCAN-noise-labeled, dropped)
+```
+
+ARI of 0.5607 falls in the pre-registered **REBUILD zone**
+(CUT < 0.5, REBUILD 0.5–0.7, KEEP > 0.7). HDBSCAN is finding *some*
+topic structure (well above chance, which would be ~0 for 3-class
+labeling) but not strong enough to clear the KEEP threshold. The
+4 noise-labeled memories are interesting too — those are the
+memories HDBSCAN couldn't fit into any of its discovered clusters.
+
+**Action items per the pre-registered REBUILD trigger:**
+
+1. **Try `cluster_min_size = 2`.** Default is 3; smaller min size
+   lets HDBSCAN form tighter clusters that may align better with
+   the corpus's 10-memory-per-topic groups.
+2. **Try `cluster_min_size = 5`.** Larger min size forces fewer,
+   bigger clusters — may match the corpus's 3 obvious topics
+   better at the cost of more noise.
+3. **Consider switching to KMeans with K=3** for the small-N case.
+   HDBSCAN's strength is unknown-K density-based clustering; on a
+   corpus where K is known and clusters are equal-size, KMeans
+   would produce different (and potentially better-aligned)
+   groupings. This is a Mnemoss-side architecture change, not a
+   harness-side one — `dream/cluster.py` would need a config knob.
+
+The 0.5607 number isn't a damning verdict — it's just below the
+0.65 KEEP threshold that the design pre-registered. Re-running on
+a corpus with longer source memories (LoCoMo) would likely produce
+higher ARI as the embedder has more vocabulary to disambiguate.
 
 ### Consolidate verdict — gist quality judge (2026-04-27)
 

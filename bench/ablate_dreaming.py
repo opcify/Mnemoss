@@ -53,7 +53,7 @@ from typing import Any
 
 import tomllib
 
-from bench._metrics import topk_cleanliness
+from bench._metrics import noise_aware_ari, topk_cleanliness
 from mnemoss import (
     DreamerParams,
     Embedder,
@@ -553,6 +553,12 @@ async def _run_one_ablation(
                 report = await mem.dream(trigger="nightly", phases=phases)
                 print("    scoring queries...", flush=True)
                 per_query = await _score_queries(mem, corpus, cfg, id_map)
+                # Cluster ARI — only meaningful on the topology corpus
+                # (pressure corpus memories don't have hand-labeled
+                # topic groups in a way that's comparable to HDBSCAN's
+                # output). Compute after recall so the snapshot reflects
+                # the same workspace state the recall scoring saw.
+                ari_metrics = await _score_cluster_ari(mem, corpus, id_map)
 
             # Aggregates.
             recallable = [q for q in per_query if q["relevant_ids"]]
@@ -585,6 +591,7 @@ async def _run_one_ablation(
                 "mean_cleanliness": (
                     round(mean_cleanliness, 4) if mean_cleanliness is not None else None
                 ),
+                "cluster_ari": ari_metrics,
                 "llm_calls_during_dream": llm_calls,
                 "phase_summary": phase_summary,
                 "per_query": per_query,
@@ -592,6 +599,48 @@ async def _run_one_ablation(
             }
         finally:
             await mem.close()
+
+
+async def _score_cluster_ari(
+    mem: Mnemoss,
+    corpus: dict[str, Any],
+    id_map: dict[str, str],
+) -> dict[str, Any] | None:
+    """Compute Adjusted Rand Index between HDBSCAN's cluster_id
+    assignments and the corpus's hand-labeled topic groups.
+
+    Returns ``None`` if the corpus lacks per-memory ``topic`` labels
+    (e.g. pressure corpus uses ``utility`` not ``topic``). Otherwise
+    returns ``{"ari": float, "scored": int, "dropped": int}`` where
+    dropped counts memories HDBSCAN labeled as noise (cluster_id None
+    or -1) — those are excluded from both predicted and gold so the
+    metric scores only memories the clusterer was confident about.
+    """
+
+    # Pressure corpus uses ``utility`` (high/medium/low), not topic
+    # cluster labels. ARI only makes sense for topology-style corpora.
+    if not corpus["memories"] or "topic" not in corpus["memories"][0]:
+        return None
+
+    await mem._ensure_open()
+    store = mem._store
+    assert store is not None
+
+    # Pull every original-corpus memory's current cluster_id from store.
+    mnemoss_ids = list(id_map.values())
+    materialized = await store.materialize_memories(mnemoss_ids)
+    cluster_by_mnemoss_id = {m.id: m.cluster_id for m in materialized}
+
+    # Build aligned predicted + gold dicts keyed by corpus_id.
+    predicted: dict[str, Any] = {}
+    gold: dict[str, Any] = {}
+    topic_by_corpus_id = {m["id"]: m["topic"] for m in corpus["memories"]}
+    for corpus_id, mnemoss_id in id_map.items():
+        predicted[corpus_id] = cluster_by_mnemoss_id.get(mnemoss_id)
+        gold[corpus_id] = topic_by_corpus_id[corpus_id]
+
+    ari, scored, dropped = noise_aware_ari(predicted, gold)
+    return {"ari": round(ari, 4), "scored": scored, "dropped": dropped}
 
 
 async def _score_queries(
