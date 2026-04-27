@@ -37,7 +37,15 @@ base_url = "https://openrouter.ai/api/v1"
 
 [llm.judge]
 kind = "openai"
-model = "deepseek/deepseek-v4-flash"
+# Original: deepseek/deepseek-v4-flash. Swapped 2026-04-27 because
+# it's a reasoning model — at max_tokens=8 (the judge's tight
+# budget) the entire output goes to internal reasoning and content
+# is empty. gpt-4o-mini is non-reasoning, fast, paid (~$0.15/1M
+# input tokens, ~$0.001 for the whole study), and reliably emits
+# "A" / "B" / "tie" replies. Different model family from the
+# Consolidate model (inclusionai/ling-2.6-1t:free) so no
+# self-preference bias.
+model = "openai/gpt-4o-mini"
 base_url = "https://openrouter.ai/api/v1"
 # api_key is read from $OPENROUTER_API_KEY at runtime (same key).
 
