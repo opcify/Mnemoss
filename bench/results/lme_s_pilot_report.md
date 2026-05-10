@@ -26,12 +26,14 @@ multi-session, knowledge-update, temporal-reasoning).
   pre-approval is now $400,000 (raised from $350,000)") that survive recall
   ranking even when the raw turn doesn't.
 - A **singleton-sweep variant** (per-memory atomic-fact extraction over
-  HDBSCAN-noise outliers) regressed to 37.5% — the noise from filler/agreement
-  turns crowded out high-signal cluster-derived facts. Kept in the codebase
-  as opt-in (`DreamerParams.process_singletons=False` by default), documented
-  here as a negative result.
+  HDBSCAN-noise outliers) regressed to 37.5% in two policy variants
+  (blanket and salience≥0.5 filter). Even high-signal singleton facts
+  displace cluster-derived ones in top-K ranking. Kept in the codebase
+  as opt-in (`DreamerParams.process_singletons=False` by default,
+  `singleton_salience_threshold=0.5`), documented here as a negative
+  result.
 
-## Full 9-config matrix
+## Full 10-config matrix
 
 ```
 config                                   user   asst   pref m-sess  k-upd   temp    TOT
@@ -44,7 +46,8 @@ M-Dream+expand+k=20                      3/4    4/4    0/4    0/4    1/4    0/4 
 mem0                                     4/4    2/4    1/4    1/4    1/4    0/4    9/24 (38%)
 M-facts (cluster atomic facts)           3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)
 M-facts-v2 (entity/pref/recency prompt)  3/4    4/4    1/4    1/4    2/4    0/4   11/24 (46%)  ← BEST
-M-facts-v2+singletons                    3/4    4/4    1/4    0/4    1/4    0/4    9/24 (38%)  ← noise
+M-facts-v2+singletons (blanket)          3/4    4/4    1/4    0/4    1/4    0/4    9/24 (38%)  ← noise
+M-facts-v2+singletons (salience≥0.5)     3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)  ← still noisy
 ```
 
 ## Architectural arc
@@ -137,23 +140,36 @@ The single mem0-only win is `51a45a95` (Target store entity in a
 single-session-user question). That turn likely sat in HDBSCAN noise space
 and never reached the cluster prompt — see Phase 4.
 
-### Phase 4 — Singleton-sweep negative result
+### Phase 4 — Singleton-sweep negative result (two attempts)
 
 Added `extract_atomic_facts_from_singleton()` and a `process_singletons=True`
 flag on `DreamerParams` to run a per-memory extraction pass over HDBSCAN
-noise singletons.
+noise singletons. Two policies tried, both regressed.
 
 | Run | Result | Notes |
 | --- | --- | --- |
-| M-facts-v2 + singletons | 9/24 (38%) | Lost both `gpt4_59c863d7` and `6a1eabeb` (the two prior wins from cluster facts). 51a45a95 stayed ✗ — not actually a singleton issue. |
+| M-facts-v2 + singletons (blanket) | 9/24 (38%) | Lost `gpt4_59c863d7` (multi-session) and `6a1eabeb` (knowledge-update). 51a45a95 stayed ✗. |
+| M-facts-v2 + singletons (salience≥0.5) | 9/24 (38%) | Same regression: lost `06878be2` (preference) and `6a1eabeb` (knowledge-update). Filter cut filler turns but high-salience singleton facts still crowded out cluster-derived ones at K=10. |
 
-The blanket policy added too many low-signal facts (small-talk, agreement,
-filler turns) that crowded out high-signal cluster-derived facts at K=10.
+**Architectural lesson:** singleton fact extraction in any form regresses
+accuracy on this slice. Even with a salience filter that removes
+filler/agreement turns, the surviving high-signal singleton facts
+displace cluster-derived facts in top-K cosine ranking. The fix for
+`51a45a95` (Target store entity, the only mem0-only win) lies elsewhere
+— either:
+- Recall-side: prefer cluster-derived facts over singleton-derived ones
+  (e.g. by giving cluster facts a structural priority lift beyond what
+  `idx_priority` already provides).
+- Capacity cap: limit singleton facts to a small N per workspace
+  (top-N by salience or LLM-emitted confidence).
+- Or accept the gap: 51a45a95 is one entity-recall question that
+  Mnemoss handles via raw-turn cosine recall in 3/4 sibling questions
+  anyway.
 
 The code is preserved in `dream/consolidate.py` and `dream/runner.py` as
-opt-in (`DreamerParams.process_singletons=False` by default). Closing this
-gap likely needs a salience- or structure-based filter on which singletons
-are eligible for extraction — left as future work.
+opt-in (`DreamerParams.process_singletons=False` by default). The
+salience filter is wired through `DreamerParams.singleton_salience_threshold`
+(default 0.5) for any future investigation.
 
 ## Files changed
 

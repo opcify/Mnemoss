@@ -641,12 +641,27 @@ class DreamerParams:
     # default because it adds N_singleton LLM calls per dream run —
     # use ``CostLimits.max_llm_calls_per_run`` to bound the spend.
     process_singletons: bool = False
+    # Minimum encoder-side salience for a singleton to be eligible for
+    # the per-memory atomic-fact sweep. Salience ∈ [0, 1] is the
+    # average of five signals (punctuation emphasis, proper nouns,
+    # numerics/dates, length, ALL-CAPS) — a low score is filler /
+    # agreement / small-talk that adds noise without surfacing any
+    # missed fact, which is what regressed the bench when a blanket
+    # singleton sweep was on. 0.0 = sweep every singleton (the
+    # historical regressing default); 0.5 = a reasonable fact-bearing
+    # cutoff per the LongMemEval-S pilot.
+    singleton_salience_threshold: float = 0.5
 
     def __post_init__(self) -> None:
         if self.cluster_min_size <= 0:
             raise ValueError(f"cluster_min_size must be > 0 (got {self.cluster_min_size!r})")
         if self.replay_limit <= 0:
             raise ValueError(f"replay_limit must be > 0 (got {self.replay_limit!r})")
+        if not 0.0 <= self.singleton_salience_threshold <= 1.0:
+            raise ValueError(
+                "singleton_salience_threshold must be in [0, 1] "
+                f"(got {self.singleton_salience_threshold!r})"
+            )
         # replay_min_base_level is None (no floor) or any float — negative
         # floors are legitimate ("only memories above near-dead activation").
 

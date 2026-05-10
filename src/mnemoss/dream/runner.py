@@ -111,6 +111,7 @@ class DreamRunner:
         cost_limits: CostLimits | None = None,
         cost_ledger: CostLedger | None = None,
         process_singletons: bool = False,
+        singleton_salience_threshold: float = 0.5,
     ) -> None:
         self._store = store
         self._params = params
@@ -135,6 +136,11 @@ class DreamRunner:
         # dream run (typically O(N_replay)) and bench evidence is
         # young; gate via this flag until the prod budget story lands.
         self._process_singletons = process_singletons
+        # Encoder-side salience cutoff for which singletons are
+        # eligible. The pilot's blanket sweep (threshold=0) regressed
+        # accuracy because filler turns flooded the recall pool with
+        # noise; a fact-bearing threshold (≥0.5) keeps the upside.
+        self._singleton_salience_threshold = singleton_salience_threshold
 
     async def run(
         self,
@@ -392,9 +398,20 @@ class DreamRunner:
         # placed in a cluster. Same budget gate as the cluster loop.
         singleton_atomic_facts: list[Memory] = []
         singletons_processed = 0
+        singletons_filtered_low_salience = 0
         if self._process_singletons:
             singletons = self._singletons_from_state(state)
+            # Salience filter: skip filler/agreement/small-talk
+            # singletons that would cost an LLM call without surfacing
+            # a fact. The encoder already scores salience ∈ [0, 1] from
+            # 5 signals (proper nouns, numerics, length, etc.).
+            eligible: list[Memory] = []
             for sm in singletons:
+                if sm.salience >= self._singleton_salience_threshold:
+                    eligible.append(sm)
+                else:
+                    singletons_filtered_low_salience += 1
+            for sm in eligible:
                 if self._cost_ledger is not None:
                     reason = self._cost_ledger.check_budget(
                         self._cost_limits,
@@ -433,6 +450,7 @@ class DreamRunner:
                 "atomic_facts": len(atomic_facts),
                 "singleton_atomic_facts": len(singleton_atomic_facts),
                 "singletons_processed": singletons_processed,
+                "singletons_filtered_low_salience": singletons_filtered_low_salience,
                 "refined": len(refined_ids),
                 "llm_failures": llm_failures,
                 "llm_calls_made": llm_calls_made,
