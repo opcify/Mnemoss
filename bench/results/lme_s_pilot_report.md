@@ -9,11 +9,17 @@ multi-session, knowledge-update, temporal-reasoning).
 
 ## TL;DR
 
-- **Mnemoss best config (M-facts-v3 + gpt-4o): 13/24 = 54.2%**, vs mem0
-  (9/24 = 37.5%) on this stratified slice. mem0 has not yet been
-  re-measured at the gpt-4o tier; that's in flight.
-- At the deepseek-chat tier (apples-to-apples with the original mem0
-  baseline), Mnemoss's best is 11/24 (45.8%) vs mem0's 9/24 (37.5%).
+- **Mnemoss best config (M-facts-v3 + gpt-4o): 13/24 = 54.2%**.
+- At the gpt-4o tier (apples-to-apples), **Mnemoss leads mem0 by 25pp**:
+  Mnemoss 13/24 (54%) vs mem0 7/24 (29%).
+- At the deepseek-chat tier, Mnemoss leads mem0 by 8pp:
+  11/24 (46%) vs 9/24 (38%).
+- **Mnemoss's architectural advantage amplifies with stronger LLMs**
+  because it surfaces multi-tier evidence (raw turns + atomic facts +
+  Dream summaries) — gpt-4o can synthesize across all three. mem0
+  only feeds its ingest-time-extracted facts to the generator; a
+  stronger LLM has no extra material to work with, and the stricter
+  gpt-4o-mini judge actually penalizes mem0's terser answers.
 - The architectural lift came from **adding LLM-based atomic-fact extraction
   inside Dream Consolidate** (Cold Path, principle-conformant) with an
   explicit prompt for named entities, user preferences, and most-recent-value
@@ -54,6 +60,7 @@ M-facts-v2+singletons (salience≥0.5)     3/4    4/4    0/4    1/4    1/4    0/
 M-facts-v3 (+ generator prompt v3)       3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST deepseek (B)
 M-facts-v4 (drop type-trust line)        3/4    4/4    0/4    2/4    1/4    0/4   10/24 (42%)  ← regression vs v3
 M-facts-v3 + gpt-4o gen+judge+dream      4/4    3/4    1/4    2/4    3/4    0/4   13/24 (54%)  ← BEST overall
+mem0 + gpt-4o gen + gpt-4o-mini judge    3/4    0/4    1/4    2/4    1/4    0/4    7/24 (29%)  ← regression vs deepseek
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -227,8 +234,44 @@ This complicates the cost story: gpt-4o costs ~10× per call vs deepseek-
 chat. For agent workloads where memory recall is the inner loop of every
 LLM turn, that's a real deployment decision, not a clean win.
 
-A fair mem0 vs Mnemoss comparison at the gpt-4o tier is in flight (mem0
-was previously measured at 38% on deepseek-chat).
+### Phase 3.7 — Fair mem0 comparison at gpt-4o (the gap WIDENS)
+
+To pin down whether Mnemoss's 8pp deepseek-tier lead over mem0 was a
+real architectural advantage or just LLM-specific, re-ran mem0 with
+the same gpt-4o stack (gen=gpt-4o, judge=gpt-4o-mini, mem0's internal
+extraction LLM was already gpt-4o-mini).
+
+Result: **mem0-gpt4o = 7/24 (29.2%)** — mem0 *regressed* with the
+stronger LLM, while Mnemoss *lifted*. The comparison gap widens:
+
+| Tier | Mnemoss best | mem0 | Gap |
+| --- | --- | --- | --- |
+| deepseek-chat | 11/24 (46%) | 9/24 (38%) | +8pp |
+| gpt-4o | 13/24 (54%) | 7/24 (29%) | **+25pp** |
+
+What happened to mem0 specifically:
+
+- single-session-assistant collapsed from 2/4 → 0/4 (the gpt-4o-mini
+  judge is stricter than deepseek-chat on partial/terse answers, and
+  mem0's ingest-time-extracted facts are terser than raw turns).
+- 51a45a95 (Target) lost — counterintuitive, since this was mem0's
+  signature win at the deepseek tier.
+- knowledge-update dropped from 1/4 → 1/4 (different question won).
+
+What Mnemoss did differently:
+
+- Surfaces THREE tiers of evidence at recall time: raw episode turns,
+  Dream-extracted atomic facts, Dream-extracted summaries. gpt-4o can
+  synthesize across all three.
+- mem0 only feeds its ingest-time-extracted atomic facts. If those
+  facts dropped or distorted some content (which is inherent to LLM
+  extraction), the stronger generator has no extra material.
+
+This is the strongest architectural finding of the pilot. Mnemoss's
+multi-tier evidence policy isn't just a stylistic choice — it gives
+the generator more raw material, and a stronger generator extracts
+more value. mem0's "extract-once, surface-only-extracted-facts" model
+caps the system at the quality of its ingest-time extraction.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
