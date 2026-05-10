@@ -9,10 +9,12 @@ multi-session, knowledge-update, temporal-reasoning).
 
 ## TL;DR
 
-- **Mnemoss best config: 13/24 = 54.2%** at *both* gpt-4o and
-  gpt-4o-mini tiers — the same total with different per-question wins.
-  **gpt-4o-mini is the production sweet spot** (~10× cheaper than
-  gpt-4o, same accuracy).
+- **Mnemoss best config: 14/24 = 58.3%** with gpt-4o-mini at k=30.
+  +25pp absolute over the M-baseline (33%), +20pp over mem0 (38%),
+  and +29pp over mem0 at the gpt-4o tier (29%).
+- At k=10, both gpt-4o and gpt-4o-mini land at 13/24 (54.2%) with
+  different per-question wins. **gpt-4o-mini is the production sweet
+  spot** (~10× cheaper than gpt-4o, equal/better accuracy).
 - At the gpt-4o tier (apples-to-apples), **Mnemoss leads mem0 by 25pp**:
   Mnemoss 13/24 (54%) vs mem0 7/24 (29%).
 - At the deepseek-chat tier, Mnemoss leads mem0 by 8pp:
@@ -64,7 +66,8 @@ M-facts-v3 (+ generator prompt v3)       3/4    4/4    0/4    2/4    2/4    0/4 
 M-facts-v4 (drop type-trust line)        3/4    4/4    0/4    2/4    1/4    0/4   10/24 (42%)  ← regression vs v3
 M-facts-v3 + gpt-4o gen+judge+dream      4/4    3/4    1/4    2/4    3/4    0/4   13/24 (54%)  ← tied BEST
 mem0 + gpt-4o gen + gpt-4o-mini judge    3/4    0/4    1/4    2/4    1/4    0/4    7/24 (29%)  ← regression vs deepseek
-M-facts-v3 + gpt-4o-mini all-LLMs        4/4    4/4    1/4    1/4    3/4    0/4   13/24 (54%)  ← tied BEST, 10× cheaper
+M-facts-v3 + gpt-4o-mini all-LLMs        4/4    4/4    1/4    1/4    3/4    0/4   13/24 (54%)  ← 10× cheaper
+M-facts-v3 + gpt-4o-mini + k=30          4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← BEST overall
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -302,6 +305,27 @@ production-ready Mnemoss config, **gpt-4o-mini is the sweet spot** —
 identical accuracy at this slice size, an order of magnitude cheaper.
 The gpt-4o variant is useful for ablation / signal-investigation runs
 but not the recommended deployment.
+
+### Phase 3.9 — k=30 lifts multi-session counting
+
+The M-Dream+expand+k=20 deepseek run earlier in the pilot showed no
+lift from doubling k. But that was before atomic-fact extraction
+landed. Re-tested k=30 (with snippet_max_chars=18000 to fit the
+extra material) on top of the gpt-4o-mini config.
+
+Result: **14/24 (58.3%)**, +1 question vs k=10 (54.2%). The lift
+came from `0a995998` — a multi-session counting question ("how many
+items to pick up") that needs the LLM to enumerate items across
+multiple sessions. With k=30 the recall surfaces enough individual
+item mentions for gpt-4o-mini to do the count. Never won by any of
+the 15 prior configs.
+
+Temporal-reasoning stayed 0/4 — proving that the temporal gap is
+*not* recall-depth-bound. The right time-anchored events aren't in
+the cosine top regardless of how deep we search. The only way to
+close that slice is recall-side ranking that boosts memories whose
+`created_at` is near the question's implied time anchor; that's
+genuinely architectural and out of scope for this pilot.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
