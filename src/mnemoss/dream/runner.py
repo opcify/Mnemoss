@@ -25,6 +25,7 @@ from mnemoss.dream.cluster import ClusterAssignment, cluster_embeddings, group_b
 from mnemoss.dream.consolidate import (
     ConsolidationResult,
     consolidate_cluster,
+    extract_atomic_facts_from_singleton,
 )
 from mnemoss.dream.cost import CostLedger, CostLimits
 from mnemoss.dream.dispose import dispose_pass
@@ -109,6 +110,7 @@ class DreamRunner:
         cluster_min_size: int = 3,
         cost_limits: CostLimits | None = None,
         cost_ledger: CostLedger | None = None,
+        process_singletons: bool = False,
     ) -> None:
         self._store = store
         self._params = params
@@ -124,6 +126,15 @@ class DreamRunner:
         # and persists counts across runs.
         self._cost_limits = cost_limits or CostLimits()
         self._cost_ledger = cost_ledger
+        # Opt-in: after the cluster loop, run a per-memory atomic-fact
+        # extraction pass over HDBSCAN-noise singletons. Closes the gap
+        # where a uniquely-named entity (LongMemEval-S 51a45a95 Target,
+        # for instance) lives in a turn with no semantic neighbours and
+        # therefore never reaches the cluster-level LLM. Disabled by
+        # default — the per-memory pass adds N_singleton LLM calls per
+        # dream run (typically O(N_replay)) and bench evidence is
+        # young; gate via this flag until the prod budget story lands.
+        self._process_singletons = process_singletons
 
     async def run(
         self,
@@ -300,6 +311,7 @@ class DreamRunner:
 
         summaries: list[Memory] = []
         patterns: list[Memory] = []
+        atomic_facts: list[Memory] = []
         refined_ids: list[str] = []
         llm_failures = 0
         llm_calls_made = 0
@@ -361,8 +373,55 @@ class DreamRunner:
                 await self._persist_derived(pattern)
                 patterns.append(pattern)
 
-        # Relations phase edges off summaries + patterns together.
-        state.consolidated = summaries + patterns
+            # (D) Atomic facts — concrete propositional FACT memories.
+            # These are the LongMemEval-S architectural lever:
+            # narrative summaries collapse multiple discrete claims
+            # into one row; atomic facts surface each claim as its
+            # own indexable Memory so recall can rank the specific
+            # fact (e.g. "$400K mortgage at Wells Fargo") above the
+            # raw turn that contained it.
+            for fact in result.atomic_facts:
+                await self._persist_derived(fact)
+                atomic_facts.append(fact)
+
+        # (E) Singleton sweep — opt-in. HDBSCAN-noise memories never
+        # reach the cluster loop above; the LongMemEval-S 51a45a95
+        # (Target store) miss is exactly this case. When
+        # ``process_singletons=True``, run a tighter per-memory atomic-
+        # fact extraction over every replay-set member that wasn't
+        # placed in a cluster. Same budget gate as the cluster loop.
+        singleton_atomic_facts: list[Memory] = []
+        singletons_processed = 0
+        if self._process_singletons:
+            singletons = self._singletons_from_state(state)
+            for sm in singletons:
+                if self._cost_ledger is not None:
+                    reason = self._cost_ledger.check_budget(
+                        self._cost_limits,
+                        run_calls=llm_calls_made,
+                        now=now,
+                    )
+                    if reason is not None:
+                        budget_skips.append(reason)
+                        break
+                facts = await extract_atomic_facts_from_singleton(
+                    sm, self._llm, self._params, now=now
+                )
+                llm_calls_made += 1
+                if self._cost_ledger is not None:
+                    self._cost_ledger.record_call(now=now)
+                singletons_processed += 1
+                if not facts:
+                    continue
+                for fact in facts:
+                    await self._persist_derived(fact)
+                    singleton_atomic_facts.append(fact)
+
+        # Cross-session edges fan out from every consolidated memory.
+        state.consolidated = (
+            summaries + patterns + atomic_facts + singleton_atomic_facts
+        )
+        atomic_facts_total = atomic_facts + singleton_atomic_facts
 
         return PhaseOutcome(
             phase=PhaseName.CONSOLIDATE,
@@ -371,18 +430,43 @@ class DreamRunner:
                 "clusters_processed": sum(1 for c in clusters if len(c) >= 2),
                 "summaries": len(summaries),
                 "patterns": len(patterns),
+                "atomic_facts": len(atomic_facts),
+                "singleton_atomic_facts": len(singleton_atomic_facts),
+                "singletons_processed": singletons_processed,
                 "refined": len(refined_ids),
                 "llm_failures": llm_failures,
                 "llm_calls_made": llm_calls_made,
                 "budget_skips": budget_skips,
                 "summary_ids": [m.id for m in summaries],
                 "pattern_ids": [m.id for m in patterns],
+                "atomic_fact_ids": [m.id for m in atomic_facts_total],
                 "refined_ids": refined_ids,
                 "cross_agent_promotions": sum(
-                    1 for m in (summaries + patterns) if m.agent_id is None
+                    1 for m in (summaries + patterns + atomic_facts_total) if m.agent_id is None
                 ),
             },
         )
+
+    def _singletons_from_state(self, state: _DreamState) -> list[Memory]:
+        """Return replay-set memories that HDBSCAN labelled as noise.
+
+        These are the ``cluster_assignments[mid].cluster_id is None``
+        rows — semantic outliers that didn't end up in any cluster.
+        Returns ``[]`` when the trigger skipped CLUSTER (e.g. surprise
+        / cognitive_load), since "every memory is a singleton" isn't
+        a meaningful sweep target.
+        """
+
+        if not state.cluster_assignments or not state.replay_set:
+            return []
+        unclustered = {
+            mid
+            for mid, a in state.cluster_assignments.items()
+            if a.cluster_id is None
+        }
+        if not unclustered:
+            return []
+        return [m for m in state.replay_set if m.id in unclustered]
 
     def _clusters_for_consolidation(self, state: _DreamState) -> list[list[Memory]]:
         """Resolve the flat clusters list the phase iterates over."""
@@ -396,12 +480,27 @@ class DreamRunner:
         return []
 
     async def _persist_derived(self, memory: Memory) -> None:
-        """Embed + write a derived memory, link its derived_from edges."""
+        """Embed + write a derived memory, link its derived_from edges.
+
+        ``link_derived`` only updates the ``memory.derived_to`` JSON
+        column. That's invisible to ``expand_via_relations``, which
+        reads the ``relation`` table. Without the explicit edge
+        writes below, summaries and patterns produced by Consolidate
+        would be unreachable through spreading activation — and since
+        clusters span sessions, those summary↔source edges are the
+        only cross-session links Mnemoss creates. We write both
+        directions so BFS works either way: from a recalled summary
+        out to its sources, or from a recalled source up to its
+        summary (and from there to sibling sources in other sessions).
+        """
 
         assert self._embedder is not None  # guarded by phase entry
         embedding = await asyncio.to_thread(self._embedder.embed, [memory.content])
         await self._store.write_memory(memory, embedding[0])
         await self._store.link_derived(memory.derived_from, memory.id)
+        for src_id in memory.derived_from:
+            await self._store.write_relation(memory.id, src_id, "derived_from")
+            await self._store.write_relation(src_id, memory.id, "derived_to")
 
     # ─── P7 Rebalance ──────────────────────────────────────────────
 

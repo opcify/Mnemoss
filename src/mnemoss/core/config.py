@@ -636,6 +636,11 @@ class DreamerParams:
     cluster_min_size: int = 3
     replay_limit: int = 100
     replay_min_base_level: float | None = None
+    # Opt-in: after the cluster loop, run a per-memory atomic-fact
+    # extraction pass over HDBSCAN-noise singletons. Disabled by
+    # default because it adds N_singleton LLM calls per dream run —
+    # use ``CostLimits.max_llm_calls_per_run`` to bound the spend.
+    process_singletons: bool = False
 
     def __post_init__(self) -> None:
         if self.cluster_min_size <= 0:

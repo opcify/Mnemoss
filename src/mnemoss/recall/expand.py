@@ -29,6 +29,7 @@ from mnemoss.store.sqlite_backend import SQLiteBackend
 _EXPAND_PREDICATES: tuple[str, ...] = (
     "similar_to",
     "derived_from",
+    "derived_to",
     "co_occurs_in_session",
 )
 

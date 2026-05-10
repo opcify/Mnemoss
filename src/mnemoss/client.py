@@ -478,6 +478,7 @@ class Mnemoss:
             cluster_min_size=self._config.dreamer.cluster_min_size,
             cost_limits=self._cost_limits,
             cost_ledger=self._cost_ledger,
+            process_singletons=self._config.dreamer.process_singletons,
         )
         report = await runner.run(TriggerType(trigger), agent_id=agent_id, phases=phases)
 

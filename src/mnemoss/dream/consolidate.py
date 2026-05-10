@@ -84,18 +84,35 @@ class Refinement:
 class ConsolidationResult:
     """What one Consolidate call produced for one cluster.
 
-    Any of the three outputs can be empty/None independently — the LLM
-    may emit a summary with no patterns, or refine-only when it sees
-    nothing worth summarising, etc.
+    Any of the four outputs can be empty/None independently — the LLM
+    may emit a summary with no patterns, atomic-facts only when nothing
+    rises to a cluster-level summary, refine-only when there's nothing
+    worth distilling, etc.
+
+    ``atomic_facts`` was added 2026-05-09 after the LongMemEval-S pilot
+    showed mem0 winning four questions Mnemoss missed (single-session
+    Target lookup, Sony preference, multi-session model-kit list,
+    knowledge-update 5K time) — all because mem0 surfaces atomic
+    propositional facts as discrete memories. Mnemoss's narrative
+    summary collapses too much into one row to surface those. Atomic
+    facts coexist with the summary; the summary is "what was the
+    cluster about" and atomic facts are "what discrete things were
+    asserted."
     """
 
     summary: Memory | None = None
     refinements: list[Refinement] = field(default_factory=list)
     patterns: list[Memory] = field(default_factory=list)
+    atomic_facts: list[Memory] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
-        return self.summary is None and not self.refinements and not self.patterns
+        return (
+            self.summary is None
+            and not self.refinements
+            and not self.patterns
+            and not self.atomic_facts
+        )
 
 
 def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
@@ -123,7 +140,7 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
     lines.extend(
         [
             "",
-            "Do three things in one pass:",
+            "Do four things in one pass:",
             "",
             "(A) SUMMARY — distil the cluster into ONE higher-abstraction "
             "memory (a fact or pattern). Keep the content in the same "
@@ -137,6 +154,49 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "(C) PATTERNS — identify any recurring patterns WITHIN this "
             "cluster (behaviours, preferences, regularities spanning ≥2 "
             "members). Zero patterns is a valid answer — don't invent.",
+            "",
+            "(D) ATOMIC FACTS — extract zero or more standalone, "
+            "self-contained propositional facts asserted in the members. "
+            "Each fact must be a single complete sentence that names its "
+            "subject and object explicitly so it makes sense without the "
+            "surrounding conversation. Atomic facts are different from "
+            "the SUMMARY: the summary is ONE narrative line about the "
+            "cluster; atomic facts are INDIVIDUAL distillable "
+            "propositions, possibly many per cluster.",
+            "",
+            "Three patterns you MUST cover when present in the cluster:",
+            "",
+            "  - NAMED ENTITIES: every fact mentioning a brand, store, "
+            "model name/number, person, organization, or product MUST "
+            "include the entity name verbatim. Wrong: 'User redeemed a "
+            "coupon.' Right: 'User redeemed a $5 coffee creamer coupon "
+            "at Target.' Wrong: 'User uses a Sony camera.' Right: 'User "
+            "owns a Sony A7R IV camera and uses Sony-compatible "
+            "accessories.'",
+            "",
+            "  - USER PREFERENCES: when content reveals a user "
+            "preference, extract it as an explicit preference fact "
+            "phrased 'User prefers X (over Y)' or 'User prefers X "
+            "because Z'. Recurring usage, repeated approvals, repeated "
+            "complaints, and 'I always X' all count as preferences. "
+            "Wrong: 'User asked about cameras.' Right: 'User prefers "
+            "Sony-compatible photography accessories over other brands.'",
+            "",
+            "  - KNOWLEDGE UPDATES: when the cluster contains multiple "
+            "values for the same underlying fact (e.g. earlier $350K "
+            "pre-approval, later $400K pre-approval; earlier 27:12 5K "
+            "time, later 25:50 5K time), emit ONE atomic fact that "
+            "states the CURRENT (most recent) value and explicitly "
+            "marks it as such. Right: 'User Anna's current Wells Fargo "
+            "mortgage pre-approval is $400,000 (raised from an earlier "
+            "$350,000).' Right: 'User's current 5K personal best is "
+            "25:50 (improved from 27:12).' Do NOT emit separate facts "
+            "for each value — collapse them into the current-value "
+            "fact.",
+            "",
+            "Prefer atomic facts when the cluster contains multiple "
+            "discrete claims (entities, dates, amounts, preferences). "
+            "Zero is a valid answer.",
             "",
             "Respond with a single JSON object of this exact shape:",
             "{",
@@ -157,6 +217,12 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             '      "content": "pattern description, one sentence",',
             '      "derived_from": [1, 2]',
             "    }",
+            "  ],",
+            '  "atomic_facts": [',
+            "    {",
+            '      "content": "self-contained propositional fact, one sentence",',
+            '      "derived_from": [1]',
+            "    }",
             "  ]",
             "}",
             "",
@@ -166,6 +232,8 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "- summary.abstraction_level ∈ [0.5, 0.9]: 0.5 concrete, 0.9 abstract.",
             "- refinements: preserve null on fields not implied by the content.",
             "- patterns: each must reference ≥2 members via 'derived_from'.",
+            "- atomic_facts: each must reference ≥1 member via 'derived_from' "
+            "and stand alone semantically (no pronouns referring to context).",
             "- All indices are 1-indexed references to the numbered list above.",
         ]
     )
@@ -208,6 +276,7 @@ async def consolidate_cluster(
         summary=_parse_summary(response, cluster_members, params, t),
         refinements=_parse_refinements(response, cluster_members),
         patterns=_parse_patterns(response, cluster_members, params, t),
+        atomic_facts=_parse_atomic_facts(response, cluster_members, params, t),
     )
 
 
@@ -402,6 +471,188 @@ def _parse_patterns(
                     "extracted_by": "dream_consolidate",
                     "scope": "intra_cluster_pattern",
                     "source_fact_count": len(sources),
+                },
+            )
+        )
+    return out
+
+
+# ─── atomic facts parse ────────────────────────────────────────────
+
+ATOMIC_FACT_ABSTRACTION_LEVEL = 0.4
+
+
+def build_singleton_extraction_prompt(memory: Memory) -> str:
+    """Render the per-memory atomic-fact extraction prompt.
+
+    HDBSCAN labels memories with no semantic neighbours as noise
+    (``cluster_id=None``). Cluster-level Consolidate skips them — but
+    they often carry the most distinctive facts (the one turn where
+    "Target" or "$400K mortgage" or "Wells Fargo" was named, with no
+    nearby cluster of related turns to anchor the LLM's grouping).
+    The LongMemEval-S 51a45a95 (Target store entity) miss is an
+    instance of this gap: the relevant turn never reached the LLM
+    because its embedding sat in HDBSCAN noise space.
+
+    This prompt is tighter than the cluster prompt — single memory,
+    no refinements, no patterns, no summary, just atomic facts. Same
+    output shape as the cluster prompt's ``atomic_facts`` field so
+    parsing reuses ``_parse_atomic_facts`` semantics.
+    """
+
+    role = memory.role or "note"
+    return "\n".join(
+        [
+            "The following is a single conversational memory that did "
+            "not cluster with any other memories. Extract zero or more "
+            "standalone, self-contained propositional facts asserted "
+            "in it.",
+            "",
+            f"[{role}] {memory.content}",
+            "",
+            "Extract any of:",
+            "",
+            "  - NAMED ENTITIES — facts mentioning a brand, store, "
+            "model name, person, organization, or product MUST include "
+            "the entity name verbatim. Right: 'User redeemed a $5 "
+            "coffee creamer coupon at Target.'",
+            "",
+            "  - USER PREFERENCES — content revealing a preference, "
+            "phrased 'User prefers X (over Y)' or 'User prefers X "
+            "because Z'.",
+            "",
+            "  - COMMITTED FACTS — concrete claims with dates, amounts, "
+            "names ('User Anna's mortgage pre-approval at Wells Fargo "
+            "is $400,000.').",
+            "",
+            "Each fact must be a single complete sentence that names "
+            "its subject and object explicitly so it makes sense "
+            "without the surrounding conversation. Zero is a valid "
+            "answer — emit no facts when the memory carries only "
+            "filler, agreement, small-talk, or repeats something "
+            "trivial.",
+            "",
+            "Respond with a single JSON object of this exact shape:",
+            "{",
+            '  "atomic_facts": [',
+            "    {",
+            '      "content": "self-contained propositional fact, one sentence"',
+            "    }",
+            "  ]",
+            "}",
+        ]
+    )
+
+
+async def extract_atomic_facts_from_singleton(
+    memory: Memory,
+    llm: LLMClient,
+    params: FormulaParams,
+    *,
+    now: datetime | None = None,
+) -> list[Memory]:
+    """Call the LLM once on a singleton and return atomic-fact Memories.
+
+    Returns ``[]`` on LLM failure or when the LLM emits no facts
+    (filler / small-talk memories). Each returned Memory has
+    ``derived_from=[memory.id]`` and is otherwise shaped like the
+    cluster-emitted atomic facts so downstream persistence is
+    uniform.
+    """
+
+    prompt = build_singleton_extraction_prompt(memory)
+    try:
+        response = await llm.complete_json(prompt, max_tokens=1024)
+    except Exception as e:  # pragma: no cover — provider errors vary
+        log.warning("extract_atomic_facts_from_singleton: LLM failure: %s", e)
+        return []
+
+    t = now if now is not None else datetime.now(UTC)
+    return _parse_atomic_facts(response, [memory], params, t)
+
+
+def _parse_atomic_facts(
+    response: dict[str, Any],
+    members: list[Memory],
+    params: FormulaParams,
+    now: datetime,
+) -> list[Memory]:
+    """Materialise the ``atomic_facts`` list as level-2 FACT memories.
+
+    Differs from ``_parse_patterns`` in two ways:
+
+    - One source minimum (vs two for patterns): a single rich turn can
+      assert a standalone fact ("user just got pre-approved for $400K
+      mortgage at Wells Fargo"). Patterns are recurring-behaviour
+      claims and need ≥2 supporting memories to be defensible; atomic
+      facts only need to be self-contained.
+    - Lower ``abstraction_level`` (0.4 vs 0.85): atomic facts are
+      concrete propositions, not abstractions. They sit just below
+      raw-turn level-1 extractions.
+    """
+
+    raw = response.get("atomic_facts", [])
+    if not isinstance(raw, list):
+        return []
+
+    out: list[Memory] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        content = (entry.get("content") or "").strip()
+        if not content:
+            continue
+        refs = entry.get("derived_from", [])
+        if not isinstance(refs, list):
+            continue
+
+        sources: list[Memory] = []
+        for ref in refs:
+            if not isinstance(ref, int):
+                continue
+            idx0 = ref - 1
+            if 0 <= idx0 < len(members):
+                sources.append(members[idx0])
+        if not sources:
+            continue
+
+        # Same idx_priority lift + access_history inheritance pattern as
+        # summaries and patterns. Atomic facts deserve the lift because
+        # they're the distilled answer for fact-grained queries the raw
+        # turn would otherwise dominate (e.g. "what's the latest pre-
+        # approval amount" should rank the fact above the conversational
+        # turn that contained it).
+        sources_max_priority = max((s.idx_priority for s in sources), default=0.0)
+        ip = min(
+            1.0,
+            max(initial_idx_priority(params), sources_max_priority + SUMMARY_PRIORITY_BONUS),
+        )
+        inherited_history = sorted({h for s in sources for h in s.access_history} | {now})
+
+        out.append(
+            Memory(
+                id=str(ulid.new()),
+                workspace_id=sources[0].workspace_id,
+                agent_id=_cluster_agent_id(sources),
+                session_id=sources[0].session_id,
+                created_at=now,
+                content=content,
+                content_embedding=None,
+                role=None,
+                memory_type=MemoryType.FACT,
+                abstraction_level=ATOMIC_FACT_ABSTRACTION_LEVEL,
+                access_history=inherited_history,
+                last_accessed_at=now,
+                salience=max((s.salience for s in sources), default=0.0),
+                idx_priority=ip,
+                index_tier=idx_priority_to_tier(ip),
+                derived_from=[s.id for s in sources],
+                derived_to=[],
+                source_message_ids=[],
+                source_context={
+                    "extracted_by": "dream_consolidate",
+                    "scope": "atomic_fact",
+                    "source_member_count": len(sources),
                 },
             )
         )
