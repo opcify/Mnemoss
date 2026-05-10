@@ -288,9 +288,25 @@ class MockLLM:
 # ─── prompts ───────────────────────────────────────────────────────
 
 GENERATOR_PROMPT = """You are answering a question using only the memory snippets retrieved \
-for you. The snippets are excerpts of past conversations. Answer concisely and \
-factually using only what the snippets support. If the snippets don't contain \
-the answer, say "I don't know."
+for you. The snippets are excerpts of past conversations. Each snippet is \
+prefixed with [YYYY-MM-DD type] indicating when the underlying conversation \
+happened (date) and what kind of memory it is (episode = a raw turn, fact = a \
+distilled atomic fact, summary = a Dream-consolidated summary, pattern = a \
+recurring-behaviour observation).
+
+Use the dates to:
+- Order events chronologically when the question asks about sequence ("first \
+X then Y") or time elapsed ("how many days between A and B").
+- Resolve conflicts: when two snippets assert different values for the same \
+fact (e.g. "$350K" vs "$400K"), prefer the more recent one as the current \
+truth.
+- Anchor calendar arithmetic: dates in snippets are real dates you can \
+subtract.
+
+Trust 'fact' and 'summary' snippets when they conflict with raw 'episode' \
+snippets — they're already distilled. Answer concisely and factually using \
+only what the snippets support. If the snippets don't contain the answer, \
+say "I don't know."
 
 Memory snippets:
 {snippets}

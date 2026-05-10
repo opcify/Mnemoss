@@ -33,7 +33,7 @@ multi-session, knowledge-update, temporal-reasoning).
   `singleton_salience_threshold=0.5`), documented here as a negative
   result.
 
-## Full 10-config matrix
+## Full 11-config matrix
 
 ```
 config                                   user   asst   pref m-sess  k-upd   temp    TOT
@@ -45,10 +45,16 @@ M-Dream+expand+ts                        3/4    4/4    0/4    0/4    1/4    0/4 
 M-Dream+expand+k=20                      3/4    4/4    0/4    0/4    1/4    0/4    8/24 (33%)
 mem0                                     4/4    2/4    1/4    1/4    1/4    0/4    9/24 (38%)
 M-facts (cluster atomic facts)           3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)
-M-facts-v2 (entity/pref/recency prompt)  3/4    4/4    1/4    1/4    2/4    0/4   11/24 (46%)  ← BEST
+M-facts-v2 (extraction prompt v2)        3/4    4/4    1/4    1/4    2/4    0/4   11/24 (46%)  ← BEST (composition A)
 M-facts-v2+singletons (blanket)          3/4    4/4    1/4    0/4    1/4    0/4    9/24 (38%)  ← noise
 M-facts-v2+singletons (salience≥0.5)     3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)  ← still noisy
+M-facts-v3 (+ generator prompt tune)     3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST (composition B)
 ```
+
+The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
+per-question wins; the v2 ∪ v3 union is 13/24 (54%). The two prompts couple
+through LLM behavior so they don't compose for free — combining the
+extraction prompt v2 with the generator prompt v3 IS what v3 measures.
 
 ## Architectural arc
 
@@ -139,6 +145,39 @@ both: 8        Mnemoss-only: 3        mem0-only: 1        neither: 12
 The single mem0-only win is `51a45a95` (Target store entity in a
 single-session-user question). That turn likely sat in HDBSCAN noise space
 and never reached the cluster prompt — see Phase 4.
+
+### Phase 3.5 — Generator prompt tune (M-facts-v3): same total, different composition
+
+The recall snippets carry `[YYYY-MM-DD type]` prefixes (added in
+M-Dream+expand+ts) but the original generator prompt didn't tell the LLM
+how to use them. Updated the prompt to explicitly:
+
+- Order events chronologically when the question asks for sequence or
+  elapsed time.
+- Resolve conflicts by preferring the more recent value as the current
+  truth.
+- Anchor calendar arithmetic in the dates.
+- Trust `fact` and `summary` snippets over raw `episode` snippets when
+  they conflict.
+
+Result: 11/24 (46%) — same overall as facts-v2, different composition.
+
+| | facts-v2 | facts-v3 |
+| --- | --- | --- |
+| Won | 06878be2 (preference), 6a1eabeb (5K time) | b5ef892d (multi-session "8 days"), **852ce960 (Wikipedia mortgage)** |
+| Lost vs other | (the two on the right) | (the two on the left) |
+
+The headline win for v3: `852ce960` succeeded for the FIRST time across all
+12 prior configs (both Mnemoss variants AND mem0 ALL missed it). The
+"prefer most recent value on conflict" instruction got the LLM to pick
+the $400K (current) value over the $350K (earlier) value that had
+dominated every prior recall.
+
+The headline disappointment: temporal-reasoning stayed 0/4. The
+date-arithmetic instruction is well-formed; the four temporal questions
+fail because **recall doesn't surface the two specific time-anchored
+events** the question needs to subtract. The answers aren't even in the
+context the LLM gets — this is a recall-side gap, not a generator gap.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
