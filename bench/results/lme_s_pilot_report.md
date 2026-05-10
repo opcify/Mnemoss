@@ -9,16 +9,19 @@ multi-session, knowledge-update, temporal-reasoning).
 
 ## TL;DR
 
-- **Mnemoss best config (M-facts-v3 + gpt-4o): 13/24 = 54.2%**.
+- **Mnemoss best config: 13/24 = 54.2%** at *both* gpt-4o and
+  gpt-4o-mini tiers — the same total with different per-question wins.
+  **gpt-4o-mini is the production sweet spot** (~10× cheaper than
+  gpt-4o, same accuracy).
 - At the gpt-4o tier (apples-to-apples), **Mnemoss leads mem0 by 25pp**:
   Mnemoss 13/24 (54%) vs mem0 7/24 (29%).
 - At the deepseek-chat tier, Mnemoss leads mem0 by 8pp:
   11/24 (46%) vs 9/24 (38%).
 - **Mnemoss's architectural advantage amplifies with stronger LLMs**
   because it surfaces multi-tier evidence (raw turns + atomic facts +
-  Dream summaries) — gpt-4o can synthesize across all three. mem0
-  only feeds its ingest-time-extracted facts to the generator; a
-  stronger LLM has no extra material to work with, and the stricter
+  Dream summaries) — the generator can synthesize across all three.
+  mem0 only feeds its ingest-time-extracted facts to the generator;
+  a stronger LLM has no extra material to work with, and the stricter
   gpt-4o-mini judge actually penalizes mem0's terser answers.
 - The architectural lift came from **adding LLM-based atomic-fact extraction
   inside Dream Consolidate** (Cold Path, principle-conformant) with an
@@ -59,8 +62,9 @@ M-facts-v2+singletons (blanket)          3/4    4/4    1/4    0/4    1/4    0/4 
 M-facts-v2+singletons (salience≥0.5)     3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)  ← still noisy
 M-facts-v3 (+ generator prompt v3)       3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST deepseek (B)
 M-facts-v4 (drop type-trust line)        3/4    4/4    0/4    2/4    1/4    0/4   10/24 (42%)  ← regression vs v3
-M-facts-v3 + gpt-4o gen+judge+dream      4/4    3/4    1/4    2/4    3/4    0/4   13/24 (54%)  ← BEST overall
+M-facts-v3 + gpt-4o gen+judge+dream      4/4    3/4    1/4    2/4    3/4    0/4   13/24 (54%)  ← tied BEST
 mem0 + gpt-4o gen + gpt-4o-mini judge    3/4    0/4    1/4    2/4    1/4    0/4    7/24 (29%)  ← regression vs deepseek
+M-facts-v3 + gpt-4o-mini all-LLMs        4/4    4/4    1/4    1/4    3/4    0/4   13/24 (54%)  ← tied BEST, 10× cheaper
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -272,6 +276,32 @@ multi-tier evidence policy isn't just a stylistic choice — it gives
 the generator more raw material, and a stronger generator extracts
 more value. mem0's "extract-once, surface-only-extracted-facts" model
 caps the system at the quality of its ingest-time extraction.
+
+### Phase 3.8 — Cost positioning: gpt-4o-mini ties gpt-4o on accuracy
+
+To pin down whether 54% requires gpt-4o specifically or if the cheaper
+gpt-4o-mini also delivers, ran M-facts-v3 with gpt-4o-mini for all
+three LLMs (gen, judge, Dream-Consolidate). Result: **13/24 (54.2%)
+— exactly ties Mnemoss-gpt4o**, with different per-question wins:
+
+| Slice | gpt-4o | gpt-4o-mini |
+| --- | --- | --- |
+| sso-user | 4/4 | 4/4 |
+| sso-asst | 3/4 (lost `c4f10528`) | **4/4** ← keeps `c4f10528` |
+| sso-pref | 1/4 (`06878be2`) | 1/4 (`8a2466db` — never won before by ANY config) |
+| multi-session | 2/4 | 1/4 |
+| knowledge-update | 3/4 | 3/4 (same wins) |
+| temporal | 0/4 | 0/4 |
+
+The two configs are Pareto-different per-question (combined union ceiling
+15/24 = 62.5%) but tied on overall.
+
+**Cost positioning:** gpt-4o-mini is roughly 10× cheaper per call than
+gpt-4o ($0.15/$0.60 per 1M tokens vs $2.50/$10 per 1M). For the
+production-ready Mnemoss config, **gpt-4o-mini is the sweet spot** —
+identical accuracy at this slice size, an order of magnitude cheaper.
+The gpt-4o variant is useful for ablation / signal-investigation runs
+but not the recommended deployment.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
