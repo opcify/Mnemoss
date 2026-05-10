@@ -130,7 +130,8 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
     ]
     for i, m in enumerate(cluster_members, 1):
         role = m.role or "note"
-        lines.append(f"{i}. [{role}] {m.content}")
+        stamp = m.created_at.strftime("%Y-%m-%d") if m.created_at else "????-??-??"
+        lines.append(f"{i}. [{stamp} {role}] {m.content}")
         existing = {
             "gist": m.extracted_gist,
             "time": (m.extracted_time.isoformat() if m.extracted_time else None),
@@ -193,6 +194,18 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "25:50 (improved from 27:12).' Do NOT emit separate facts "
             "for each value — collapse them into the current-value "
             "fact.",
+            "",
+            "  - EVENT DATES: when a fact describes an event with a "
+            "concrete date (visit, attendance, meeting, milestone, "
+            "purchase), include the YYYY-MM-DD date in the fact text. "
+            "Right: 'User attended the Walk for Hunger charity event "
+            "on 2025-03-15.' Right: 'User visited the Metropolitan "
+            "Museum of Art Ancient Civilizations exhibit on "
+            "2025-04-22.' If the original member's content states "
+            "the date relative to a known anchor (\"last Sunday\", "
+            "\"three weeks ago\"), and you can resolve it from the "
+            "[YYYY-MM-DD] prefix on the member, write the absolute "
+            "date in the fact.",
             "",
             "Prefer atomic facts when the cluster contains multiple "
             "discrete claims (entities, dates, amounts, preferences). "
@@ -501,14 +514,18 @@ def build_singleton_extraction_prompt(memory: Memory) -> str:
     """
 
     role = memory.role or "note"
+    stamp = memory.created_at.strftime("%Y-%m-%d") if memory.created_at else "????-??-??"
     return "\n".join(
         [
             "The following is a single conversational memory that did "
             "not cluster with any other memories. Extract zero or more "
             "standalone, self-contained propositional facts asserted "
-            "in it.",
+            "in it. The [YYYY-MM-DD] prefix is the date the memory "
+            "was created — use it to resolve relative time expressions "
+            "in the content (\"last Sunday\", \"three weeks ago\") to "
+            "absolute dates.",
             "",
-            f"[{role}] {memory.content}",
+            f"[{stamp} {role}] {memory.content}",
             "",
             "Extract any of:",
             "",
@@ -524,6 +541,13 @@ def build_singleton_extraction_prompt(memory: Memory) -> str:
             "  - COMMITTED FACTS — concrete claims with dates, amounts, "
             "names ('User Anna's mortgage pre-approval at Wells Fargo "
             "is $400,000.').",
+            "",
+            "  - EVENT DATES — when the content describes a dated event "
+            "(visit, attendance, milestone, purchase), include the "
+            "absolute YYYY-MM-DD date in the fact, resolving relative "
+            "phrases against the [YYYY-MM-DD] prefix above. Right: "
+            "'User attended the Walk for Hunger charity event on "
+            "2025-03-15.'",
             "",
             "Each fact must be a single complete sentence that names "
             "its subject and object explicitly so it makes sense "

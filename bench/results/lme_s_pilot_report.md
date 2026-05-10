@@ -72,6 +72,7 @@ mem0 + gpt-4o gen + gpt-4o-mini judge    3/4    0/4    1/4    2/4    1/4    0/4 
 M-facts-v3 + gpt-4o-mini all-LLMs        4/4    4/4    1/4    1/4    3/4    0/4   13/24 (54%)  ← 10× cheaper
 M-facts-v3 + gpt-4o-mini + k=30          4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← BEST overall
 M-baseline + gpt-4o-mini + k=30          4/4    4/4    1/4    1/4    2/4    0/4   12/24 (50%)  ← architectural ablation
+M-facts-v3 + gpt-4o-mini + k=30 + dates   4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← no lift, dates redundant
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -367,6 +368,41 @@ Ingest time tells the same story: 3,016s for baseline vs 5,758s for
 v3 — Dream's LLM-extraction pass nearly doubles ingest time but adds
 the +8pp accuracy. For a write-once-read-many memory workload
 (typical for chat-history layers), that's the right cost trade.
+
+### Phase 3.11 — Date-aware atomic-fact prompts: no lift on temporal
+
+To probe whether temporal-reasoning was extraction-side, updated:
+- `build_consolidate_prompt` to render each cluster member as
+  `[YYYY-MM-DD role] content` (was `[role] content`) so the LLM
+  can resolve relative time expressions ("last Sunday") to
+  absolute dates during cluster consolidation.
+- The (D) ATOMIC FACTS section to explicitly require absolute
+  YYYY-MM-DD dates inside event-related atomic-fact content (e.g.
+  "User attended the Walk for Hunger charity event on 2025-03-15.").
+- The singleton-extraction prompt similarly.
+
+Result: **14/24 (58.3%)** — *zero per-question differences* vs the
+prior k=30 run. The dates the LLM needs are already accessible via
+the `[YYYY-MM-DD type]` prefix that recall_text adds to every
+snippet; embedding them inside the fact text was redundant.
+
+The prompt changes are principled improvements (member-date context
+in consolidate, event-date instruction in atomic facts) and stay
+in — they don't hurt, and they might help on a corpus where event
+dates aren't trivially recoverable.
+
+This is the THIRD temporal-reasoning negative result of the pilot:
+
+  - v3 generator prompt with explicit date-arithmetic instruction
+  - k=30 (more candidates couldn't surface the right time-anchored events)
+  - date-aware atomic-fact extraction (above)
+
+The slice is now confirmed unaddressable through prompt-side
+changes. Closing it requires recall-side architectural work — time-
+aware ranking that boosts memories whose `created_at` (or
+`extracted_time`) is near the question's implied time anchor, or a
+separate "fetch by entity → list of dated memories" API. Both are
+out of scope for this pilot.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
