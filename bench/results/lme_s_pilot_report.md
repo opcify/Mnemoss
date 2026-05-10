@@ -12,6 +12,9 @@ multi-session, knowledge-update, temporal-reasoning).
 - **Mnemoss best config: 14/24 = 58.3%** with gpt-4o-mini at k=30.
   +25pp absolute over the M-baseline (33%), +20pp over mem0 (38%),
   and +29pp over mem0 at the gpt-4o tier (29%).
+- The 33% → 58% total breaks into +17pp from LLM upgrade and **+8pp
+  from architecture** (Dream consolidate atomic facts + cross-session
+  edges + tuned prompts). Both are necessary; neither alone reaches 58%.
 - At k=10, both gpt-4o and gpt-4o-mini land at 13/24 (54.2%) with
   different per-question wins. **gpt-4o-mini is the production sweet
   spot** (~10× cheaper than gpt-4o, equal/better accuracy).
@@ -68,6 +71,7 @@ M-facts-v3 + gpt-4o gen+judge+dream      4/4    3/4    1/4    2/4    3/4    0/4 
 mem0 + gpt-4o gen + gpt-4o-mini judge    3/4    0/4    1/4    2/4    1/4    0/4    7/24 (29%)  ← regression vs deepseek
 M-facts-v3 + gpt-4o-mini all-LLMs        4/4    4/4    1/4    1/4    3/4    0/4   13/24 (54%)  ← 10× cheaper
 M-facts-v3 + gpt-4o-mini + k=30          4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← BEST overall
+M-baseline + gpt-4o-mini + k=30          4/4    4/4    1/4    1/4    2/4    0/4   12/24 (50%)  ← architectural ablation
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -326,6 +330,43 @@ the cosine top regardless of how deep we search. The only way to
 close that slice is recall-side ranking that boosts memories whose
 `created_at` is near the question's implied time anchor; that's
 genuinely architectural and out of scope for this pilot.
+
+### Phase 3.10 — Architectural ablation: how much credit does Dream get?
+
+To pin down whether the 58% best comes from the LLM upgrade or from
+Dream's atomic-fact extraction, ran **M-baseline** (no Dream, no
+atomic facts, no auto-expand, no cross-session edges) at the same
+gpt-4o-mini + k=30 setup. Result: **12/24 (50%)** — +17pp over
+M-baseline-deepseek but -8pp behind the M-facts-v3 best.
+
+Decomposition of the 33% → 58% total lift:
+
+| Component | Lift |
+| --- | --- |
+| LLM upgrade (deepseek → gpt-4o-mini, k=10 → 30) | **+17pp** (33% → 50%) |
+| Architecture (Dream consolidate + atomic facts + cross-session edges + tuned prompts) | **+8pp** (50% → 58%) |
+
+Both are real. The architecture is necessary but not sufficient; the
+LLM is necessary but not sufficient. Together they get to 58%.
+
+The two questions Dream specifically lifts at the gpt-4o-mini tier:
+
+- `0a995998` (multi-session count "how many items to pick up") — the
+  cluster's atomic facts give the LLM discrete countable items.
+  Without atomic facts, the same k=30 surfaces enough raw mentions
+  that the LLM hallucinates a count.
+- `852ce960` (Wikipedia-paste mortgage knowledge-update) — Dream's
+  summary captures the "$400K (raised from $350K)" narrative. Without
+  it, raw recall surfaces both numbers but the LLM picks the more
+  cosine-similar `$350K` (the dominant phrasing).
+
+Both are exactly the cases where raw cosine on turn-grained chunks
+fails for structural reasons that no top-K bump can fix.
+
+Ingest time tells the same story: 3,016s for baseline vs 5,758s for
+v3 — Dream's LLM-extraction pass nearly doubles ingest time but adds
+the +8pp accuracy. For a write-once-read-many memory workload
+(typical for chat-history layers), that's the right cost trade.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
