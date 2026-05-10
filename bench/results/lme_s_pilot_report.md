@@ -33,7 +33,7 @@ multi-session, knowledge-update, temporal-reasoning).
   `singleton_salience_threshold=0.5`), documented here as a negative
   result.
 
-## Full 11-config matrix
+## Full 12-config matrix
 
 ```
 config                                   user   asst   pref m-sess  k-upd   temp    TOT
@@ -48,13 +48,23 @@ M-facts (cluster atomic facts)           3/4    4/4    0/4    1/4    1/4    0/4 
 M-facts-v2 (extraction prompt v2)        3/4    4/4    1/4    1/4    2/4    0/4   11/24 (46%)  ← BEST (composition A)
 M-facts-v2+singletons (blanket)          3/4    4/4    1/4    0/4    1/4    0/4    9/24 (38%)  ← noise
 M-facts-v2+singletons (salience≥0.5)     3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)  ← still noisy
-M-facts-v3 (+ generator prompt tune)     3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST (composition B)
+M-facts-v3 (+ generator prompt v3)       3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST (composition B, shipped)
+M-facts-v4 (drop type-trust line)        3/4    4/4    0/4    2/4    1/4    0/4   10/24 (42%)  ← regression vs v3
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
 per-question wins; the v2 ∪ v3 union is 13/24 (54%). The two prompts couple
-through LLM behavior so they don't compose for free — combining the
-extraction prompt v2 with the generator prompt v3 IS what v3 measures.
+through LLM behavior so they don't compose for free.
+
+v4 was the attempt to recover v2's wins by dropping the v3 prompt's
+"trust 'fact' and 'summary' snippets when they conflict with raw 'episode'
+snippets" line (hypothesised cause of the v2-vs-v3 trade-off) and adding
+an explicit preference-synthesis instruction. It regressed: lost
+`852ce960` (the Wikipedia-paste mortgage knowledge-update v3 won) without
+recovering any v2-only win. The type-trust line was apparently what
+biased the LLM toward picking the consolidated `$400K` summary over the
+raw `$350K` episode for `852ce960`. Architectural conclusion: prompt
+components compose non-monotonically; v3 is the shipped generator prompt.
 
 ## Architectural arc
 
