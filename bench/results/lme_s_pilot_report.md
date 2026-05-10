@@ -73,6 +73,7 @@ M-facts-v3 + gpt-4o-mini all-LLMs        4/4    4/4    1/4    1/4    3/4    0/4 
 M-facts-v3 + gpt-4o-mini + k=30          4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← BEST overall
 M-baseline + gpt-4o-mini + k=30          4/4    4/4    1/4    1/4    2/4    0/4   12/24 (50%)  ← architectural ablation
 M-facts-v3 + gpt-4o-mini + k=30 + dates   4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← no lift, dates redundant
+M-facts-v3 + gpt-4o-mini + k=50           4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← no lift, recall depth saturated
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -403,6 +404,27 @@ aware ranking that boosts memories whose `created_at` (or
 `extracted_time`) is near the question's implied time anchor, or a
 separate "fetch by entity → list of dated memories" API. Both are
 out of scope for this pilot.
+
+### Phase 3.12 — k=50 saturates: pilot definitively at 58%
+
+To rule out one last cheap lever, ran k=50 (snippet_max_chars=24000)
+on top of the date-aware atomic-fact prompts. Result: **14/24
+(58.3%)** — *exact* same per-question correctness as k=30. Zero
+diffs.
+
+Three consecutive runs landed at 14/24 with identical per-question
+composition:
+1. M-facts-v3 + gpt-4o-mini + k=30
+2. M-facts-v3 + gpt-4o-mini + k=30 + date-aware prompts
+3. M-facts-v3 + gpt-4o-mini + k=50
+
+The 10 unsolved questions (4 temporal-reasoning, 3 preference,
+2 multi-session, 1 knowledge-update) **survive every prompt and
+recall-depth lever tested in this pilot**. They need architectural
+changes beyond the scope of "tune the prompt, increase k": time-
+aware recall ranking (temporal), better preference inference
+mechanism (preference), and cross-session aggregation primitives
+(multi-session count). All documented as future work.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
