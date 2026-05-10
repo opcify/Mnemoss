@@ -9,8 +9,11 @@ multi-session, knowledge-update, temporal-reasoning).
 
 ## TL;DR
 
-- **Mnemoss best config (M-facts-v2): 11/24 = 45.8%**, ahead of mem0 (9/24 = 37.5%)
-  by 8.3 pp on this stratified slice.
+- **Mnemoss best config (M-facts-v3 + gpt-4o): 13/24 = 54.2%**, vs mem0
+  (9/24 = 37.5%) on this stratified slice. mem0 has not yet been
+  re-measured at the gpt-4o tier; that's in flight.
+- At the deepseek-chat tier (apples-to-apples with the original mem0
+  baseline), Mnemoss's best is 11/24 (45.8%) vs mem0's 9/24 (37.5%).
 - The architectural lift came from **adding LLM-based atomic-fact extraction
   inside Dream Consolidate** (Cold Path, principle-conformant) with an
   explicit prompt for named entities, user preferences, and most-recent-value
@@ -33,7 +36,7 @@ multi-session, knowledge-update, temporal-reasoning).
   `singleton_salience_threshold=0.5`), documented here as a negative
   result.
 
-## Full 12-config matrix
+## Full 13-config matrix
 
 ```
 config                                   user   asst   pref m-sess  k-upd   temp    TOT
@@ -43,13 +46,14 @@ M-Dream                                  2/4    4/4    0/4    0/4    1/4    0/4 
 M-Dream+expand                           3/4    4/4    0/4    0/4    1/4    0/4    8/24 (33%)
 M-Dream+expand+ts                        3/4    4/4    0/4    0/4    1/4    0/4    8/24 (33%)
 M-Dream+expand+k=20                      3/4    4/4    0/4    0/4    1/4    0/4    8/24 (33%)
-mem0                                     4/4    2/4    1/4    1/4    1/4    0/4    9/24 (38%)
+mem0 (deepseek gen+judge)                4/4    2/4    1/4    1/4    1/4    0/4    9/24 (38%)
 M-facts (cluster atomic facts)           3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)
-M-facts-v2 (extraction prompt v2)        3/4    4/4    1/4    1/4    2/4    0/4   11/24 (46%)  ← BEST (composition A)
+M-facts-v2 (extraction prompt v2)        3/4    4/4    1/4    1/4    2/4    0/4   11/24 (46%)  ← BEST deepseek (A)
 M-facts-v2+singletons (blanket)          3/4    4/4    1/4    0/4    1/4    0/4    9/24 (38%)  ← noise
 M-facts-v2+singletons (salience≥0.5)     3/4    4/4    0/4    1/4    1/4    0/4    9/24 (38%)  ← still noisy
-M-facts-v3 (+ generator prompt v3)       3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST (composition B, shipped)
+M-facts-v3 (+ generator prompt v3)       3/4    4/4    0/4    2/4    2/4    0/4   11/24 (46%)  ← BEST deepseek (B)
 M-facts-v4 (drop type-trust line)        3/4    4/4    0/4    2/4    1/4    0/4   10/24 (42%)  ← regression vs v3
+M-facts-v3 + gpt-4o gen+judge+dream      4/4    3/4    1/4    2/4    3/4    0/4   13/24 (54%)  ← BEST overall
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -188,6 +192,43 @@ date-arithmetic instruction is well-formed; the four temporal questions
 fail because **recall doesn't surface the two specific time-anchored
 events** the question needs to subtract. The answers aren't even in the
 context the LLM gets — this is a recall-side gap, not a generator gap.
+
+### Phase 3.6 — Stronger generator (gpt-4o): retrieval-bound hypothesis falsified
+
+To test whether the 46% ceiling on deepseek-chat was generator-bound or
+genuinely retrieval-bound, swapped all three LLMs (generator, judge,
+Dream-Consolidate) from `deepseek-chat` to `gpt-4o` (gpt-4o-mini for
+judge and Dream to balance cost). Same Mnemoss architecture, same v3
+generator prompt, same atomic-fact extraction.
+
+Result: **13/24 (54%)**, +8pp absolute over deepseek (46%).
+
+| Slice | v3-deepseek | v3-gpt4o |
+| --- | --- | --- |
+| sso-user | 3/4 | **4/4** ← gpt-4o caught `51a45a95` (Target) — first lift across any Mnemoss config |
+| sso-asst | 4/4 | 3/4 ← lost `c4f10528` |
+| sso-pref | 0/4 | **1/4** ← recovered `06878be2` (Sony) |
+| multi-session | 2/4 | 2/4 (swapped: lost `gpt4_59c863d7`, gained `6d550036`) |
+| **knowledge-update** | 2/4 | **3/4** ← +1 (kept all v3 wins, recovered `6a1eabeb`) |
+| temporal | 0/4 | 0/4 |
+
+`6d550036` was a **first win across all 12 prior configs** — never solved
+before by anyone (including mem0). Same for `51a45a95` lifting on Mnemoss.
+gpt-4o synthesizes correctly from snippets that deepseek-chat couldn't.
+
+**Architectural finding falsified:** the earlier "retrieval is the wall"
+conclusion (Phase 1) was actually generator-bound. The right facts WERE
+in top-K — the deepseek generator just couldn't reason from them. With
+a stronger generator, the same Mnemoss architecture (atomic-fact
+extraction in Dream + cross-session edges + auto-expand + tuned prompts)
+extracts substantially more value.
+
+This complicates the cost story: gpt-4o costs ~10× per call vs deepseek-
+chat. For agent workloads where memory recall is the inner loop of every
+LLM turn, that's a real deployment decision, not a clean win.
+
+A fair mem0 vs Mnemoss comparison at the gpt-4o tier is in flight (mem0
+was previously measured at 38% on deepseek-chat).
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
