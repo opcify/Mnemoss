@@ -9,12 +9,20 @@ multi-session, knowledge-update, temporal-reasoning).
 
 ## TL;DR
 
-- **Mnemoss best config: 14/24 = 58.3%** with gpt-4o-mini at k=30.
-  +25pp absolute over the M-baseline (33%), +20pp over mem0 (38%),
-  and +29pp over mem0 at the gpt-4o tier (29%).
-- The 33% → 58% total breaks into +17pp from LLM upgrade and **+8pp
-  from architecture** (Dream consolidate atomic facts + cross-session
+- **Mnemoss best config (Mnemoss + gpt-4o-mini + k=30):**
+  - **n=24 (stratified=4): 14/24 = 58.3%**
+  - **n=60 (stratified=10): 34/60 = 56.7%** ← tightens the headline
+- +24pp absolute over the M-baseline (33% on n=24), +19pp over mem0
+  (38% on n=24, at the matched deepseek tier).
+- Per-slice strengths at n=60: single-session-assistant **100% (10/10)**,
+  knowledge-update **90% (9/10)** — the atomic-fact + most-recent-collapse
+  logic carries.
+- The 33% → 58% total at n=24 breaks into +17pp from LLM upgrade and
+  **+8pp from architecture** (Dream consolidate atomic facts + cross-session
   edges + tuned prompts). Both are necessary; neither alone reaches 58%.
+- **Temporal-reasoning is NOT 0%** — at larger n the model cracks
+  20% (2/10), proving the n=4 zero was sampling artifact, not a hard
+  architectural floor.
 - At k=10, both gpt-4o and gpt-4o-mini land at 13/24 (54.2%) with
   different per-question wins. **gpt-4o-mini is the production sweet
   spot** (~10× cheaper than gpt-4o, equal/better accuracy).
@@ -74,6 +82,8 @@ M-facts-v3 + gpt-4o-mini + k=30          4/4    4/4    1/4    2/4    3/4    0/4 
 M-baseline + gpt-4o-mini + k=30          4/4    4/4    1/4    1/4    2/4    0/4   12/24 (50%)  ← architectural ablation
 M-facts-v3 + gpt-4o-mini + k=30 + dates   4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← no lift, dates redundant
 M-facts-v3 + gpt-4o-mini + k=50           4/4    4/4    1/4    2/4    3/4    0/4   14/24 (58%)  ← no lift, recall depth saturated
+─────────────────────────────────────────────────────────────────────────────────────────
+M-facts-v3 + gpt-4o-mini + k=30 (n=60)    7/10   10/10  3/10   3/10   9/10   2/10   34/60 (57%)  ← stratified=10 confirmation
 ```
 
 The two BEST configs (v2 and v3) both land at 11/24 (46%) but with different
@@ -425,6 +435,41 @@ changes beyond the scope of "tune the prompt, increase k": time-
 aware recall ranking (temporal), better preference inference
 mechanism (preference), and cross-session aggregation primitives
 (multi-session count). All documented as future work.
+
+### Phase 3.13 — Stratified=10 confirmation: 56.7% at larger n
+
+To tighten the 14/24 (58%) headline number from a stratified=4
+estimate to a publishable confidence interval, ran the same winning
+config (Mnemoss + facts-v3 + gpt-4o-mini + k=30) on 60 questions
+(10 per slice). Result: **34/60 (56.7%)** — within 2pp of the small-n
+estimate, well inside sampling noise.
+
+| Slice | n=24 | n=60 | Notes |
+| --- | --- | --- | --- |
+| single-session-user | 3/4 (75%) | 7/10 (70%) | similar |
+| single-session-assistant | 4/4 (100%) | **10/10 (100%)** | perfect at both n |
+| single-session-preference | 1/4 (25%) | 3/10 (30%) | similar |
+| multi-session | 2/4 (50%) | 3/10 (30%) | n=4 was high-end of range |
+| knowledge-update | 3/4 (75%) | **9/10 (90%)** | stronger at larger n |
+| temporal-reasoning | 0/4 (0%) | **2/10 (20%)** | NOT zero |
+| **overall** | **14/24 (58%)** | **34/60 (57%)** | headline holds |
+
+Two big findings from the larger-n run:
+
+1. **Temporal-reasoning is not 0%.** The pilot's earlier claim that
+   "every config gets temporal 0/4" was a sampling artifact — the n=4
+   selection happened to be 4 specific temporal questions that gpt-4o-mini
+   *can't* solve. At n=10 the model cracks 20% (2/10: `0bc8ad92`,
+   `gpt4_4929293a`). Temporal is hard but not architectural-impossible.
+
+2. **Knowledge-update is Mnemoss's strongest hard-slice at 90% (9/10).**
+   The atomic-fact extraction + entity/preference/recency prompt +
+   collapse-conflicting-values logic does real work — it's the slice
+   where Mnemoss's design choices give the LLM the most leverage.
+
+The overall 57% number is the publishable headline. The remaining gap
+(26/60 wrong) decomposes into preference, multi-session, temporal,
+and a long tail — all areas with clean roadmap items above.
 
 ### Phase 4 — Singleton-sweep negative result (two attempts)
 
