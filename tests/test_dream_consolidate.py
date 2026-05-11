@@ -89,7 +89,9 @@ def test_prompt_includes_members_roles_and_existing_extractions() -> None:
     # Content + role markers appear.
     assert "Alice likes coffee" in prompt
     assert "Alice ordered a latte" in prompt
-    assert "[user]" in prompt
+    # Members are tagged with [YYYY-MM-DD role] so the LLM can
+    # resolve relative dates ("last Sunday") against an anchor.
+    assert " user]" in prompt
     # Existing extraction exposed to the LLM for refinement context.
     assert "existing gist" in prompt
     # Schema instructions present.
