@@ -16,9 +16,10 @@ from __future__ import annotations
 import asyncio
 import math
 import random
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from mnemoss.core.config import FormulaParams
 from mnemoss.core.types import IndexTier, Memory
@@ -31,6 +32,9 @@ from mnemoss.recall.expand import expand_from_seeds, hops_for_streak
 from mnemoss.recall.history import PastQuery, RecallHistory, is_same_topic
 from mnemoss.store.sqlite_backend import SQLiteBackend
 from mnemoss.working import WorkingMemory
+
+if TYPE_CHECKING:
+    from mnemoss.index.adaptive_caps import TierTelemetryLedger
 
 UTC = timezone.utc
 
@@ -70,6 +74,7 @@ class RecallEngine:
         params: FormulaParams,
         rng: random.Random | None = None,
         history: RecallHistory | None = None,
+        tier_ledger: TierTelemetryLedger | None = None,
     ) -> None:
         self._store = store
         self._embedder = embedder
@@ -77,6 +82,7 @@ class RecallEngine:
         self._params = params
         self._rng = rng if rng is not None else random.Random()
         self._history = history if history is not None else RecallHistory()
+        self._tier_ledger = tier_ledger
 
     async def recall(
         self,
@@ -502,6 +508,28 @@ class RecallEngine:
         )
         return results, stats
 
+    def _record_tier_telemetry(
+        self,
+        *,
+        winner_tiers: list[IndexTier],
+        elapsed_ms: float,
+        reminiscence: int,
+    ) -> None:
+        """Record one tier-cascade recall to the adaptive-caps ledger.
+
+        No-op unless ``adaptive_tier_caps`` is on and a ledger is wired.
+        The flag check lives here so call sites stay clean and the
+        no-op guarantee is in exactly one place.
+        """
+
+        if not self._params.adaptive_tier_caps or self._tier_ledger is None:
+            return
+        self._tier_ledger.record_recall(
+            winner_tiers=winner_tiers,
+            elapsed_ms=elapsed_ms,
+            reminiscence=reminiscence,
+        )
+
     async def _tier_cascade_recall(
         self,
         *,
@@ -536,6 +564,9 @@ class RecallEngine:
         (DEEP→WARM on hit) keeps it self-correcting at recall.
         """
 
+        t_start = time.perf_counter()
+        candidate_tier: dict[str, IndexTier] = {}
+
         tier_plan = [IndexTier.HOT, IndexTier.WARM, IndexTier.COLD]
         if include_deep:
             tier_plan.append(IndexTier.DEEP)
@@ -563,6 +594,7 @@ class RecallEngine:
                 # tier we see it in — that's the highest-priority tier.
                 if mid not in candidates:
                     candidates[mid] = cos
+                    candidate_tier[mid] = tier
 
             # Early-stop: if we already have k candidates whose lowest
             # cosine clears the threshold, lower tiers can't improve
@@ -574,6 +606,11 @@ class RecallEngine:
                     break
 
         if not candidates:
+            self._record_tier_telemetry(
+                winner_tiers=[],
+                elapsed_ms=(time.perf_counter() - t_start) * 1000.0,
+                reminiscence=0,
+            )
             return [], CascadeStats(
                 tiers_scanned=tiers_scanned,
                 stopped_at=stopped_at,
@@ -612,6 +649,7 @@ class RecallEngine:
                 )
             )
 
+        reminiscence_count = 0
         if reconsolidate and results:
             # Gate: only reconsolidate memories whose cosine to the query
             # clears the threshold. ``r.score == cos`` in this path.
@@ -629,8 +667,22 @@ class RecallEngine:
                     r.memory.reminisced_count += 1
                     r.memory.index_tier = IndexTier.WARM
                     r.memory.idx_priority = 0.5
+                    reminiscence_count += 1
             self._working.extend(agent_id, (r.memory.id for r in results))
             await self._apply_lazy_extraction(results)
+
+        # Winner provenance is captured at scan time (``candidate_tier``)
+        # — deliberately *not* ``r.memory.index_tier``, which the
+        # reconsolidation block above may have mutated DEEP→WARM.
+        self._record_tier_telemetry(
+            winner_tiers=[
+                candidate_tier[r.memory.id]
+                for r in results
+                if r.memory.id in candidate_tier
+            ],
+            elapsed_ms=(time.perf_counter() - t_start) * 1000.0,
+            reminiscence=reminiscence_count,
+        )
 
         return results, CascadeStats(
             tiers_scanned=tiers_scanned,
