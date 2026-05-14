@@ -149,3 +149,122 @@ def test_min_floor_max_cap_carried_through() -> None:
     new, _ = compute_adjusted_caps(caps, tel, _params(adaptive_tier_lambda=0.0))
     assert new.min_floor == 30
     assert new.max_cap == 50_000
+
+
+import apsw  # noqa: E402  (grouped with the ledger tests below)
+
+from mnemoss.core.types import IndexTier  # noqa: E402
+from mnemoss.index.adaptive_caps import TierTelemetryLedger  # noqa: E402
+
+
+def _mem_conn() -> apsw.Connection:
+    conn = apsw.Connection(":memory:")
+    conn.execute(
+        "CREATE TABLE workspace_meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)"
+    )
+    return conn
+
+
+def test_ledger_records_and_reads_back() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    ledger.record_recall(
+        winner_tiers=[IndexTier.HOT, IndexTier.HOT, IndexTier.COLD],
+        elapsed_ms=12.5,
+        reminiscence=1,
+    )
+    ledger.record_recall(
+        winner_tiers=[IndexTier.WARM],
+        elapsed_ms=7.5,
+        reminiscence=0,
+    )
+    tel = ledger.read()
+    assert tel.queries == 2
+    assert tel.winners_hot == 2
+    assert tel.winners_warm == 1
+    assert tel.winners_cold == 1
+    assert tel.winners_deep == 0
+    assert tel.elapsed_ms_sum == 20.0
+    assert tel.reminiscence_events == 1
+
+
+def test_ledger_read_on_empty_is_zero() -> None:
+    ledger = TierTelemetryLedger(_mem_conn())
+    tel = ledger.read()
+    assert tel.queries == 0
+    assert tel.elapsed_ms_sum == 0.0
+
+
+def test_ledger_read_int_tolerates_garbage() -> None:
+    conn = _mem_conn()
+    conn.execute(
+        "INSERT INTO workspace_meta(k, v) VALUES ('adaptive:queries', 'not-a-number')"
+    )
+    ledger = TierTelemetryLedger(conn)
+    # corrupt value reads as 0, not a crash
+    assert ledger.read().queries == 0
+
+
+def test_ledger_reset_clears_counters_but_keeps_caps() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    ledger.record_recall(
+        winner_tiers=[IndexTier.HOT], elapsed_ms=10.0, reminiscence=0
+    )
+    caps = TierCapacityParams(hot_cap=150, warm_cap=1500, cold_cap=15000)
+    ledger.write_effective_caps(caps, delta=-0.12)
+    ledger.reset()
+    tel = ledger.read()
+    assert tel.queries == 0
+    # caps survive reset
+    back = ledger.read_effective_caps(TierCapacityParams())
+    assert back.hot_cap == 150
+    assert back.warm_cap == 1500
+    assert back.cold_cap == 15000
+    # last_delta also survives reset (it is not a counter key)
+    assert ledger.snapshot(TierCapacityParams())["last_delta"] == -0.12
+
+
+def test_ledger_effective_caps_falls_back_to_seed() -> None:
+    ledger = TierTelemetryLedger(_mem_conn())
+    seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
+    back = ledger.read_effective_caps(seed)
+    assert back.hot_cap == 200
+    assert back.warm_cap == 2000
+    assert back.cold_cap == 20000
+
+
+def test_ledger_effective_caps_carry_seed_bounds() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    seed = TierCapacityParams(min_floor=33, max_cap=44_444)
+    ledger.write_effective_caps(
+        TierCapacityParams(hot_cap=100, warm_cap=1000, cold_cap=10000),
+        delta=0.0,
+    )
+    back = ledger.read_effective_caps(seed)
+    assert back.hot_cap == 100
+    assert back.min_floor == 33
+    assert back.max_cap == 44_444
+
+
+def test_ledger_snapshot_shape() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    ledger.record_recall(
+        winner_tiers=[IndexTier.HOT, IndexTier.COLD], elapsed_ms=9.0,
+        reminiscence=0,
+    )
+    snap = ledger.snapshot(TierCapacityParams())
+    assert set(snap) == {
+        "effective_caps", "last_delta", "queries_since_adjustment", "winners"
+    }
+    assert snap["effective_caps"] == {
+        "hot": 200, "warm": 2000, "cold": 20000
+    }
+    assert snap["queries_since_adjustment"] == 1
+    assert snap["winners"] == {"hot": 1, "warm": 0, "cold": 1, "deep": 0}
+    # status() requires json-safe primitives only.
+    import json
+
+    json.dumps(snap)
