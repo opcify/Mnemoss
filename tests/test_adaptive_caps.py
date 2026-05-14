@@ -268,3 +268,109 @@ def test_ledger_snapshot_shape() -> None:
     import json
 
     json.dumps(snap)
+
+
+from mnemoss.index.adaptive_caps import maybe_adjust_caps  # noqa: E402
+
+
+def test_maybe_adjust_flag_off_returns_seed() -> None:
+    ledger = TierTelemetryLedger(_mem_conn())
+    seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
+    params = FormulaParams(adaptive_tier_caps=False)
+    out = maybe_adjust_caps(ledger, seed, params)
+    assert out is seed
+
+
+def test_maybe_adjust_insufficient_data_returns_current_no_reset() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    seed = TierCapacityParams()
+    ledger.record_recall(
+        winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
+    )
+    params = FormulaParams(
+        adaptive_tier_caps=True, adaptive_tier_min_queries=100
+    )
+    out = maybe_adjust_caps(ledger, seed, params)
+    assert out.hot_cap == seed.hot_cap
+    # telemetry NOT reset — it keeps accumulating toward the gate.
+    assert ledger.read().queries == 1
+
+
+def test_maybe_adjust_applies_and_resets() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
+    # Heavy COLD leak, fast recall → grow.
+    for _ in range(120):
+        ledger.record_recall(
+            winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
+        )
+    params = FormulaParams(
+        adaptive_tier_caps=True,
+        adaptive_tier_min_queries=100,
+        adaptive_tier_lambda=0.0,
+    )
+    out = maybe_adjust_caps(ledger, seed, params)
+    assert out.hot_cap > seed.hot_cap
+    # telemetry reset after the adjustment...
+    assert ledger.read().queries == 0
+    # ...and the new caps persisted.
+    assert ledger.read_effective_caps(seed).hot_cap == out.hot_cap
+
+
+def test_maybe_adjust_second_call_reads_persisted_caps() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
+    params = FormulaParams(
+        adaptive_tier_caps=True,
+        adaptive_tier_min_queries=100,
+        adaptive_tier_lambda=0.0,
+    )
+    for _ in range(120):
+        ledger.record_recall(
+            winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
+        )
+    first = maybe_adjust_caps(ledger, seed, params)
+    for _ in range(120):
+        ledger.record_recall(
+            winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
+        )
+    second = maybe_adjust_caps(ledger, seed, params)
+    # second call grew from `first`, not from `seed`.
+    assert second.hot_cap > first.hot_cap
+
+
+def test_public_exports() -> None:
+    from mnemoss.index import (
+        TierTelemetry,
+        TierTelemetryLedger,
+        compute_adjusted_caps,
+        maybe_adjust_caps,
+    )
+
+    assert TierTelemetry is not None
+    assert TierTelemetryLedger is not None
+    assert compute_adjusted_caps is not None
+    assert maybe_adjust_caps is not None
+
+
+def test_maybe_adjust_deadband_still_resets_window() -> None:
+    conn = _mem_conn()
+    ledger = TierTelemetryLedger(conn)
+    seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
+    # Tiny leak → |delta| < deadband → no cap move, but window still resets.
+    for _ in range(120):
+        ledger.record_recall(
+            winner_tiers=[IndexTier.HOT], elapsed_ms=1.0, reminiscence=0
+        )
+    params = FormulaParams(
+        adaptive_tier_caps=True,
+        adaptive_tier_min_queries=100,
+        adaptive_tier_lambda=0.5,
+        adaptive_tier_deadband=0.5,  # virtually everything is in dead-band
+    )
+    out = maybe_adjust_caps(ledger, seed, params)
+    assert out.hot_cap == seed.hot_cap   # no move
+    assert ledger.read().queries == 0    # but window closed

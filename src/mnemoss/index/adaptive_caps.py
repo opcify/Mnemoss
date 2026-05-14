@@ -316,3 +316,37 @@ class TierTelemetryLedger:
             return float(row[0])
         except (ValueError, TypeError):
             return 0.0
+
+
+# ─── orchestrator ──────────────────────────────────────────────────
+
+
+def maybe_adjust_caps(
+    ledger: TierTelemetryLedger,
+    seed: TierCapacityParams,
+    params: FormulaParams,
+) -> TierCapacityParams:
+    """Decide and apply one controller step. Returns the effective caps.
+
+    - Flag off → return ``seed`` unchanged (no reads, no writes).
+    - Not enough data yet (queries < min-dwell) → return the current
+      effective caps, leave telemetry accumulating.
+    - Enough data → compute, persist the new caps + delta, reset the
+      telemetry window, return the new caps.
+
+    Wired into ``rebalance()``; runs synchronously against the memory
+    DB connection (same pattern as ``CostLedger``).
+    """
+
+    if not params.adaptive_tier_caps:
+        return seed
+
+    current = ledger.read_effective_caps(seed)
+    telemetry = ledger.read()
+    if telemetry.queries < params.adaptive_tier_min_queries:
+        return current
+
+    new_caps, delta = compute_adjusted_caps(current, telemetry, params)
+    ledger.write_effective_caps(new_caps, delta=delta)
+    ledger.reset()
+    return new_caps
