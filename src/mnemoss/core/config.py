@@ -305,6 +305,28 @@ class FormulaParams:
     # gets reconsolidated).
     reconsolidate_min_cosine: float = 0.7
 
+    # ─── Adaptive tier caps (Method C) ────────────────────────────
+    # Opt-in runtime self-tuning of TierCapacityParams from recall
+    # telemetry. Default False → byte-identical to static-cap
+    # behaviour (mirrors use_fast_index_recall). See
+    # src/mnemoss/index/adaptive_caps.py and
+    # docs/superpowers/specs/2026-05-15-adaptive-tier-caps-design.md.
+    adaptive_tier_caps: bool = False
+    # The one blend knob. 0.0 = pure recall-safety (grow-happy),
+    # 1.0 = pure latency (shrink-happy).
+    adaptive_tier_lambda: float = 0.5
+    # Min recall calls accumulated since the last adjustment before
+    # the controller will move the caps (min-dwell guardrail).
+    adaptive_tier_min_queries: int = 200
+    # Max multiplicative move per adjustment (e.g. 0.2 = ±20%).
+    adaptive_tier_max_step: float = 0.2
+    # Blended-signal magnitude below which the controller does
+    # nothing (dead-band guardrail — kills thrashing on noise).
+    adaptive_tier_deadband: float = 0.05
+    # Recall-latency target used to normalise the latency-pressure
+    # signal. Mean recall ms at/over this reads as full pressure.
+    adaptive_tier_latency_budget_ms: float = 25.0
+
     def __post_init__(self) -> None:
         # Resolve d_recall / d_storage defaults with backwards compat.
         # If the caller passed a legacy d=X (non-default), inherit X
@@ -404,6 +426,37 @@ class FormulaParams:
         # Dispose age protection.
         if self.min_age_days < 0:
             raise ValueError(f"min_age_days must be >= 0 (got {self.min_age_days!r})")
+
+        # ─── Adaptive tier caps ───────────────────────────────────
+        if not isinstance(self.adaptive_tier_caps, bool):
+            raise ValueError(
+                f"adaptive_tier_caps must be a bool (got "
+                f"{self.adaptive_tier_caps!r})"
+            )
+        _require_in_unit_interval(
+            "adaptive_tier_lambda", self.adaptive_tier_lambda
+        )
+        if (
+            not isinstance(self.adaptive_tier_min_queries, int)
+            or isinstance(self.adaptive_tier_min_queries, bool)
+            or self.adaptive_tier_min_queries < 1
+        ):
+            raise ValueError(
+                f"adaptive_tier_min_queries must be an int >= 1 (got "
+                f"{self.adaptive_tier_min_queries!r})"
+            )
+        if not (0.0 < self.adaptive_tier_max_step <= 1.0):
+            raise ValueError(
+                f"adaptive_tier_max_step must be in (0.0, 1.0] (got "
+                f"{self.adaptive_tier_max_step!r})"
+            )
+        _require_non_negative(
+            "adaptive_tier_deadband", self.adaptive_tier_deadband
+        )
+        _require_positive(
+            "adaptive_tier_latency_budget_ms",
+            self.adaptive_tier_latency_budget_ms,
+        )
 
 
 @dataclass

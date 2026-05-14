@@ -279,3 +279,35 @@ def test_tier_capacity_params_rejects_non_positive_max_cap() -> None:
 def test_tier_capacity_params_still_allows_zero_seed_caps() -> None:
     # tests/test_rebalance.py constructs all-zero caps; must not regress.
     TierCapacityParams(hot_cap=0, warm_cap=0, cold_cap=0)
+
+
+# ─── Adaptive Tier Caps ────────────────────────────────────────────
+
+
+def test_formula_params_adaptive_defaults() -> None:
+    p = FormulaParams()
+    assert p.adaptive_tier_caps is False
+    assert p.adaptive_tier_lambda == 0.5
+    assert p.adaptive_tier_min_queries == 200
+    assert p.adaptive_tier_max_step == 0.2
+    assert p.adaptive_tier_deadband == 0.05
+    assert p.adaptive_tier_latency_budget_ms == 25.0
+
+
+@pytest.mark.parametrize(
+    "kwargs, offending_field",
+    [
+        ({"adaptive_tier_caps": 1}, "adaptive_tier_caps"),
+        ({"adaptive_tier_lambda": -0.1}, "adaptive_tier_lambda"),
+        ({"adaptive_tier_lambda": 1.5}, "adaptive_tier_lambda"),
+        ({"adaptive_tier_min_queries": 0}, "adaptive_tier_min_queries"),
+        ({"adaptive_tier_min_queries": -5}, "adaptive_tier_min_queries"),
+        ({"adaptive_tier_max_step": 0.0}, "adaptive_tier_max_step"),
+        ({"adaptive_tier_max_step": 1.5}, "adaptive_tier_max_step"),
+        ({"adaptive_tier_deadband": -0.01}, "adaptive_tier_deadband"),
+        ({"adaptive_tier_latency_budget_ms": 0.0}, "adaptive_tier_latency_budget_ms"),
+    ],
+)
+def test_formula_params_adaptive_validation(kwargs, offending_field) -> None:
+    with pytest.raises(ValueError, match=offending_field):
+        FormulaParams(**kwargs)
