@@ -42,6 +42,7 @@ from mnemoss.export import render_memory_md
 from mnemoss.formula.activation import ActivationBreakdown
 from mnemoss.index import RebalanceStats
 from mnemoss.index import rebalance as _rebalance
+from mnemoss.index.adaptive_caps import TierTelemetryLedger
 from mnemoss.llm.client import LLMClient
 from mnemoss.recall import RecallEngine, RecallResult
 from mnemoss.relations import write_cooccurrence_edges
@@ -93,6 +94,7 @@ class Mnemoss:
         # same workspace DB as the memories it's counting calls for.
         self._cost_limits = cost_limits or CostLimits()
         self._cost_ledger: CostLedger | None = None
+        self._tier_ledger: TierTelemetryLedger | None = None
         self._store: SQLiteBackend | None = None
         self._working = WorkingMemory(capacity=self._config.encoder.working_memory_capacity)
         self._engine: RecallEngine | None = None
@@ -533,7 +535,8 @@ class Mnemoss:
 
         Provides everything an observability dashboard needs without
         a full scan: counts, timestamps, embedder info, schema version,
-        recent dream activity, and the LLM cost ledger.
+        recent dream activity, the LLM cost ledger, and the adaptive
+        tier-caps controller's effective caps + telemetry window.
         """
 
         await self._ensure_open()
@@ -565,6 +568,21 @@ class Mnemoss:
             "recent_degraded_count": sum(1 for d in recent_dreams if d["degraded"]),
         }
 
+        adaptive_block: dict[str, Any] = {
+            "effective_caps": {
+                "hot": self._config.tier_capacity.hot_cap,
+                "warm": self._config.tier_capacity.warm_cap,
+                "cold": self._config.tier_capacity.cold_cap,
+            },
+            "last_delta": 0.0,
+            "queries_since_adjustment": 0,
+            "winners": {"hot": 0, "warm": 0, "cold": 0, "deep": 0},
+        }
+        if self._tier_ledger is not None:
+            adaptive_block = self._tier_ledger.snapshot(
+                self._config.tier_capacity
+            )
+
         return {
             "workspace": self._config.workspace,
             "schema_version": SCHEMA_VERSION,
@@ -590,6 +608,7 @@ class Mnemoss:
             ),
             "llm_cost": cost_block,
             "dreams": dream_block,
+            "adaptive_caps": adaptive_block,
         }
 
     # ─── internal ─────────────────────────────────────────────────────
@@ -768,16 +787,18 @@ class Mnemoss:
                 use_ann_index=self._config.storage.use_ann_index,
             )
             await store.open()
+            # Bind both ledgers to the open connection — persistence
+            # lives in workspace_meta so counters survive restarts.
+            self._tier_ledger = TierTelemetryLedger(store._require_conn())
             self._engine = RecallEngine(
                 store=store,
                 embedder=self._embedder,
                 working=self._working,
                 params=self._config.formula,
                 rng=self._rng,
+                tier_ledger=self._tier_ledger,
             )
             self._store = store
-            # Bind the cost ledger to the open connection — persistence
-            # lives in workspace_meta so call counts survive restarts.
             self._cost_ledger = CostLedger(store._require_conn())
 
 

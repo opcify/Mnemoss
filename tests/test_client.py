@@ -171,3 +171,49 @@ async def test_tier_counts_and_rebalance(tmp_path: Path) -> None:
         assert sum(stats.tier_after.values()) == 3
     finally:
         await mem.close()
+
+
+async def test_status_has_adaptive_caps_block(tmp_path: Path) -> None:
+    mem = Mnemoss(
+        workspace="ws",
+        embedding_model=FakeEmbedder(dim=16),
+        formula=FormulaParams(adaptive_tier_caps=True),
+        storage=StorageParams(root=tmp_path),
+    )
+    try:
+        await mem.observe(role="user", content="hello world")
+        await mem.recall("hello", k=3)
+        st = await mem.status()
+        assert "adaptive_caps" in st
+        block = st["adaptive_caps"]
+        assert set(block) == {
+            "effective_caps",
+            "last_delta",
+            "queries_since_adjustment",
+            "winners",
+        }
+        # one recall happened on the tier-cascade path
+        assert block["queries_since_adjustment"] >= 1
+        # status() must stay json-safe
+        import json
+
+        json.dumps(st)
+    finally:
+        await mem.close()
+
+
+async def test_status_adaptive_caps_empty_when_flag_off(tmp_path: Path) -> None:
+    mem = Mnemoss(
+        workspace="ws",
+        embedding_model=FakeEmbedder(dim=16),
+        formula=FormulaParams(adaptive_tier_caps=False),
+        storage=StorageParams(root=tmp_path),
+    )
+    try:
+        await mem.observe(role="user", content="hello world")
+        await mem.recall("hello", k=3)
+        st = await mem.status()
+        # block is present (stable shape) but telemetry stayed at zero
+        assert st["adaptive_caps"]["queries_since_adjustment"] == 0
+    finally:
+        await mem.close()
