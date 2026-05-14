@@ -584,17 +584,30 @@ class TierCapacityParams:
     hot_cap: int = 200
     warm_cap: int = 2_000
     cold_cap: int = 20_000
+    # Clamp bounds for the adaptive-caps controller (Method C). Not
+    # invariants on the seed caps — only the controller honours them.
+    min_floor: int = 20
+    max_cap: int = 100_000
 
     def __post_init__(self) -> None:
         for name, value in (
             ("hot_cap", self.hot_cap),
             ("warm_cap", self.warm_cap),
             ("cold_cap", self.cold_cap),
+            ("min_floor", self.min_floor),
+            ("max_cap", self.max_cap),
         ):
             if not isinstance(value, int) or isinstance(value, bool):
                 raise ValueError(f"{name} must be an int (got {value!r})")
             if value < 0:
                 raise ValueError(f"{name} must be >= 0 (got {value!r})")
+        if self.max_cap < 1:
+            raise ValueError(f"max_cap must be >= 1 (got {self.max_cap!r})")
+        if self.min_floor > self.max_cap:
+            raise ValueError(
+                f"min_floor ({self.min_floor}) must be <= max_cap "
+                f"({self.max_cap})"
+            )
 
 
 @dataclass

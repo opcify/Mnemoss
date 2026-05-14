@@ -22,6 +22,7 @@ from mnemoss import (
     FormulaParams,
     MnemossConfig,
     SegmentationParams,
+    TierCapacityParams,
 )
 
 # ─── FormulaParams ─────────────────────────────────────────────────
@@ -254,3 +255,27 @@ def test_mnemoss_config_default_dreamer_present() -> None:
 
     cfg = MnemossConfig(workspace="test")
     assert cfg.dreamer == DreamerParams()
+
+
+# ─── TierCapacityParams ────────────────────────────────────────────
+
+
+def test_tier_capacity_params_clamp_bounds_default() -> None:
+    caps = TierCapacityParams()
+    assert caps.min_floor == 20
+    assert caps.max_cap == 100_000
+
+
+def test_tier_capacity_params_rejects_floor_above_cap() -> None:
+    with pytest.raises(ValueError, match="min_floor"):
+        TierCapacityParams(min_floor=500, max_cap=100)
+
+
+def test_tier_capacity_params_rejects_non_positive_max_cap() -> None:
+    with pytest.raises(ValueError, match="max_cap"):
+        TierCapacityParams(max_cap=0)
+
+
+def test_tier_capacity_params_still_allows_zero_seed_caps() -> None:
+    # tests/test_rebalance.py constructs all-zero caps; must not regress.
+    TierCapacityParams(hot_cap=0, warm_cap=0, cold_cap=0)
