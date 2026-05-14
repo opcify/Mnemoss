@@ -231,3 +231,62 @@ async def test_pinned_any_returns_cross_agent_pins(tmp_path: Path) -> None:
     result = await b.pinned_any(["m1", "m2", "m3"])
     assert result == {"m1", "m2"}
     await b.close()
+
+
+async def test_rebalance_flag_off_ignores_telemetry(tmp_path: Path) -> None:
+    # With adaptive_tier_caps=False, rebalance must not touch
+    # workspace_meta adaptive keys and must use the passed caps.
+    b = await _backend(tmp_path)
+    try:
+        now = datetime.now(UTC)
+        for i in range(5):
+            await b.write_memory(
+                _memory(f"m{i}", f"content {i}", now), np.zeros(4, dtype=np.float32)
+            )
+        params = FormulaParams(adaptive_tier_caps=False)
+        caps = TierCapacityParams(hot_cap=3, warm_cap=1, cold_cap=1)
+        await rebalance(b, params, caps, now=now)
+        conn = b._require_conn()
+        row = conn.execute(
+            "SELECT v FROM workspace_meta WHERE k = 'adaptive:caps_hot'"
+        ).fetchone()
+        assert row is None
+    finally:
+        await b.close()
+
+
+async def test_rebalance_adaptive_uses_adjusted_caps(tmp_path: Path) -> None:
+    # Seed telemetry that implies "heavy COLD leak, fast recall" → grow.
+    b = await _backend(tmp_path)
+    try:
+        from mnemoss.index.adaptive_caps import TierTelemetryLedger
+
+        now = datetime.now(UTC)
+        for i in range(5):
+            await b.write_memory(
+                _memory(f"m{i}", f"content {i}", now), np.zeros(4, dtype=np.float32)
+            )
+        ledger = TierTelemetryLedger(b._require_conn())
+
+        for _ in range(150):
+            ledger.record_recall(
+                winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
+            )
+        params = FormulaParams(
+            adaptive_tier_caps=True,
+            adaptive_tier_min_queries=100,
+            adaptive_tier_lambda=0.0,
+        )
+        seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
+        await rebalance(b, params, seed, now=now)
+        # Controller persisted grown caps and reset the window.
+        conn = b._require_conn()
+        hot = int(
+            conn.execute(
+                "SELECT v FROM workspace_meta WHERE k = 'adaptive:caps_hot'"
+            ).fetchone()[0]
+        )
+        assert hot > 200
+        assert ledger.read().queries == 0
+    finally:
+        await b.close()

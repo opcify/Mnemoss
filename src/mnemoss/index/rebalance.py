@@ -55,6 +55,7 @@ from mnemoss.core.config import FormulaParams, TierCapacityParams
 from mnemoss.core.types import IndexTier
 from mnemoss.formula.base_level import compute_base_level
 from mnemoss.formula.idx_priority import compute_idx_priority
+from mnemoss.index.adaptive_caps import TierTelemetryLedger, maybe_adjust_caps
 from mnemoss.store.sqlite_backend import SQLiteBackend
 
 UTC = timezone.utc
@@ -129,6 +130,15 @@ async def rebalance(
     stats = RebalanceStats()
     stats.tier_before = await store.tier_counts()
 
+    # Method C: when adaptive caps are enabled, the controller reads
+    # recall telemetry accumulated in workspace_meta and may nudge the
+    # effective caps before this pass buckets with them. Flag off →
+    # `capacity` is returned unchanged (no reads, no writes).
+    effective_capacity = capacity
+    if params.adaptive_tier_caps:
+        ledger = TierTelemetryLedger(store._require_conn())
+        effective_capacity = maybe_adjust_caps(ledger, capacity, params)
+
     all_ids = await store.iter_memory_ids()
 
     # Stage 1: recompute idx_priority for every memory. Persist the
@@ -160,7 +170,7 @@ async def rebalance(
 
     # Stage 2: rank-and-bucket by capacity.
     ranked = sorted(priorities.keys(), key=lambda mid: priorities[mid], reverse=True)
-    new_tiers = _bucket_by_capacity(ranked, pinned_global, capacity)
+    new_tiers = _bucket_by_capacity(ranked, pinned_global, effective_capacity)
 
     # Stage 3: persist priority + tier per memory; count migrations.
     for mid, ip in priorities.items():
