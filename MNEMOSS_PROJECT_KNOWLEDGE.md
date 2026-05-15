@@ -647,6 +647,20 @@ Landed after Stage 6, before anyone declared the MVP "done":
   `bench/calibrate.py` (FormulaParams sweep vs labeled corpus).
 - **Code quality**: mypy strict clean across 78 source files; 667+
   tests passing at ~93% coverage.
+- **Adaptive tier caps** (`index/adaptive_caps.py`). Opt-in runtime
+  self-tuning of `TierCapacityParams` from recall telemetry. Pure
+  controller (`compute_adjusted_caps`) + `workspace_meta` ledger
+  (`TierTelemetryLedger`, mirrors `CostLedger`) + thin orchestrator
+  (`maybe_adjust_caps`) wired into `rebalance()`; the recall engine
+  records winner provenance + latency on the tier-cascade path.
+  One-knob blended latency/recall signal with dead-band, min-dwell,
+  max-step, and `[min_floor, max_cap]` clamps. Default
+  `FormulaParams.adaptive_tier_caps=False` is a behavioral no-op;
+  effective caps + telemetry surface via `status().adaptive_caps`.
+  Validated by a deterministic workload simulator
+  (`tests/test_adaptive_caps_convergence.py`) covering convergence,
+  stability, workload-shift, and adversarial-noise. See
+  `docs/superpowers/specs/2026-05-15-adaptive-tier-caps-design.md`.
 
 Post-ship backlog (tracked separately):
 - Whitepaper
