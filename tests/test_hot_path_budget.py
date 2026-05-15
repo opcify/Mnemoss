@@ -35,9 +35,7 @@ from mnemoss import (
 )
 
 
-def _make_mem(
-    tmp_path: Path, *, llm: MockLLMClient | None = None
-) -> Mnemoss:
+def _make_mem(tmp_path: Path, *, llm: MockLLMClient | None = None) -> Mnemoss:
     return Mnemoss(
         workspace="hp",
         embedding_model=FakeEmbedder(dim=16),
@@ -201,8 +199,7 @@ async def test_observe_is_sync_bound(tmp_path: Path, content: str) -> None:
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
 
         assert elapsed_ms < _HOT_PATH_P99_BUDGET_MS, (
-            f"observe({content!r}) took {elapsed_ms:.2f}ms > "
-            f"{_HOT_PATH_P99_BUDGET_MS}ms budget"
+            f"observe({content!r}) took {elapsed_ms:.2f}ms > {_HOT_PATH_P99_BUDGET_MS}ms budget"
         )
     finally:
         await mem.close()

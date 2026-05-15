@@ -77,9 +77,7 @@ def test_succeeds_on_first_try_without_retry() -> None:
 def test_retries_transient_failures(tmp_path: Any) -> None:
     flaky = _FlakyEmbedder(fail_first=2)
     sleep = _InstantSleep()
-    wrapped = RetryingEmbedder(
-        flaky, max_retries=3, base_delay_seconds=0.01, sleep=sleep
-    )
+    wrapped = RetryingEmbedder(flaky, max_retries=3, base_delay_seconds=0.01, sleep=sleep)
     out = wrapped.embed(["hello"])
     assert out.shape == (1, 4)
     # Called three times: two failures, one success.
@@ -91,9 +89,7 @@ def test_retries_transient_failures(tmp_path: Any) -> None:
 def test_exhausts_retries_and_raises() -> None:
     flaky = _FlakyEmbedder(fail_first=10)
     sleep = _InstantSleep()
-    wrapped = RetryingEmbedder(
-        flaky, max_retries=2, base_delay_seconds=0.01, sleep=sleep
-    )
+    wrapped = RetryingEmbedder(flaky, max_retries=2, base_delay_seconds=0.01, sleep=sleep)
     with pytest.raises(ConnectionError, match="transient failure #3"):
         wrapped.embed(["hello"])
     # Called 3 times total: initial + 2 retries.

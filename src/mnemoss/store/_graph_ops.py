@@ -47,8 +47,7 @@ def fan_out(conn: apsw.Connection, memory_ids: list[str]) -> dict[str, int]:
         return out
     placeholders = ",".join("?" for _ in memory_ids)
     rows = conn.execute(
-        f"SELECT src_id, COUNT(*) FROM relation WHERE src_id IN ({placeholders}) "
-        "GROUP BY src_id",
+        f"SELECT src_id, COUNT(*) FROM relation WHERE src_id IN ({placeholders}) GROUP BY src_id",
         tuple(memory_ids),
     ).fetchall()
     for src_id_raw, count in rows:
@@ -56,9 +55,7 @@ def fan_out(conn: apsw.Connection, memory_ids: list[str]) -> dict[str, int]:
     return out
 
 
-def relations_from(
-    conn: apsw.Connection, memory_ids: list[str]
-) -> dict[str, set[str]]:
+def relations_from(conn: apsw.Connection, memory_ids: list[str]) -> dict[str, set[str]]:
     out: dict[str, set[str]] = {mid: set() for mid in memory_ids}
     if not memory_ids:
         return out
@@ -141,9 +138,7 @@ def pinned_any(conn: apsw.Connection, memory_ids: list[str]) -> set[str]:
     return {cast(str, r[0]) for r in rows}
 
 
-def pinned_by_agent(
-    conn: apsw.Connection, memory_ids: list[str], agent_id: str | None
-) -> set[str]:
+def pinned_by_agent(conn: apsw.Connection, memory_ids: list[str], agent_id: str | None) -> set[str]:
     if not memory_ids:
         return set()
     placeholders = ",".join("?" for _ in memory_ids)
@@ -163,13 +158,9 @@ def pinned_by_agent(
     return {cast(str, r[0]) for r in rows}
 
 
-def pinned_ids_in_scope(
-    conn: apsw.Connection, agent_id: str | None
-) -> set[str]:
+def pinned_ids_in_scope(conn: apsw.Connection, agent_id: str | None) -> set[str]:
     if agent_id is None:
-        rows = conn.execute(
-            "SELECT memory_id FROM pin WHERE agent_id IS NULL"
-        ).fetchall()
+        rows = conn.execute("SELECT memory_id FROM pin WHERE agent_id IS NULL").fetchall()
     else:
         rows = conn.execute(
             "SELECT memory_id FROM pin WHERE agent_id = ? OR agent_id IS NULL",
@@ -203,14 +194,9 @@ def write_tombstone(conn: apsw.Connection, t: Tombstone) -> None:
         )
 
 
-def list_tombstones(
-    conn: apsw.Connection, agent_id: str | None, limit: int
-) -> list[Tombstone]:
+def list_tombstones(conn: apsw.Connection, agent_id: str | None, limit: int) -> list[Tombstone]:
     if agent_id is None:
-        sql = (
-            "SELECT * FROM tombstone WHERE agent_id IS NULL "
-            "ORDER BY dropped_at DESC LIMIT ?"
-        )
+        sql = "SELECT * FROM tombstone WHERE agent_id IS NULL ORDER BY dropped_at DESC LIMIT ?"
         rows = conn.execute(sql, (limit,)).fetchall()
     else:
         sql = (

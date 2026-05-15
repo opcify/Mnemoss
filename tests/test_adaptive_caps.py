@@ -20,8 +20,13 @@ def _params(**kw: object) -> FormulaParams:
 def test_insufficient_queries_is_a_no_op() -> None:
     caps = TierCapacityParams()
     tel = TierTelemetry(
-        queries=10, winners_hot=0, winners_warm=0, winners_cold=10,
-        winners_deep=0, elapsed_ms_sum=200.0, reminiscence_events=0,
+        queries=10,
+        winners_hot=0,
+        winners_warm=0,
+        winners_cold=10,
+        winners_deep=0,
+        elapsed_ms_sum=200.0,
+        reminiscence_events=0,
     )
     new, delta = compute_adjusted_caps(caps, tel, _params())
     assert new is caps
@@ -31,8 +36,13 @@ def test_insufficient_queries_is_a_no_op() -> None:
 def test_zero_winners_is_a_no_op() -> None:
     caps = TierCapacityParams()
     tel = TierTelemetry(
-        queries=300, winners_hot=0, winners_warm=0, winners_cold=0,
-        winners_deep=0, elapsed_ms_sum=300.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=0,
+        winners_warm=0,
+        winners_cold=0,
+        winners_deep=0,
+        elapsed_ms_sum=300.0,
+        reminiscence_events=0,
     )
     new, delta = compute_adjusted_caps(caps, tel, _params())
     assert new is caps
@@ -43,8 +53,13 @@ def test_recall_leak_grows_caps() -> None:
     # Heavy COLD winner share, fast recall → recall_pressure dominates → grow.
     caps = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
     tel = TierTelemetry(
-        queries=300, winners_hot=60, winners_warm=0, winners_cold=240,
-        winners_deep=0, elapsed_ms_sum=300.0 * 2.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=60,
+        winners_warm=0,
+        winners_cold=240,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 2.0,
+        reminiscence_events=0,
     )
     new, delta = compute_adjusted_caps(caps, tel, _params())
     assert delta > 0.0
@@ -57,8 +72,13 @@ def test_no_leak_high_latency_shrinks_caps() -> None:
     # All winners in HOT, slow recall → latency_pressure dominates → shrink.
     caps = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
     tel = TierTelemetry(
-        queries=300, winners_hot=300, winners_warm=0, winners_cold=0,
-        winners_deep=0, elapsed_ms_sum=300.0 * 40.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=300,
+        winners_warm=0,
+        winners_cold=0,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 40.0,
+        reminiscence_events=0,
     )
     new, delta = compute_adjusted_caps(caps, tel, _params())
     assert delta < 0.0
@@ -71,8 +91,13 @@ def test_deadband_suppresses_small_signal() -> None:
     # Tiny leak, tiny latency → |delta| under the dead-band → no move.
     caps = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
     tel = TierTelemetry(
-        queries=300, winners_hot=299, winners_warm=0, winners_cold=1,
-        winners_deep=0, elapsed_ms_sum=300.0 * 1.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=299,
+        winners_warm=0,
+        winners_cold=1,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 1.0,
+        reminiscence_events=0,
     )
     p = _params(adaptive_tier_lambda=0.5, adaptive_tier_deadband=0.05)
     new, delta = compute_adjusted_caps(caps, tel, p)
@@ -84,8 +109,13 @@ def test_max_step_clamps_large_signal() -> None:
     # Extreme leak → raw delta large, but the move is capped at ±max_step.
     caps = TierCapacityParams(hot_cap=1000, warm_cap=2000, cold_cap=20000)
     tel = TierTelemetry(
-        queries=300, winners_hot=0, winners_warm=0, winners_cold=300,
-        winners_deep=0, elapsed_ms_sum=300.0 * 1.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=0,
+        winners_warm=0,
+        winners_cold=300,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 1.0,
+        reminiscence_events=0,
     )
     p = _params(adaptive_tier_lambda=0.0, adaptive_tier_max_step=0.2)
     new, _ = compute_adjusted_caps(caps, tel, p)
@@ -94,12 +124,15 @@ def test_max_step_clamps_large_signal() -> None:
 
 
 def test_caps_clamped_to_min_floor() -> None:
-    caps = TierCapacityParams(
-        hot_cap=22, warm_cap=22, cold_cap=22, min_floor=20, max_cap=100_000
-    )
+    caps = TierCapacityParams(hot_cap=22, warm_cap=22, cold_cap=22, min_floor=20, max_cap=100_000)
     tel = TierTelemetry(
-        queries=300, winners_hot=300, winners_warm=0, winners_cold=0,
-        winners_deep=0, elapsed_ms_sum=300.0 * 40.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=300,
+        winners_warm=0,
+        winners_cold=0,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 40.0,
+        reminiscence_events=0,
     )
     new, _ = compute_adjusted_caps(caps, tel, _params(adaptive_tier_lambda=1.0))
     assert new.hot_cap >= 20
@@ -109,12 +142,20 @@ def test_caps_clamped_to_min_floor() -> None:
 
 def test_caps_clamped_to_max_cap() -> None:
     caps = TierCapacityParams(
-        hot_cap=95_000, warm_cap=95_000, cold_cap=95_000,
-        min_floor=20, max_cap=100_000,
+        hot_cap=95_000,
+        warm_cap=95_000,
+        cold_cap=95_000,
+        min_floor=20,
+        max_cap=100_000,
     )
     tel = TierTelemetry(
-        queries=300, winners_hot=0, winners_warm=0, winners_cold=300,
-        winners_deep=0, elapsed_ms_sum=300.0 * 1.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=0,
+        winners_warm=0,
+        winners_cold=300,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 1.0,
+        reminiscence_events=0,
     )
     new, _ = compute_adjusted_caps(caps, tel, _params(adaptive_tier_lambda=0.0))
     assert new.hot_cap <= 100_000
@@ -126,12 +167,20 @@ def test_ordering_preserved_after_clamp() -> None:
     # Unordered seed (TierCapacityParams has no ordering constraint).
     # After grow, the max() enforcement must re-impose hot <= warm <= cold.
     caps = TierCapacityParams(
-        hot_cap=500, warm_cap=200, cold_cap=100,  # inverted on purpose
-        min_floor=20, max_cap=100_000,
+        hot_cap=500,
+        warm_cap=200,
+        cold_cap=100,  # inverted on purpose
+        min_floor=20,
+        max_cap=100_000,
     )
     tel = TierTelemetry(
-        queries=300, winners_hot=0, winners_warm=0, winners_cold=300,
-        winners_deep=0, elapsed_ms_sum=300.0 * 1.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=0,
+        winners_warm=0,
+        winners_cold=300,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 1.0,
+        reminiscence_events=0,
     )
     new, _ = compute_adjusted_caps(caps, tel, _params(adaptive_tier_lambda=0.0))
     assert new.hot_cap <= new.warm_cap <= new.cold_cap
@@ -139,12 +188,20 @@ def test_ordering_preserved_after_clamp() -> None:
 
 def test_min_floor_max_cap_carried_through() -> None:
     caps = TierCapacityParams(
-        hot_cap=200, warm_cap=2000, cold_cap=20000,
-        min_floor=30, max_cap=50_000,
+        hot_cap=200,
+        warm_cap=2000,
+        cold_cap=20000,
+        min_floor=30,
+        max_cap=50_000,
     )
     tel = TierTelemetry(
-        queries=300, winners_hot=0, winners_warm=0, winners_cold=300,
-        winners_deep=0, elapsed_ms_sum=300.0 * 1.0, reminiscence_events=0,
+        queries=300,
+        winners_hot=0,
+        winners_warm=0,
+        winners_cold=300,
+        winners_deep=0,
+        elapsed_ms_sum=300.0 * 1.0,
+        reminiscence_events=0,
     )
     new, _ = compute_adjusted_caps(caps, tel, _params(adaptive_tier_lambda=0.0))
     assert new.min_floor == 30
@@ -159,9 +216,7 @@ from mnemoss.index.adaptive_caps import TierTelemetryLedger  # noqa: E402
 
 def _mem_conn() -> apsw.Connection:
     conn = apsw.Connection(":memory:")
-    conn.execute(
-        "CREATE TABLE workspace_meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)"
-    )
+    conn.execute("CREATE TABLE workspace_meta(k TEXT PRIMARY KEY, v TEXT NOT NULL)")
     return conn
 
 
@@ -197,9 +252,7 @@ def test_ledger_read_on_empty_is_zero() -> None:
 
 def test_ledger_read_int_tolerates_garbage() -> None:
     conn = _mem_conn()
-    conn.execute(
-        "INSERT INTO workspace_meta(k, v) VALUES ('adaptive:queries', 'not-a-number')"
-    )
+    conn.execute("INSERT INTO workspace_meta(k, v) VALUES ('adaptive:queries', 'not-a-number')")
     ledger = TierTelemetryLedger(conn)
     # corrupt value reads as 0, not a crash
     assert ledger.read().queries == 0
@@ -208,9 +261,7 @@ def test_ledger_read_int_tolerates_garbage() -> None:
 def test_ledger_reset_clears_counters_but_keeps_caps() -> None:
     conn = _mem_conn()
     ledger = TierTelemetryLedger(conn)
-    ledger.record_recall(
-        winner_tiers=[IndexTier.HOT], elapsed_ms=10.0, reminiscence=0
-    )
+    ledger.record_recall(winner_tiers=[IndexTier.HOT], elapsed_ms=10.0, reminiscence=0)
     caps = TierCapacityParams(hot_cap=150, warm_cap=1500, cold_cap=15000)
     ledger.write_effective_caps(caps, delta=-0.12)
     ledger.reset()
@@ -252,16 +303,13 @@ def test_ledger_snapshot_shape() -> None:
     conn = _mem_conn()
     ledger = TierTelemetryLedger(conn)
     ledger.record_recall(
-        winner_tiers=[IndexTier.HOT, IndexTier.COLD], elapsed_ms=9.0,
+        winner_tiers=[IndexTier.HOT, IndexTier.COLD],
+        elapsed_ms=9.0,
         reminiscence=0,
     )
     snap = ledger.snapshot(TierCapacityParams())
-    assert set(snap) == {
-        "effective_caps", "last_delta", "queries_since_adjustment", "winners"
-    }
-    assert snap["effective_caps"] == {
-        "hot": 200, "warm": 2000, "cold": 20000
-    }
+    assert set(snap) == {"effective_caps", "last_delta", "queries_since_adjustment", "winners"}
+    assert snap["effective_caps"] == {"hot": 200, "warm": 2000, "cold": 20000}
     assert snap["queries_since_adjustment"] == 1
     assert snap["winners"] == {"hot": 1, "warm": 0, "cold": 1, "deep": 0}
     # status() requires json-safe primitives only.
@@ -285,12 +333,8 @@ def test_maybe_adjust_insufficient_data_returns_current_no_reset() -> None:
     conn = _mem_conn()
     ledger = TierTelemetryLedger(conn)
     seed = TierCapacityParams()
-    ledger.record_recall(
-        winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
-    )
-    params = FormulaParams(
-        adaptive_tier_caps=True, adaptive_tier_min_queries=100
-    )
+    ledger.record_recall(winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0)
+    params = FormulaParams(adaptive_tier_caps=True, adaptive_tier_min_queries=100)
     out = maybe_adjust_caps(ledger, seed, params)
     assert out.hot_cap == seed.hot_cap
     # telemetry NOT reset — it keeps accumulating toward the gate.
@@ -303,9 +347,7 @@ def test_maybe_adjust_applies_and_resets() -> None:
     seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
     # Heavy COLD leak, fast recall → grow.
     for _ in range(120):
-        ledger.record_recall(
-            winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
-        )
+        ledger.record_recall(winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0)
     params = FormulaParams(
         adaptive_tier_caps=True,
         adaptive_tier_min_queries=100,
@@ -329,14 +371,10 @@ def test_maybe_adjust_second_call_reads_persisted_caps() -> None:
         adaptive_tier_lambda=0.0,
     )
     for _ in range(120):
-        ledger.record_recall(
-            winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
-        )
+        ledger.record_recall(winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0)
     first = maybe_adjust_caps(ledger, seed, params)
     for _ in range(120):
-        ledger.record_recall(
-            winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
-        )
+        ledger.record_recall(winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0)
     second = maybe_adjust_caps(ledger, seed, params)
     # second call grew from `first`, not from `seed`.
     assert second.hot_cap > first.hot_cap
@@ -362,9 +400,7 @@ def test_maybe_adjust_deadband_still_resets_window() -> None:
     seed = TierCapacityParams(hot_cap=200, warm_cap=2000, cold_cap=20000)
     # Tiny leak → |delta| < deadband → no cap move, but window still resets.
     for _ in range(120):
-        ledger.record_recall(
-            winner_tiers=[IndexTier.HOT], elapsed_ms=1.0, reminiscence=0
-        )
+        ledger.record_recall(winner_tiers=[IndexTier.HOT], elapsed_ms=1.0, reminiscence=0)
     params = FormulaParams(
         adaptive_tier_caps=True,
         adaptive_tier_min_queries=100,
@@ -372,5 +408,5 @@ def test_maybe_adjust_deadband_still_resets_window() -> None:
         adaptive_tier_deadband=0.5,  # virtually everything is in dead-band
     )
     out = maybe_adjust_caps(ledger, seed, params)
-    assert out.hot_cap == seed.hot_cap   # no move
-    assert ledger.read().queries == 0    # but window closed
+    assert out.hot_cap == seed.hot_cap  # no move
+    assert ledger.read().queries == 0  # but window closed

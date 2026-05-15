@@ -82,14 +82,9 @@ class CostLimits:
             if val is None:
                 continue
             if not isinstance(val, int) or isinstance(val, bool):
-                raise ValueError(
-                    f"{name} must be an int or None (got {val!r})"
-                )
+                raise ValueError(f"{name} must be an int or None (got {val!r})")
             if val < 0:
-                raise ValueError(
-                    f"{name} must be >= 0 (got {val!r}); use None for "
-                    "unlimited."
-                )
+                raise ValueError(f"{name} must be >= 0 (got {val!r}); use None for unlimited.")
 
     @property
     def is_unlimited(self) -> bool:
@@ -197,13 +192,8 @@ class CostLedger:
 
         if limits.is_unlimited:
             return None
-        if (
-            limits.max_llm_calls_per_run is not None
-            and run_calls >= limits.max_llm_calls_per_run
-        ):
-            return (
-                f"run cap reached ({run_calls}/{limits.max_llm_calls_per_run})"
-            )
+        if limits.max_llm_calls_per_run is not None and run_calls >= limits.max_llm_calls_per_run:
+            return f"run cap reached ({run_calls}/{limits.max_llm_calls_per_run})"
         if limits.max_llm_calls_per_day is not None:
             today = self.today_calls(now=now)
             if today >= limits.max_llm_calls_per_day:
@@ -217,9 +207,7 @@ class CostLedger:
     # ─── internals ────────────────────────────────────────────────
 
     def _read_int(self, key: str) -> int:
-        row = self._conn.execute(
-            "SELECT v FROM workspace_meta WHERE k = ?", (key,)
-        ).fetchone()
+        row = self._conn.execute("SELECT v FROM workspace_meta WHERE k = ?", (key,)).fetchone()
         if row is None:
             return 0
         try:

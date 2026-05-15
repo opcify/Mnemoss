@@ -35,9 +35,7 @@ class StrictNonEmptyEmbedder:
         self.calls.append(list(texts))
         for t in texts:
             if not t:
-                raise ValueError(
-                    "BadRequestError(400): input must contain non-empty strings"
-                )
+                raise ValueError("BadRequestError(400): input must contain non-empty strings")
         out = np.zeros((len(texts), self.dim), dtype=np.float32)
         for i, t in enumerate(texts):
             out[i, sum(ord(c) for c in t) % self.dim] = 1.0
@@ -65,6 +63,4 @@ async def test_warmup_payload_is_non_empty_string(tmp_path: Path) -> None:
     # Warmup ran at least once and the payload was non-empty.
     assert embedder.calls, "embedder.embed was never called"
     warmup_call = embedder.calls[0]
-    assert warmup_call == ["warmup"], (
-        f"expected warmup payload ['warmup'], got {warmup_call!r}"
-    )
+    assert warmup_call == ["warmup"], f"expected warmup payload ['warmup'], got {warmup_call!r}"

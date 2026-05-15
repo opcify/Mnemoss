@@ -160,9 +160,7 @@ async def test_engine_provenance_captured_before_reminiscence(tmp_path: Path) ->
             params=params,
             tier_ledger=ledger,
         )
-        await engine.recall(
-            "deep memory content", agent_id=None, k=3, include_deep=True
-        )
+        await engine.recall("deep memory content", agent_id=None, k=3, include_deep=True)
         tel = ledger.read()
         assert tel.queries == 1
         assert tel.winners_deep == 1

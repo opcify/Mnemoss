@@ -146,9 +146,7 @@ class ANNIndex:
             return
         emb = np.asarray(embedding, dtype=np.float32)
         if emb.shape != (self._dim,):
-            raise ValueError(
-                f"ANNIndex.add: embedding shape {emb.shape} != ({self._dim},)"
-            )
+            raise ValueError(f"ANNIndex.add: embedding shape {emb.shape} != ({self._dim},)")
         # Grow capacity before adding if we're at the ceiling. hnswlib's
         # resize_index doubles cost for now but keeps the graph valid.
         if self._next_label >= self._capacity:
@@ -161,9 +159,7 @@ class ANNIndex:
         self._id_to_label[memory_id] = label
         self._label_to_id[label] = memory_id
 
-    def add_batch(
-        self, memory_ids: list[str], embeddings: np.ndarray
-    ) -> None:
+    def add_batch(self, memory_ids: list[str], embeddings: np.ndarray) -> None:
         """Insert many memories at once (used by workspace rehydrate).
 
         ``embeddings`` is an (N, dim) float32 array aligned with
@@ -181,15 +177,12 @@ class ANNIndex:
         emb = np.asarray(embeddings, dtype=np.float32)
         if emb.ndim != 2 or emb.shape[1] != self._dim:
             raise ValueError(
-                f"ANNIndex.add_batch: embeddings shape {emb.shape} "
-                f"!= (N, {self._dim})"
+                f"ANNIndex.add_batch: embeddings shape {emb.shape} != (N, {self._dim})"
             )
 
         # Filter out any ids already present (rehydrate on an
         # already-populated index should be a no-op on the duplicates).
-        keep_mask = np.array(
-            [mid not in self._id_to_label for mid in memory_ids], dtype=bool
-        )
+        keep_mask = np.array([mid not in self._id_to_label for mid in memory_ids], dtype=bool)
         if not keep_mask.any():
             return
         fresh_ids = [mid for mid, keep in zip(memory_ids, keep_mask, strict=True) if keep]
@@ -202,9 +195,7 @@ class ANNIndex:
                 self._capacity *= 2
             self._index.resize_index(self._capacity)
 
-        labels = np.arange(
-            self._next_label, self._next_label + len(fresh_ids), dtype=np.int64
-        )
+        labels = np.arange(self._next_label, self._next_label + len(fresh_ids), dtype=np.int64)
         self._index.add_items(fresh_emb, labels)
         for mid, label in zip(fresh_ids, labels.tolist(), strict=True):
             self._id_to_label[mid] = label
@@ -248,15 +239,11 @@ class ANNIndex:
         effective_k = min(k, n_live)
         emb = np.asarray(embedding, dtype=np.float32)
         if emb.shape != (self._dim,):
-            raise ValueError(
-                f"ANNIndex.query: embedding shape {emb.shape} != ({self._dim},)"
-            )
+            raise ValueError(f"ANNIndex.query: embedding shape {emb.shape} != ({self._dim},)")
         if ef is not None:
             self._index.set_ef(ef)
         try:
-            labels, distances = self._index.knn_query(
-                emb.reshape(1, -1), k=effective_k
-            )
+            labels, distances = self._index.knn_query(emb.reshape(1, -1), k=effective_k)
         finally:
             if ef is not None:
                 self._index.set_ef(self._ef_query)

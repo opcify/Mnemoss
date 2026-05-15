@@ -435,9 +435,7 @@ class DreamRunner:
                     singleton_atomic_facts.append(fact)
 
         # Cross-session edges fan out from every consolidated memory.
-        state.consolidated = (
-            summaries + patterns + atomic_facts + singleton_atomic_facts
-        )
+        state.consolidated = summaries + patterns + atomic_facts + singleton_atomic_facts
         atomic_facts_total = atomic_facts + singleton_atomic_facts
 
         return PhaseOutcome(
@@ -477,11 +475,7 @@ class DreamRunner:
 
         if not state.cluster_assignments or not state.replay_set:
             return []
-        unclustered = {
-            mid
-            for mid, a in state.cluster_assignments.items()
-            if a.cluster_id is None
-        }
+        unclustered = {mid for mid, a in state.cluster_assignments.items() if a.cluster_id is None}
         if not unclustered:
             return []
         return [m for m in state.replay_set if m.id in unclustered]
@@ -523,9 +517,7 @@ class DreamRunner:
     # ─── P7 Rebalance ──────────────────────────────────────────────
 
     async def _phase_rebalance(self, now: datetime) -> PhaseOutcome:
-        stats = await _rebalance(
-            self._store, self._params, self._tier_capacity, now=now
-        )
+        stats = await _rebalance(self._store, self._params, self._tier_capacity, now=now)
         return PhaseOutcome(
             phase=PhaseName.REBALANCE,
             status="ok",

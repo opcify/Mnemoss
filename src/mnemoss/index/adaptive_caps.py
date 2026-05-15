@@ -79,14 +79,10 @@ def compute_adjusted_caps(
     if telemetry.queries < params.adaptive_tier_min_queries or total_winners == 0:
         return current, 0.0
 
-    recall_pressure = (
-        telemetry.winners_cold + telemetry.winners_deep
-    ) / total_winners
+    recall_pressure = (telemetry.winners_cold + telemetry.winners_deep) / total_winners
 
     mean_elapsed_ms = telemetry.elapsed_ms_sum / telemetry.queries
-    latency_pressure = min(
-        mean_elapsed_ms / params.adaptive_tier_latency_budget_ms, 1.0
-    )
+    latency_pressure = min(mean_elapsed_ms / params.adaptive_tier_latency_budget_ms, 1.0)
 
     lam = params.adaptive_tier_lambda
     delta = (1.0 - lam) * recall_pressure - lam * latency_pressure
@@ -189,9 +185,7 @@ class TierTelemetryLedger:
             self._incr_int(_REMINISCENCE_KEY, int(reminiscence))
             self._incr_float(_ELAPSED_KEY, float(elapsed_ms))
 
-    def write_effective_caps(
-        self, caps: TierCapacityParams, *, delta: float = 0.0
-    ) -> None:
+    def write_effective_caps(self, caps: TierCapacityParams, *, delta: float = 0.0) -> None:
         """Persist the controller's effective caps + last delta."""
 
         with self._conn:
@@ -223,9 +217,7 @@ class TierTelemetryLedger:
             reminiscence_events=self._read_int(_REMINISCENCE_KEY),
         )
 
-    def read_effective_caps(
-        self, seed: TierCapacityParams
-    ) -> TierCapacityParams:
+    def read_effective_caps(self, seed: TierCapacityParams) -> TierCapacityParams:
         """Return the persisted effective caps, or ``seed`` if unset.
 
         ``min_floor`` / ``max_cap`` always come from ``seed`` — they are
@@ -296,9 +288,7 @@ class TierTelemetryLedger:
         )
 
     def _read_int(self, key: str) -> int:
-        row = self._conn.execute(
-            "SELECT v FROM workspace_meta WHERE k = ?", (key,)
-        ).fetchone()
+        row = self._conn.execute("SELECT v FROM workspace_meta WHERE k = ?", (key,)).fetchone()
         if row is None:
             return 0
         try:
@@ -307,9 +297,7 @@ class TierTelemetryLedger:
             return 0
 
     def _read_float(self, key: str) -> float:
-        row = self._conn.execute(
-            "SELECT v FROM workspace_meta WHERE k = ?", (key,)
-        ).fetchone()
+        row = self._conn.execute("SELECT v FROM workspace_meta WHERE k = ?", (key,)).fetchone()
         if row is None:
             return 0.0
         try:

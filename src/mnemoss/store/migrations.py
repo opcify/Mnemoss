@@ -93,9 +93,7 @@ def _rebuild_memory_fts_with_entities(conn: apsw.Connection) -> None:
     from ``memory.extracted_entities`` (JSON list, space-joined).
     """
 
-    rows = conn.execute(
-        "SELECT id, content, extracted_entities FROM memory"
-    ).fetchall()
+    rows = conn.execute("SELECT id, content, extracted_entities FROM memory").fetchall()
     conn.execute("DROP TABLE IF EXISTS memory_fts")
     conn.execute(
         "CREATE VIRTUAL TABLE memory_fts USING fts5("
@@ -193,9 +191,7 @@ def apply_migrations(
     v = current_version
     with conn:
         while v < target_version:
-            step = next(
-                (m for m in MIGRATIONS if m.from_version == v), None
-            )
+            step = next((m for m in MIGRATIONS if m.from_version == v), None)
             if step is None:
                 raise MigrationError(
                     f"Schema v{v}→v{target_version} migration chain is "
@@ -248,9 +244,7 @@ def apply_raw_log_migrations(
     v = current_version
     with conn:
         while v < target_version:
-            step = next(
-                (m for m in RAW_LOG_MIGRATIONS if m.from_version == v), None
-            )
+            step = next((m for m in RAW_LOG_MIGRATIONS if m.from_version == v), None)
             if step is None:
                 # No registered migration and no real schema delta —
                 # just walk the version marker forward one step.

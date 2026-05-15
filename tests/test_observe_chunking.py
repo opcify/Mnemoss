@@ -106,9 +106,7 @@ async def test_split_chunks_carry_group_marker(tmp_path: Path) -> None:
         totals = set()
         for m in memories:
             split_part = m.source_context.get("split_part")
-            assert split_part is not None, (
-                f"memory {m.id} missing split_part: {m.source_context}"
-            )
+            assert split_part is not None, f"memory {m.id} missing split_part: {m.source_context}"
             group_ids.add(split_part["group_id"])
             indices.append(split_part["index"])
             totals.add(split_part["total"])

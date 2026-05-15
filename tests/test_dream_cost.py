@@ -30,9 +30,7 @@ def _fresh_ledger_conn() -> apsw.Connection:
     """Bare conn with just the keyspace ``CostLedger`` needs."""
 
     conn = apsw.Connection(":memory:")
-    conn.execute(
-        "CREATE TABLE workspace_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)"
-    )
+    conn.execute("CREATE TABLE workspace_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
     return conn
 
 
@@ -173,9 +171,7 @@ def _empty_response() -> dict:
     return {"summary": None, "refinements": [], "patterns": []}
 
 
-async def _run_consolidate(
-    runner: DreamRunner, clusters: list[list[Memory]]
-) -> dict:
+async def _run_consolidate(runner: DreamRunner, clusters: list[list[Memory]]) -> dict:
     """Directly drive ``_phase_consolidate`` with a hand-built state.
 
     Bypasses REPLAY / CLUSTER so the test controls exactly how many
@@ -211,12 +207,8 @@ async def test_runner_stops_after_run_cap(tmp_path: Path) -> None:
         for i in range(3):
             a = _mem(f"m{i}a", f"content-{i}-a", cluster_id=f"c{i}")
             b = _mem(f"m{i}b", f"content-{i}-b", cluster_id=f"c{i}")
-            await store.write_memory(
-                a, np.array([1] + [0] * 15, dtype=np.float32)
-            )
-            await store.write_memory(
-                b, np.array([1] + [0] * 15, dtype=np.float32)
-            )
+            await store.write_memory(a, np.array([1] + [0] * 15, dtype=np.float32))
+            await store.write_memory(b, np.array([1] + [0] * 15, dtype=np.float32))
             clusters.append([a, b])
 
         llm = MockLLMClient(responses=[_empty_response()] * 10)
@@ -252,12 +244,8 @@ async def test_runner_unlimited_by_default(tmp_path: Path) -> None:
         for i in range(2):
             a = _mem(f"m{i}a", f"c-{i}-a", cluster_id=f"c{i}")
             b = _mem(f"m{i}b", f"c-{i}-b", cluster_id=f"c{i}")
-            await store.write_memory(
-                a, np.array([1] + [0] * 15, dtype=np.float32)
-            )
-            await store.write_memory(
-                b, np.array([1] + [0] * 15, dtype=np.float32)
-            )
+            await store.write_memory(a, np.array([1] + [0] * 15, dtype=np.float32))
+            await store.write_memory(b, np.array([1] + [0] * 15, dtype=np.float32))
             clusters.append([a, b])
 
         llm = MockLLMClient(responses=[_empty_response()] * 10)
@@ -285,12 +273,8 @@ async def test_runner_respects_prior_daily_spend(tmp_path: Path) -> None:
         for i in range(3):
             a = _mem(f"m{i}a", f"c-{i}-a", cluster_id=f"c{i}")
             b = _mem(f"m{i}b", f"c-{i}-b", cluster_id=f"c{i}")
-            await store.write_memory(
-                a, np.array([1] + [0] * 15, dtype=np.float32)
-            )
-            await store.write_memory(
-                b, np.array([1] + [0] * 15, dtype=np.float32)
-            )
+            await store.write_memory(a, np.array([1] + [0] * 15, dtype=np.float32))
+            await store.write_memory(b, np.array([1] + [0] * 15, dtype=np.float32))
             clusters.append([a, b])
 
         ledger = CostLedger(store._require_conn())

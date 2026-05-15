@@ -94,9 +94,7 @@ def _fts_columns(conn: apsw.Connection) -> list[str]:
 
 
 def _stored_version(conn: apsw.Connection) -> int:
-    row = conn.execute(
-        "SELECT v FROM workspace_meta WHERE k = 'schema_version'"
-    ).fetchone()
+    row = conn.execute("SELECT v FROM workspace_meta WHERE k = 'schema_version'").fetchone()
     return int(row[0]) if row else -1
 
 
@@ -221,6 +219,7 @@ def test_failing_migration_rolls_back_version_bump() -> None:
 
     original = mig.MIGRATIONS
     try:
+
         def boom(_conn: apsw.Connection) -> None:
             raise RuntimeError("synthetic failure")
 

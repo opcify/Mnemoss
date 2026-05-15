@@ -61,10 +61,7 @@ def test_line_split_when_no_paragraphs() -> None:
 
 
 def test_sentence_split_when_no_newlines() -> None:
-    content = (
-        "The kickoff is tomorrow. It starts at four. "
-        "Everyone needs to attend."
-    )
+    content = "The kickoff is tomorrow. It starts at four. Everyone needs to attend."
     chunks = split_content(content, max_chars=30)
     for c in chunks:
         assert len(c) <= 30
@@ -129,9 +126,7 @@ def test_hard_split_preserves_all_bytes() -> None:
 )
 def test_no_chunk_exceeds_cap(content: str, cap: int) -> None:
     chunks = split_content(content, max_chars=cap)
-    assert all(
-        len(c) <= cap for c in chunks
-    ), [len(c) for c in chunks]
+    assert all(len(c) <= cap for c in chunks), [len(c) for c in chunks]
 
 
 @pytest.mark.parametrize(

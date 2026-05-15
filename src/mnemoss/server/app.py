@@ -439,7 +439,5 @@ def _enforce_recall_limits(request: Request, body: RecallRequest) -> None:
     if config.max_recall_k is not None and body.k > config.max_recall_k:
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"k={body.k} exceeds max allowed: {config.max_recall_k}"
-            ),
+            detail=(f"k={body.k} exceeds max allowed: {config.max_recall_k}"),
         )

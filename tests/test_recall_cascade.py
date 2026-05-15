@@ -42,9 +42,7 @@ async def _setup(tmp_path: Path, dim: int = 16):
         # default switched to ``use_tier_cascade_recall`` in 2026-04;
         # opt out here so the suite continues to exercise the path it
         # was written for.
-        params=FormulaParams(
-            noise_scale=0.0, use_tier_cascade_recall=False
-        ),
+        params=FormulaParams(noise_scale=0.0, use_tier_cascade_recall=False),
         rng=random.Random(0),
     )
     return store, engine, embedder
@@ -337,8 +335,7 @@ async def test_skip_fts_on_plain_query_when_knob_on(tmp_path: Path) -> None:
         await store.close()
 
     assert fts_calls == 0, (
-        f"Expected FTS to be skipped on plain query with knob on; "
-        f"got {fts_calls} call(s)"
+        f"Expected FTS to be skipped on plain query with knob on; got {fts_calls} call(s)"
     )
 
 
@@ -370,9 +367,7 @@ async def test_skip_fts_still_runs_on_literal_query(tmp_path: Path) -> None:
         store.fts_search = orig_fts  # type: ignore[method-assign]
         await store.close()
 
-    assert fts_calls >= 1, (
-        f"Literal (quoted) query should hit FTS at least once; got {fts_calls}"
-    )
+    assert fts_calls >= 1, f"Literal (quoted) query should hit FTS at least once; got {fts_calls}"
 
 
 async def test_skip_fts_default_off_preserves_hybrid(tmp_path: Path) -> None:

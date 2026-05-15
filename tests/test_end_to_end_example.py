@@ -85,7 +85,7 @@ def _consolidate_response(member_count: int) -> dict:
         "refinements": [
             {
                 "index": i + 1,
-                "gist": f"gist-{i+1}",
+                "gist": f"gist-{i + 1}",
                 "time": None,
             }
             for i in range(member_count)
@@ -198,10 +198,7 @@ async def test_explain_recall_surfaces_activation_components(tmp_path: Path) -> 
         assert breakdown.noise is not None
         # Total equals sum of terms (± floating-point slack).
         reconstructed = (
-            breakdown.base_level
-            + breakdown.matching
-            + breakdown.spreading
-            + breakdown.noise
+            breakdown.base_level + breakdown.matching + breakdown.spreading + breakdown.noise
         )
         assert abs(reconstructed - breakdown.total) < 1e-9
     finally:
@@ -375,9 +372,7 @@ async def test_consolidate_inserts_new_memory_rows(tmp_path: Path) -> None:
         state = _DreamState()
         state.replay_set = members
         state.cluster_assignments = {
-            m.id: ClusterAssignment(
-                cluster_id="c0", similarity=0.9, is_representative=False
-            )
+            m.id: ClusterAssignment(cluster_id="c0", similarity=0.9, is_representative=False)
             for m in members
         }
         outcome = await runner._phase_consolidate(state, datetime.now(timezone.utc))
@@ -424,9 +419,7 @@ async def test_dream_survives_phase_exception(tmp_path: Path) -> None:
         async def boom(*_a, **_kw):
             raise RuntimeError("simulated storage glitch")
 
-        with patch.object(
-            runner_mod, "select_replay_candidates", side_effect=boom
-        ):
+        with patch.object(runner_mod, "select_replay_candidates", side_effect=boom):
             report = await mem.dream(trigger="nightly")
 
         replay_outcome = report.outcome(PhaseName.REPLAY)
@@ -603,14 +596,14 @@ async def test_full_day_in_the_life(tmp_path: Path) -> None:
 
         # Recall scopes.
         alice_results = await alice.recall("my deadline", k=5)
-        assert any(
-            "memory API" in r.memory.content for r in alice_results
-        ), "alice should see her own deadline note"
+        assert any("memory API" in r.memory.content for r in alice_results), (
+            "alice should see her own deadline note"
+        )
 
         bob_results = await bob.recall("deadline", k=5)
-        assert not any(
-            "memory API" in r.memory.content for r in bob_results
-        ), "bob should NOT see alice's private deadline"
+        assert not any("memory API" in r.memory.content for r in bob_results), (
+            "bob should NOT see alice's private deadline"
+        )
 
         # Pin survives dream.
         await alice.pin(alice_pin_id)

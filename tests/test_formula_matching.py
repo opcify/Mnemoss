@@ -80,9 +80,7 @@ def test_cosine_dominates_on_fresh_plain_query() -> None:
     )
     # Cosine-only is a strong match; BM25-only is tiny.
     assert m_cos > 0.70 * PARAMS.mp, f"cosine-only should be strong: {m_cos}"
-    assert m_fts < 0.15 * PARAMS.mp, (
-        f"BM25-only should be a minority contribution: {m_fts}"
-    )
+    assert m_fts < 0.15 * PARAMS.mp, f"BM25-only should be a minority contribution: {m_fts}"
     # And cosine-only must strictly beat BM25-only at equal raw strength.
     assert m_cos > m_fts
 
@@ -96,9 +94,7 @@ def test_both_weak_is_weak() -> None:
 
 
 def test_both_zero_is_zero() -> None:
-    m = compute_matching(
-        idx_priority=0.7, bm25_raw=0.0, cos_sim=0.0, query_bias=1.0, params=PARAMS
-    )
+    m = compute_matching(idx_priority=0.7, bm25_raw=0.0, cos_sim=0.0, query_bias=1.0, params=PARAMS)
     assert m == 0.0
 
 
@@ -131,8 +127,7 @@ def test_query_bias_boosts_bm25_contribution() -> None:
     plain = compute_matching(0.7, -10.0, 0.0, 1.0, PARAMS)
     quoted = compute_matching(0.7, -10.0, 0.0, 1.5, PARAMS)
     assert quoted > plain, (
-        f"query_bias=1.5 should boost BM25 vs plain query (plain={plain:.3f}, "
-        f"quoted={quoted:.3f})"
+        f"query_bias=1.5 should boost BM25 vs plain query (plain={plain:.3f}, quoted={quoted:.3f})"
     )
 
 
@@ -260,12 +255,8 @@ def test_matching_weights_respect_formula_params_override() -> None:
         match_w_f_slope=0.4,
         match_w_s_base=0.5,
     )
-    w_f_default, _ = matching_weights(
-        idx_priority=1.0, query_bias=1.0, params=None
-    )
-    w_f_heavy, _ = matching_weights(
-        idx_priority=1.0, query_bias=1.0, params=heavy_bm25
-    )
+    w_f_default, _ = matching_weights(idx_priority=1.0, query_bias=1.0, params=None)
+    w_f_heavy, _ = matching_weights(idx_priority=1.0, query_bias=1.0, params=heavy_bm25)
     assert w_f_heavy > 3 * w_f_default, (
         f"BM25-heavy override should lift w_F well above default "
         f"(default={w_f_default:.3f}, heavy={w_f_heavy:.3f})"

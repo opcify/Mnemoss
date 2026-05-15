@@ -46,9 +46,7 @@ def _require_in_cosine_range(name: str, value: float) -> None:
     "gate disabled" flag."""
 
     if not (-1.0 <= value <= 1.0):
-        raise ValueError(
-            f"{name} must be in [-1.0, 1.0] (got {value!r})"
-        )
+        raise ValueError(f"{name} must be in [-1.0, 1.0] (got {value!r})")
 
 
 @dataclass
@@ -384,12 +382,8 @@ class FormulaParams:
         _require_non_negative("match_w_f_base", self.match_w_f_base)
         _require_non_negative("match_w_f_slope", self.match_w_f_slope)
         _require_positive("match_w_s_base", self.match_w_s_base)
-        _require_non_negative(
-            "fast_index_semantic_weight", self.fast_index_semantic_weight
-        )
-        _require_non_negative(
-            "fast_index_priority_weight", self.fast_index_priority_weight
-        )
+        _require_non_negative("fast_index_semantic_weight", self.fast_index_semantic_weight)
+        _require_non_negative("fast_index_priority_weight", self.fast_index_priority_weight)
         if (
             self.use_fast_index_recall
             and self.fast_index_semantic_weight <= 0.0
@@ -411,9 +405,7 @@ class FormulaParams:
         if self.use_fast_index_recall and self.use_tier_cascade_recall:
             self.use_tier_cascade_recall = False
         _require_in_unit_interval("cascade_min_cosine", self.cascade_min_cosine)
-        _require_in_cosine_range(
-            "reconsolidate_min_cosine", self.reconsolidate_min_cosine
-        )
+        _require_in_cosine_range("reconsolidate_min_cosine", self.reconsolidate_min_cosine)
 
         # BFS hop + candidate caps must be positive integers.
         if self.expand_hops_max <= 0:
@@ -429,13 +421,8 @@ class FormulaParams:
 
         # ─── Adaptive tier caps ───────────────────────────────────
         if not isinstance(self.adaptive_tier_caps, bool):
-            raise ValueError(
-                f"adaptive_tier_caps must be a bool (got "
-                f"{self.adaptive_tier_caps!r})"
-            )
-        _require_in_unit_interval(
-            "adaptive_tier_lambda", self.adaptive_tier_lambda
-        )
+            raise ValueError(f"adaptive_tier_caps must be a bool (got {self.adaptive_tier_caps!r})")
+        _require_in_unit_interval("adaptive_tier_lambda", self.adaptive_tier_lambda)
         if (
             not isinstance(self.adaptive_tier_min_queries, int)
             or isinstance(self.adaptive_tier_min_queries, bool)
@@ -450,9 +437,7 @@ class FormulaParams:
                 f"adaptive_tier_max_step must be in (0.0, 1.0] (got "
                 f"{self.adaptive_tier_max_step!r})"
             )
-        _require_non_negative(
-            "adaptive_tier_deadband", self.adaptive_tier_deadband
-        )
+        _require_non_negative("adaptive_tier_deadband", self.adaptive_tier_deadband)
         _require_positive(
             "adaptive_tier_latency_budget_ms",
             self.adaptive_tier_latency_budget_ms,
@@ -657,10 +642,7 @@ class TierCapacityParams:
         if self.max_cap < 1:
             raise ValueError(f"max_cap must be >= 1 (got {self.max_cap!r})")
         if self.min_floor > self.max_cap:
-            raise ValueError(
-                f"min_floor ({self.min_floor}) must be <= max_cap "
-                f"({self.max_cap})"
-            )
+            raise ValueError(f"min_floor ({self.min_floor}) must be <= max_cap ({self.max_cap})")
 
 
 @dataclass

@@ -93,9 +93,7 @@ async def test_aged_unused_memory_drifts_down(tmp_path: Path) -> None:
     # caps so the lone non-pinned memory must drop out of HOT — under
     # capacity-based bucketing the default 200-seat HOT would otherwise
     # accept any single memory regardless of its idx_priority.
-    stats = await rebalance(
-        b, FormulaParams(), _DROP_HOT_CAPS, now=creation + timedelta(days=1)
-    )
+    stats = await rebalance(b, FormulaParams(), _DROP_HOT_CAPS, now=creation + timedelta(days=1))
     assert stats.scanned == 1
     got = await b.get_memory("old")
     assert got is not None
@@ -124,9 +122,7 @@ async def test_pin_lifts_priority_vs_unpinned_twin(tmp_path: Path) -> None:
     await b.write_memory(pinned, np.array([0, 1, 0, 0], dtype=np.float32))
     await b.pin("pinned", agent_id="alice")
 
-    await rebalance(
-        b, FormulaParams(), TierCapacityParams(), now=creation + timedelta(days=30)
-    )
+    await rebalance(b, FormulaParams(), TierCapacityParams(), now=creation + timedelta(days=30))
     u = await b.get_memory("unpinned")
     p = await b.get_memory("pinned")
     assert u is not None and p is not None
@@ -152,9 +148,7 @@ async def test_pin_boost_recent_memory_to_hot(tmp_path: Path) -> None:
     # B ≈ -1.93. σ(-1.93 + 2) = σ(0.07) ≈ 0.52 → WARM. Still not HOT.
     # Even 1-minute-old pinned memory: grace ≈ 0.98, history ln(60^-0.5) ≈ -2.05.
     # B ≈ -1.07. σ(-1.07 + 2) = σ(0.93) ≈ 0.72 → HOT.
-    await rebalance(
-        b, FormulaParams(), TierCapacityParams(), now=creation + timedelta(seconds=60)
-    )
+    await rebalance(b, FormulaParams(), TierCapacityParams(), now=creation + timedelta(seconds=60))
     got = await b.get_memory("p")
     assert got is not None
     assert got.index_tier is IndexTier.HOT
@@ -208,9 +202,7 @@ async def test_tier_distribution_changes(tmp_path: Path) -> None:
 
     # Use tight caps so all 5 must drop out of HOT — under capacity-based
     # bucketing default 200-seat HOT would otherwise hold all 5.
-    stats = await rebalance(
-        b, FormulaParams(), _DROP_HOT_CAPS, now=creation + timedelta(days=14)
-    )
+    stats = await rebalance(b, FormulaParams(), _DROP_HOT_CAPS, now=creation + timedelta(days=14))
     assert stats.migrated == 5  # all 5 leave HOT
     counts_after = await b.tier_counts()
     assert counts_after[IndexTier.HOT] == 0
@@ -247,9 +239,7 @@ async def test_rebalance_flag_off_ignores_telemetry(tmp_path: Path) -> None:
         caps = TierCapacityParams(hot_cap=3, warm_cap=1, cold_cap=1)
         await rebalance(b, params, caps, now=now)
         conn = b._require_conn()
-        row = conn.execute(
-            "SELECT v FROM workspace_meta WHERE k = 'adaptive:caps_hot'"
-        ).fetchone()
+        row = conn.execute("SELECT v FROM workspace_meta WHERE k = 'adaptive:caps_hot'").fetchone()
         assert row is None
     finally:
         await b.close()
@@ -269,9 +259,7 @@ async def test_rebalance_adaptive_uses_adjusted_caps(tmp_path: Path) -> None:
         ledger = TierTelemetryLedger(b._require_conn())
 
         for _ in range(150):
-            ledger.record_recall(
-                winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0
-            )
+            ledger.record_recall(winner_tiers=[IndexTier.COLD], elapsed_ms=1.0, reminiscence=0)
         params = FormulaParams(
             adaptive_tier_caps=True,
             adaptive_tier_min_queries=100,
@@ -282,9 +270,7 @@ async def test_rebalance_adaptive_uses_adjusted_caps(tmp_path: Path) -> None:
         # Controller persisted grown caps and reset the window.
         conn = b._require_conn()
         hot = int(
-            conn.execute(
-                "SELECT v FROM workspace_meta WHERE k = 'adaptive:caps_hot'"
-            ).fetchone()[0]
+            conn.execute("SELECT v FROM workspace_meta WHERE k = 'adaptive:caps_hot'").fetchone()[0]
         )
         assert hot > 200
         assert ledger.read().queries == 0

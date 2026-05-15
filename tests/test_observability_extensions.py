@@ -47,10 +47,7 @@ def _consolidate_response(n: int) -> dict:
             "content": "cluster summary",
             "abstraction_level": 0.6,
         },
-        "refinements": [
-            {"index": i + 1, "gist": f"g-{i}", "time": None}
-            for i in range(n)
-        ],
+        "refinements": [{"index": i + 1, "gist": f"g-{i}", "time": None} for i in range(n)],
         "patterns": [],
     }
 
@@ -178,9 +175,7 @@ async def test_status_reports_degraded_dream(tmp_path: Path) -> None:
         async def boom(*_a, **_kw):
             raise RuntimeError("injected")
 
-        with patch.object(
-            runner_mod, "select_replay_candidates", side_effect=boom
-        ):
+        with patch.object(runner_mod, "select_replay_candidates", side_effect=boom):
             await mem.dream(trigger="nightly")
 
         status = await mem.status()
@@ -234,8 +229,15 @@ def test_activation_breakdown_to_dict_round_trip() -> None:
     d = b.to_dict()
     # Every field present.
     assert set(d.keys()) == {
-        "base_level", "spreading", "matching", "noise", "total",
-        "idx_priority", "w_f", "w_s", "query_bias",
+        "base_level",
+        "spreading",
+        "matching",
+        "noise",
+        "total",
+        "idx_priority",
+        "w_f",
+        "w_s",
+        "query_bias",
     }
     # JSON round-trip.
     decoded = json.loads(json.dumps(d))

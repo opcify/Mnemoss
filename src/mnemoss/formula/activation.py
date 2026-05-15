@@ -87,9 +87,7 @@ def compute_activation(
 
     # Recall path uses d_recall (gentle) so access_history differentiation
     # dominates and bulk-ingest order doesn't become the ranking signal.
-    b = compute_base_level(
-        memory.access_history, now, memory.created_at, params, d=params.d_recall
-    )
+    b = compute_base_level(memory.access_history, now, memory.created_at, params, d=params.d_recall)
     idx_priority = compute_idx_priority(b, memory.salience, memory.emotional_weight, pinned, params)
 
     spread = compute_spreading(memory.id, active_set, relations_from, fan_of, params)

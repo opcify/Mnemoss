@@ -81,9 +81,7 @@ async def test_human_readable_output_shows_sections(
     assert "total" in out
 
 
-async def test_json_output_is_valid(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+async def test_json_output_is_valid(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     mem = Mnemoss(
         workspace="ws_json",
         embedding_model=FakeEmbedder(dim=1),

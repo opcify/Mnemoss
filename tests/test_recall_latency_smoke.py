@@ -42,9 +42,7 @@ _SMOKE_QUERIES = 30
 # still enforces the tight gate. GitHub-hosted runners are shared
 # (noisy-neighbor) hardware — widen there too so jitter doesn't trip
 # the gate while still catching real order-of-magnitude regressions.
-_UNDER_COVERAGE = (
-    "coverage" in sys.modules or os.environ.get("COVERAGE_RUN") is not None
-)
+_UNDER_COVERAGE = "coverage" in sys.modules or os.environ.get("COVERAGE_RUN") is not None
 _ON_CI = os.environ.get("CI") is not None
 if _UNDER_COVERAGE:
     _P99_BUDGET_MS = 500.0
@@ -72,15 +70,12 @@ async def _seed(mem: Mnemoss, n: int) -> None:
     for i in range(n):
         await mem.observe(
             role="user",
-            content=f"{names[i % len(names)]} discussed "
-            f"{topics[i % len(topics)]} item {i}",
+            content=f"{names[i % len(names)]} discussed {topics[i % len(topics)]} item {i}",
         )
 
 
 @pytest.mark.parametrize("include_deep", [False, True])
-async def test_recall_latency_smoke(
-    tmp_path: Path, include_deep: bool
-) -> None:
+async def test_recall_latency_smoke(tmp_path: Path, include_deep: bool) -> None:
     mem = Mnemoss(
         workspace="smoke",
         embedding_model=FakeEmbedder(dim=32),

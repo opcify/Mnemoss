@@ -236,9 +236,7 @@ def reminisce_to_warm(conn: apsw.Connection, memory_id: str) -> None:
         )
 
 
-def link_derived(
-    conn: apsw.Connection, parent_ids: list[str], child_id: str
-) -> int:
+def link_derived(conn: apsw.Connection, parent_ids: list[str], child_id: str) -> int:
     if not parent_ids:
         return 0
     updated = 0
@@ -265,9 +263,7 @@ def link_derived(
 # ─── reads ────────────────────────────────────────────────────────
 
 
-def get_memory(
-    conn: apsw.Connection, memory_id: str, memory_columns: list[str]
-) -> Memory | None:
+def get_memory(conn: apsw.Connection, memory_id: str, memory_columns: list[str]) -> Memory | None:
     row = conn.execute("SELECT * FROM memory WHERE id = ?", (memory_id,)).fetchone()
     if row is None:
         return None
@@ -280,15 +276,10 @@ def materialize_memories(
     if not ids:
         return []
     placeholders = ",".join("?" for _ in ids)
-    rows = conn.execute(
-        f"SELECT * FROM memory WHERE id IN ({placeholders})", tuple(ids)
-    ).fetchall()
+    rows = conn.execute(f"SELECT * FROM memory WHERE id IN ({placeholders})", tuple(ids)).fetchall()
     if not rows:
         return []
-    by_id = {
-        row[0]: row_to_memory(dict(zip(memory_columns, row, strict=True)))
-        for row in rows
-    }
+    by_id = {row[0]: row_to_memory(dict(zip(memory_columns, row, strict=True))) for row in rows}
     return [by_id[i] for i in ids if i in by_id]
 
 
@@ -324,9 +315,7 @@ def iter_memory_ids(conn: apsw.Connection) -> list[str]:
     return [cast(str, r[0]) for r in rows]
 
 
-def list_recent_in_session(
-    conn: apsw.Connection, session_id: str, limit: int
-) -> list[str]:
+def list_recent_in_session(conn: apsw.Connection, session_id: str, limit: int) -> list[str]:
     rows = conn.execute(
         "SELECT id FROM memory WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
         (session_id, limit),
@@ -334,9 +323,7 @@ def list_recent_in_session(
     return [cast(str, r[0]) for r in rows]
 
 
-def get_embeddings(
-    conn: apsw.Connection, memory_ids: list[str]
-) -> dict[str, np.ndarray]:
+def get_embeddings(conn: apsw.Connection, memory_ids: list[str]) -> dict[str, np.ndarray]:
     if not memory_ids:
         return {}
     placeholders = ",".join("?" for _ in memory_ids)
@@ -353,9 +340,7 @@ def get_embeddings(
 
 def tier_counts(conn: apsw.Connection) -> dict[IndexTier, int]:
     counts = {tier: 0 for tier in IndexTier}
-    rows = conn.execute(
-        "SELECT index_tier, COUNT(*) FROM memory GROUP BY index_tier"
-    ).fetchall()
+    rows = conn.execute("SELECT index_tier, COUNT(*) FROM memory GROUP BY index_tier").fetchall()
     for tier_name, count in rows:
         with contextlib.suppress(ValueError):
             counts[IndexTier(cast(str, tier_name))] = cast(int, count)

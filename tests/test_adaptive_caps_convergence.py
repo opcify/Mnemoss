@@ -36,11 +36,7 @@ class WorkloadModel:
 
     def window(self, caps: TierCapacityParams) -> TierTelemetry:
         reachable = caps.hot_cap + caps.warm_cap
-        leak = (
-            0.0
-            if reachable >= self.ideal_hot
-            else (self.ideal_hot - reachable) / self.ideal_hot
-        )
+        leak = 0.0 if reachable >= self.ideal_hot else (self.ideal_hot - reachable) / self.ideal_hot
         if self.noise:
             leak += self.rng.uniform(-self.noise, self.noise)
         leak = min(1.0, max(0.0, leak))

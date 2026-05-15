@@ -42,9 +42,9 @@ def _make_mem(tmp_path: Path) -> Mnemoss:
 @pytest.mark.parametrize(
     "content",
     [
-        "",            # empty string
-        " ",           # single space
-        "   \n\n\t  ", # whitespace-only
+        "",  # empty string
+        " ",  # single space
+        "   \n\n\t  ",  # whitespace-only
     ],
 )
 async def test_blank_content_does_not_crash(tmp_path: Path, content: str) -> None:
@@ -91,12 +91,12 @@ async def test_very_long_content_is_accepted(tmp_path: Path) -> None:
     "content",
     [
         "🎉 emoji party! 🔥 with a surprise 🧠",
-        "مرحبا بالعالم",                       # Arabic RTL
-        "Здравствуй, мир",                     # Cyrillic
-        "नमस्ते दुनिया",                          # Devanagari (combining marks)
-        "你好，世界 with mixed English",         # mixed Han + Latin
-        "日本語と English مع العربية",           # three-script sentence
-        "zero​width​spaces",        # zero-width space injection
+        "مرحبا بالعالم",  # Arabic RTL
+        "Здравствуй, мир",  # Cyrillic
+        "नमस्ते दुनिया",  # Devanagari (combining marks)
+        "你好，世界 with mixed English",  # mixed Han + Latin
+        "日本語と English مع العربية",  # three-script sentence
+        "zero​width​spaces",  # zero-width space injection
     ],
 )
 async def test_unicode_content_round_trips(tmp_path: Path, content: str) -> None:
@@ -166,10 +166,7 @@ async def test_concurrent_observes_serialize_correctly(tmp_path: Path) -> None:
     try:
         count = 50
         await asyncio.gather(
-            *[
-                mem.observe(role="user", content=f"parallel note {i}")
-                for i in range(count)
-            ]
+            *[mem.observe(role="user", content=f"parallel note {i}") for i in range(count)]
         )
         # All `count` memories landed.
         status = await mem.status()
@@ -190,9 +187,7 @@ async def test_concurrent_observes_across_agents(tmp_path: Path) -> None:
 
         async def seed(handle, prefix: str, n: int) -> None:
             for i in range(n):
-                await handle.observe(
-                    role="user", content=f"{prefix} note {i}"
-                )
+                await handle.observe(role="user", content=f"{prefix} note {i}")
 
         await asyncio.gather(seed(alice, "alice", 20), seed(bob, "bob", 20))
 
@@ -221,9 +216,7 @@ async def test_concurrent_recall_is_safe(tmp_path: Path) -> None:
             await mem.observe(role="user", content=f"seed {i}")
 
         queries = [f"query {i}" for i in range(20)]
-        all_results = await asyncio.gather(
-            *[mem.recall(q, k=5) for q in queries]
-        )
+        all_results = await asyncio.gather(*[mem.recall(q, k=5) for q in queries])
         assert all(isinstance(r, list) for r in all_results)
     finally:
         await mem.close()

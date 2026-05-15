@@ -230,6 +230,11 @@ Construction knobs worth knowing:
   still matches.
 - `EncoderParams(max_memory_chars=2000)` — opt-in long-observe 
   auto-split (see invariant below).
+- `Mnemoss(formula=FormulaParams(adaptive_tier_caps=True))` — opt-in
+  runtime self-tuning of `TierCapacityParams` from recall telemetry.
+  Off by default. When on, `rebalance()` (and Dream P7) nudges the
+  effective caps; surface them via `status().adaptive_caps`. See the
+  Architectural Invariants entry for the full contract.
 
 Errors to catch at boundaries: `SchemaMismatchError`, 
 `WorkspaceLockError`, `MigrationError`, `CostExceededError` (all from 
@@ -365,6 +370,19 @@ these is a schema-or-semantics change, not a refactor — bump
   framework upgrades the DB; on a newer DB than code, it raises. In 
   the old no-migration world bumps required manual workspace rebuilds; 
   now the chain handles older DBs automatically.
+- **Adaptive tier caps (opt-in)** — `FormulaParams.adaptive_tier_caps`
+  (default `False`) enables a runtime controller that self-tunes
+  `TierCapacityParams` from recall telemetry. When on, the recall
+  engine records winner provenance + latency to a `TierTelemetryLedger`
+  (in `workspace_meta`, same pattern as `CostLedger`), and `rebalance()`
+  calls `maybe_adjust_caps` to nudge the *effective* caps before
+  bucketing — a tunable (`adaptive_tier_lambda` blend knob,
+  plus dead-band / min-dwell / max-step / latency-budget) blended
+  latency/recall signal with `[min_floor, max_cap]` clamps. Scoped to the `use_tier_cascade_recall`
+  path only. Default off is a byte-identical no-op. The static
+  `TierCapacityParams` values remain the seed. See
+  `src/mnemoss/index/adaptive_caps.py` and
+  `docs/superpowers/specs/2026-05-15-adaptive-tier-caps-design.md`.
 - **Config parameters validated at construction** — `FormulaParams`, 
   `EncoderParams`, `SegmentationParams`, `MnemossConfig`, and 
   `CostLimits` all run `__post_init__` validators. Negative scalars, 

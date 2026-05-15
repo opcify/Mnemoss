@@ -73,12 +73,16 @@ async def _observe_at_tier(
     )
     memory = encode_message(msg)
     memory.index_tier = tier
-    memory.idx_priority = idx_priority if idx_priority is not None else {
-        IndexTier.HOT: 0.8,
-        IndexTier.WARM: 0.5,
-        IndexTier.COLD: 0.2,
-        IndexTier.DEEP: 0.05,
-    }[tier]
+    memory.idx_priority = (
+        idx_priority
+        if idx_priority is not None
+        else {
+            IndexTier.HOT: 0.8,
+            IndexTier.WARM: 0.5,
+            IndexTier.COLD: 0.2,
+            IndexTier.DEEP: 0.05,
+        }[tier]
+    )
     emb = embedder.embed([content])[0]
     await store.write_memory(memory, emb)
     return memory
@@ -144,12 +148,20 @@ async def test_fast_index_priority_weight_breaks_ties(tmp_path: Path) -> None:
         # any query. The one with higher idx_priority should rank
         # higher in fast-index mode.
         m_low = await _observe_at_tier(
-            store, embedder, "duplicate content", IndexTier.HOT,
-            idx_priority=0.2, tag="low",
+            store,
+            embedder,
+            "duplicate content",
+            IndexTier.HOT,
+            idx_priority=0.2,
+            tag="low",
         )
         m_high = await _observe_at_tier(
-            store, embedder, "duplicate content", IndexTier.HOT,
-            idx_priority=0.9, tag="high",
+            store,
+            embedder,
+            "duplicate content",
+            IndexTier.HOT,
+            idx_priority=0.9,
+            tag="high",
         )
 
         results, _ = await engine.recall_with_stats(

@@ -63,14 +63,10 @@ def build_trigram_query(query: str) -> str | None:
 def row_to_memory(row: dict[str, Any]) -> Memory:
     """Reconstruct a Memory from a ``SELECT * FROM memory`` row dict."""
 
-    access_history = [
-        datetime.fromtimestamp(t, tz=UTC) for t in json.loads(row["access_history"])
-    ]
+    access_history = [datetime.fromtimestamp(t, tz=UTC) for t in json.loads(row["access_history"])]
     last_accessed_raw = row.get("last_accessed_at")
     last_accessed = (
-        datetime.fromtimestamp(last_accessed_raw, tz=UTC)
-        if last_accessed_raw is not None
-        else None
+        datetime.fromtimestamp(last_accessed_raw, tz=UTC) if last_accessed_raw is not None else None
     )
     entities_raw = row.get("extracted_entities")
     participants_raw = row.get("extracted_participants")
@@ -98,9 +94,7 @@ def row_to_memory(row: dict[str, Any]) -> Memory:
         idx_priority=row.get("idx_priority", 0.5),
         extracted_gist=row.get("extracted_gist"),
         extracted_entities=json.loads(entities_raw) if entities_raw else None,
-        extracted_time=(
-            datetime.fromtimestamp(time_raw, tz=UTC) if time_raw is not None else None
-        ),
+        extracted_time=(datetime.fromtimestamp(time_raw, tz=UTC) if time_raw is not None else None),
         extracted_location=row.get("extracted_location"),
         extracted_participants=(json.loads(participants_raw) if participants_raw else None),
         extraction_level=row.get("extraction_level", 0),

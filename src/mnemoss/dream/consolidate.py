@@ -202,8 +202,8 @@ def build_consolidate_prompt(cluster_members: list[Memory]) -> str:
             "on 2025-03-15.' Right: 'User visited the Metropolitan "
             "Museum of Art Ancient Civilizations exhibit on "
             "2025-04-22.' If the original member's content states "
-            "the date relative to a known anchor (\"last Sunday\", "
-            "\"three weeks ago\"), and you can resolve it from the "
+            'the date relative to a known anchor ("last Sunday", '
+            '"three weeks ago"), and you can resolve it from the '
             "[YYYY-MM-DD] prefix on the member, write the absolute "
             "date in the fact.",
             "",
@@ -522,7 +522,7 @@ def build_singleton_extraction_prompt(memory: Memory) -> str:
             "standalone, self-contained propositional facts asserted "
             "in it. The [YYYY-MM-DD] prefix is the date the memory "
             "was created — use it to resolve relative time expressions "
-            "in the content (\"last Sunday\", \"three weeks ago\") to "
+            'in the content ("last Sunday", "three weeks ago") to '
             "absolute dates.",
             "",
             f"[{stamp} {role}] {memory.content}",

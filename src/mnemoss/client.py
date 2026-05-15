@@ -411,13 +411,18 @@ class Mnemoss:
         Stage 2 surfaces this as a direct call; Stage 4 will call the same
         function from the Dreaming P7 phase. Runs entirely on metadata —
         content, embeddings, and relations are untouched.
+
+        When ``FormulaParams.adaptive_tier_caps`` is enabled, this call
+        also runs the adaptive-caps controller step (``maybe_adjust_caps``)
+        before bucketing — the effective caps used for this rebalance and
+        future ones may differ from the seed ``TierCapacityParams``. See
+        ``status().adaptive_caps`` for the current effective caps and
+        telemetry-window state.
         """
 
         await self._ensure_open()
         assert self._store is not None
-        stats = await _rebalance(
-            self._store, self._config.formula, self._config.tier_capacity
-        )
+        stats = await _rebalance(self._store, self._config.formula, self._config.tier_capacity)
         self._last_rebalance_at = datetime.now(UTC)
         _log.info(
             "rebalance",
@@ -579,9 +584,7 @@ class Mnemoss:
             "winners": {"hot": 0, "warm": 0, "cold": 0, "deep": 0},
         }
         if self._tier_ledger is not None:
-            adaptive_block = self._tier_ledger.snapshot(
-                self._config.tier_capacity
-            )
+            adaptive_block = self._tier_ledger.snapshot(self._config.tier_capacity)
 
         return {
             "workspace": self._config.workspace,
@@ -682,9 +685,7 @@ class Mnemoss:
             )
             self._working.append(chunk_memory.agent_id, chunk_memory.id)
 
-    async def _mark_semantic_supersession(
-        self, new_memory: Any, embedding: Any
-    ) -> None:
+    async def _mark_semantic_supersession(self, new_memory: Any, embedding: Any) -> None:
         """Mark any existing near-duplicate memory as superseded by ``new_memory``.
 
         No-op when ``encoder.supersede_on_observe`` is False. Otherwise

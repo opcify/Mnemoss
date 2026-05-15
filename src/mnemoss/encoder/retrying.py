@@ -94,16 +94,12 @@ class RetryingEmbedder:
         if base_delay_seconds <= 0:
             raise ValueError("base_delay_seconds must be > 0")
         if max_delay_seconds < base_delay_seconds:
-            raise ValueError(
-                "max_delay_seconds must be >= base_delay_seconds"
-            )
+            raise ValueError("max_delay_seconds must be >= base_delay_seconds")
         self._inner = inner
         self._max_retries = max_retries
         self._base_delay = base_delay_seconds
         self._max_delay = max_delay_seconds
-        self._retryable: tuple[type[BaseException], ...] = (
-            _DEFAULT_RETRYABLE + retry_on
-        )
+        self._retryable: tuple[type[BaseException], ...] = _DEFAULT_RETRYABLE + retry_on
         self._sleep = sleep
 
     # Passthrough identity so the store's schema pin matches the

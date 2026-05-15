@@ -154,9 +154,7 @@ async def dispose_pass(
     return stats
 
 
-def _is_protected(
-    memory: Memory, now: datetime, pinned: set[str], min_age_days: int
-) -> bool:
+def _is_protected(memory: Memory, now: datetime, pinned: set[str], min_age_days: int) -> bool:
     if memory.id in pinned:
         return True
     if memory.salience > SALIENCE_FLOOR:

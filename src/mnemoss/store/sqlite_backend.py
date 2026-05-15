@@ -120,9 +120,7 @@ class SQLiteBackend:
 
     async def _run(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            self._executor, functools.partial(fn, *args, **kwargs)
-        )
+        return await loop.run_in_executor(self._executor, functools.partial(fn, *args, **kwargs))
 
     # ─── open / close ─────────────────────────────────────────────────
 
@@ -182,9 +180,7 @@ class SQLiteBackend:
             self._validate_meta(conn)
 
         self._conn = conn
-        self._memory_columns = [
-            row[1] for row in conn.execute("PRAGMA table_info(memory)")
-        ]
+        self._memory_columns = [row[1] for row in conn.execute("PRAGMA table_info(memory)")]
 
         raw_is_new = not self._raw_log_path.exists()
         raw_conn = apsw.Connection(str(self._raw_log_path))
@@ -221,9 +217,7 @@ class SQLiteBackend:
             return
 
         # Start the index sized to current workspace; grows on demand.
-        n_rows = int(
-            conn.execute("SELECT COUNT(*) FROM memory_vec").fetchone()[0]
-        )
+        n_rows = int(conn.execute("SELECT COUNT(*) FROM memory_vec").fetchone()[0])
         initial_capacity = max(1024, n_rows * 2)
         self._ann = ANNIndex(
             dim=self._embedding_dim,
@@ -239,9 +233,7 @@ class SQLiteBackend:
         # single struct.unpack per row.
         batch_ids: list[str] = []
         batch_emb: list[np.ndarray] = []
-        for mid, blob in conn.execute(
-            "SELECT memory_id, embedding FROM memory_vec"
-        ):
+        for mid, blob in conn.execute("SELECT memory_id, embedding FROM memory_vec"):
             vec = np.array(
                 struct.unpack(f"{self._embedding_dim}f", bytes(blob)),
                 dtype=np.float32,
@@ -361,9 +353,7 @@ class SQLiteBackend:
         and every edge in ``relation`` / ``pin``. Raw Log is untouched."""
 
         async with self._write_lock:
-            await self._run(
-                _memory_ops.delete_memory_completely, self._require_conn(), memory_id
-            )
+            await self._run(_memory_ops.delete_memory_completely, self._require_conn(), memory_id)
             if self._ann is not None:
                 await self._run(self._ann.remove, memory_id)
 
@@ -433,13 +423,9 @@ class SQLiteBackend:
 
     async def reconsolidate(self, memory_id: str, now: datetime) -> None:
         async with self._write_lock:
-            await self._run(
-                _memory_ops.reconsolidate, self._require_conn(), memory_id, now
-            )
+            await self._run(_memory_ops.reconsolidate, self._require_conn(), memory_id, now)
 
-    async def mark_superseded(
-        self, old_id: str, new_id: str, at: datetime
-    ) -> None:
+    async def mark_superseded(self, old_id: str, new_id: str, at: datetime) -> None:
         """Mark an existing memory as superseded by a newer one.
 
         Used by the contradiction-aware observe path. ``old_id`` stays
@@ -467,9 +453,7 @@ class SQLiteBackend:
         """
 
         async with self._write_lock:
-            await self._run(
-                _memory_ops.reminisce_to_warm, self._require_conn(), memory_id
-            )
+            await self._run(_memory_ops.reminisce_to_warm, self._require_conn(), memory_id)
 
     async def link_derived(self, parent_ids: Iterable[str], child_id: str) -> int:
         """Append ``child_id`` to each parent's ``derived_to`` list.
@@ -531,9 +515,7 @@ class SQLiteBackend:
 
         return await self._run(_memory_ops.iter_memory_ids, self._require_conn())
 
-    async def list_recent_in_session(
-        self, session_id: str, limit: int
-    ) -> list[str]:
+    async def list_recent_in_session(self, session_id: str, limit: int) -> list[str]:
         """Recent memory IDs in a session, newest first."""
 
         return await self._run(
@@ -543,17 +525,13 @@ class SQLiteBackend:
             limit,
         )
 
-    async def get_embeddings(
-        self, memory_ids: Iterable[str]
-    ) -> dict[str, np.ndarray]:
+    async def get_embeddings(self, memory_ids: Iterable[str]) -> dict[str, np.ndarray]:
         """``{memory_id: embedding}`` for every requested id present.
 
         Missing ids are omitted from the result. Used by P2 Cluster.
         """
 
-        return await self._run(
-            _memory_ops.get_embeddings, self._require_conn(), list(memory_ids)
-        )
+        return await self._run(_memory_ops.get_embeddings, self._require_conn(), list(memory_ids))
 
     async def tier_counts(self) -> dict[IndexTier, int]:
         """``{tier: count}`` across every tier, including empty ones."""
@@ -583,9 +561,7 @@ class SQLiteBackend:
     async def cluster_size(self, cluster_id: str) -> int:
         """Number of memories currently registered in ``cluster_id``."""
 
-        return await self._run(
-            _memory_ops.cluster_size, self._require_conn(), cluster_id
-        )
+        return await self._run(_memory_ops.cluster_size, self._require_conn(), cluster_id)
 
     async def vec_search(
         self,
@@ -692,16 +668,10 @@ class SQLiteBackend:
             )
 
     async def fan_out(self, memory_ids: Iterable[str]) -> dict[str, int]:
-        return await self._run(
-            _graph_ops.fan_out, self._require_conn(), list(memory_ids)
-        )
+        return await self._run(_graph_ops.fan_out, self._require_conn(), list(memory_ids))
 
-    async def relations_from(
-        self, memory_ids: Iterable[str]
-    ) -> dict[str, set[str]]:
-        return await self._run(
-            _graph_ops.relations_from, self._require_conn(), list(memory_ids)
-        )
+    async def relations_from(self, memory_ids: Iterable[str]) -> dict[str, set[str]]:
+        return await self._run(_graph_ops.relations_from, self._require_conn(), list(memory_ids))
 
     async def expand_via_relations(
         self,
@@ -736,14 +706,10 @@ class SQLiteBackend:
 
     async def pin(self, memory_id: str, agent_id: str | None) -> None:
         async with self._write_lock:
-            await self._run(
-                _graph_ops.pin, self._require_conn(), memory_id, agent_id
-            )
+            await self._run(_graph_ops.pin, self._require_conn(), memory_id, agent_id)
 
     async def is_pinned(self, memory_id: str, agent_id: str | None) -> bool:
-        return await self._run(
-            _graph_ops.is_pinned, self._require_conn(), memory_id, agent_id
-        )
+        return await self._run(_graph_ops.is_pinned, self._require_conn(), memory_id, agent_id)
 
     async def pinned_any(self, memory_ids: Iterable[str]) -> set[str]:
         """Subset of ``memory_ids`` pinned by *any* agent.
@@ -752,13 +718,9 @@ class SQLiteBackend:
         so a per-agent pin counts for the memory's tier decision.
         """
 
-        return await self._run(
-            _graph_ops.pinned_any, self._require_conn(), list(memory_ids)
-        )
+        return await self._run(_graph_ops.pinned_any, self._require_conn(), list(memory_ids))
 
-    async def pinned_by_agent(
-        self, memory_ids: Iterable[str], agent_id: str | None
-    ) -> set[str]:
+    async def pinned_by_agent(self, memory_ids: Iterable[str], agent_id: str | None) -> set[str]:
         """Subset of ``memory_ids`` pinned *by this agent*.
 
         Per-agent pin semantics — matches ``is_pinned(id, agent_id)``
@@ -780,9 +742,7 @@ class SQLiteBackend:
         matches that agent's pins *plus* ambient pins.
         """
 
-        return await self._run(
-            _graph_ops.pinned_ids_in_scope, self._require_conn(), agent_id
-        )
+        return await self._run(_graph_ops.pinned_ids_in_scope, self._require_conn(), agent_id)
 
     # ─── tombstones ──────────────────────────────────────────────────
 
@@ -790,9 +750,7 @@ class SQLiteBackend:
         """Persist a disposal record."""
 
         async with self._write_lock:
-            await self._run(
-                _graph_ops.write_tombstone, self._require_conn(), tombstone
-            )
+            await self._run(_graph_ops.write_tombstone, self._require_conn(), tombstone)
 
     async def list_tombstones(
         self, *, agent_id: str | None = None, limit: int = 100
@@ -803,9 +761,7 @@ class SQLiteBackend:
         agent's + ambient; ``None`` returns ambient-only.
         """
 
-        return await self._run(
-            _graph_ops.list_tombstones, self._require_conn(), agent_id, limit
-        )
+        return await self._run(_graph_ops.list_tombstones, self._require_conn(), agent_id, limit)
 
     async def count_tombstones(self) -> int:
         """Count of tombstone rows across the whole workspace."""
@@ -816,9 +772,7 @@ class SQLiteBackend:
 
     async def write_raw_message(self, msg: RawMessage) -> None:
         async with self._write_lock:
-            await self._run(
-                _raw_log_ops.write_raw_message, self._require_raw_conn(), msg
-            )
+            await self._run(_raw_log_ops.write_raw_message, self._require_raw_conn(), msg)
 
     # ─── helpers ─────────────────────────────────────────────────────
 

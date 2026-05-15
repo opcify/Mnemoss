@@ -205,8 +205,7 @@ class RecallEngine:
         # Skipping FTS removes a linear-in-N trigram scan per tier.
         # Opt-in via ``FormulaParams.skip_fts_when_no_literal_markers``.
         skip_fts = (
-            self._params.skip_fts_when_no_literal_markers
-            and compute_query_bias(query) == 1.0
+            self._params.skip_fts_when_no_literal_markers and compute_query_bias(query) == 1.0
         )
 
         # Auto-include DEEP when the query has a temporal-distance marker.
@@ -465,7 +464,7 @@ class RecallEngine:
         mem_by_id = {m.id: m for m in memories}
 
         results: list[RecallResult] = []
-        for mid, score, cos, pri in combined[: k]:
+        for mid, score, cos, pri in combined[:k]:
             memory = mem_by_id.get(mid)
             if memory is None:
                 continue
@@ -583,9 +582,7 @@ class RecallEngine:
         min_cos = self._params.cascade_min_cosine
 
         for tier in tier_plan:
-            hits = await self._store.vec_search(
-                query_vec, over_scan, agent_id, tier_filter={tier}
-            )
+            hits = await self._store.vec_search(query_vec, over_scan, agent_id, tier_filter={tier})
             tiers_scanned.append(tier)
             for mid, cos in hits:
                 # First-write-wins: a memory could appear in multiple
@@ -644,9 +641,7 @@ class RecallEngine:
                 query_bias=1.0,
             )
             results.append(
-                RecallResult(
-                    memory=memory, score=cos, breakdown=breakdown, source="direct"
-                )
+                RecallResult(memory=memory, score=cos, breakdown=breakdown, source="direct")
             )
 
         reminiscence_count = 0
@@ -676,9 +671,7 @@ class RecallEngine:
         # reconsolidation block above may have mutated DEEP→WARM.
         self._record_tier_telemetry(
             winner_tiers=[
-                candidate_tier[r.memory.id]
-                for r in results
-                if r.memory.id in candidate_tier
+                candidate_tier[r.memory.id] for r in results if r.memory.id in candidate_tier
             ],
             elapsed_ms=(time.perf_counter() - t_start) * 1000.0,
             reminiscence=reminiscence_count,
@@ -772,9 +765,7 @@ class RecallEngine:
         memory = await self._store.get_memory(memory_id)
         if memory is None:
             return None
-        query_vec = (
-            await asyncio.to_thread(embed_query_or_embed, self._embedder, [query])
-        )[0]
+        query_vec = (await asyncio.to_thread(embed_query_or_embed, self._embedder, [query]))[0]
         cos_hits = await self._store.vec_search(query_vec, k=200, agent_id=agent_id)
         fts_hits = await self._store.fts_search(query, k=200, agent_id=agent_id)
         cos_by_id = dict(cos_hits)

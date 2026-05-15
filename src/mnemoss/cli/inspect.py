@@ -115,8 +115,7 @@ def _render_human(status: dict[str, Any], tombstones: list[Any]) -> str:
         for t in tombstones[:20]:
             when = t.dropped_at.isoformat(timespec="seconds")
             tomb_lines.append(
-                f"  {t.original_id}  {when}  {t.reason:<18}  "
-                f"{(t.gist_snapshot or '')[:40]!r}"
+                f"  {t.original_id}  {when}  {t.reason:<18}  {(t.gist_snapshot or '')[:40]!r}"
             )
         sections.append("\n".join(tomb_lines))
 
@@ -150,9 +149,7 @@ async def _run(args: argparse.Namespace) -> int:
             _print_filesystem_only(args.workspace, root)
             return 0
 
-        tombstones = (
-            await mem.tombstones(limit=50) if args.tombstones else []
-        )
+        tombstones = await mem.tombstones(limit=50) if args.tombstones else []
     finally:
         await mem.close()
 
